@@ -7,6 +7,7 @@ import type {
   SeasonStat,
   SquadPlayer,
   TeamMatch,
+  TeamMatchStats,
   TeamRef,
   TeamSeason,
   TeamStanding,
@@ -62,7 +63,7 @@ const record = (w: number, d: number, l: number, gf: number, ga: number) => ({
 
 export const standings: TeamStanding[] = [
   { rank: 1, team: ALTO, record: record(2, 1, 0, 5, 2) },
-  { rank: 2, team: RJ, record: record(1, 1, 1, 4, 4) },
+  { rank: 2, team: RJ, record: record(1, 2, 1, 4, 4) },
   { rank: 3, team: VEGA, record: record(1, 0, 2, 3, 4) },
   { rank: 4, team: BRAVO, record: record(0, 2, 1, 2, 4) },
 ];
@@ -154,37 +155,74 @@ const summary = (
   score: score && { home: score[0], away: score[1] },
 });
 
+/** Team stats of one side of a match; `null` xG means not collected. */
+const side = (
+  possession: number,
+  shots: number,
+  shotsOnTarget: number,
+  xg: number | null,
+  corners: number,
+): TeamMatchStats => ({
+  possession: { value: possession },
+  shots: { value: shots },
+  shotsOnTarget: { value: shotsOnTarget },
+  xg: xg === null ? { value: null, reason: "not_collected" } : { value: xg },
+  corners: { value: corners },
+  fouls: { value: 11 },
+  yellowCards: { value: 2 },
+  redCards: { value: 0 },
+});
+
 const rjMatch = (
   round: number,
-  side: "home" | "away",
+  venue: "home" | "away",
   opponent: TeamRef,
   status: MatchStatus,
   score: [number, number] | null,
   result: TeamMatch["result"],
+  teamStats: TeamMatch["teamStats"] = null,
 ): TeamMatch => ({
   match: summary(
     round,
-    side === "home" ? RJ : opponent,
-    side === "home" ? opponent : RJ,
+    venue === "home" ? RJ : opponent,
+    venue === "home" ? opponent : RJ,
     status,
     score,
   ),
-  side,
+  side: venue,
   opponent,
   result,
-  teamStats: null,
+  teamStats,
 });
 
+/**
+ * Real Jaén: four finished matches (rounds 1, 2, 3 and 6), round 4 postponed
+ * and round 5 scheduled, so «last 3» is rounds 2, 3 and 6 whatever
+ * `currentRound` says. Round 2 has no xG.
+ */
 export const rjSeason: TeamSeason = {
   season: competitions[0].seasons[0],
   team: RJ,
   standing: standings[1],
   matches: [
-    rjMatch(1, "home", ALTO, "finished", [2, 1], "win"),
-    rjMatch(2, "away", VEGA, "finished", [1, 1], "draw"),
-    rjMatch(3, "home", BRAVO, "finished", [1, 2], "loss"),
+    rjMatch(1, "home", ALTO, "finished", [2, 1], "win", {
+      own: side(55, 12, 5, 1.5, 6),
+      opponent: side(45, 8, 3, 0.9, 3),
+    }),
+    rjMatch(2, "away", VEGA, "finished", [1, 1], "draw", {
+      own: side(48, 10, 4, null, 4),
+      opponent: side(52, 11, 4, null, 5),
+    }),
+    rjMatch(3, "home", BRAVO, "finished", [1, 2], "loss", {
+      own: side(60, 14, 6, 1.2, 7),
+      opponent: side(40, 9, 5, 1.6, 2),
+    }),
     rjMatch(4, "away", ALTO, "postponed", null, null),
     rjMatch(5, "home", VEGA, "scheduled", null, null),
+    rjMatch(6, "away", BRAVO, "finished", [0, 0], "draw", {
+      own: side(49, 8, 3, 0.7, 3),
+      opponent: side(51, 10, 4, 1.1, 4),
+    }),
   ],
   stats: {
     possession: full(52.4),

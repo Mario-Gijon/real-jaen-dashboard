@@ -52,12 +52,11 @@ afterEach(() => vi.unstubAllGlobals());
 async function openTeams() {
   render(<TeamsView />);
   await screen.findByRole("heading", { level: 2, name: "Real Jaén CF" });
-  await screen.findByText("Resumen");
+  await screen.findByRole("heading", { level: 3, name: "Rendimiento" });
 }
 
 const grid = () => screen.getByRole("group", { name: "Equipo" });
-const resultsTable = () =>
-  within(screen.getByRole("region", { name: "Partidos disputados" })).getByRole("table");
+const resultsTable = () => screen.getByRole("table", { name: "Partidos disputados" });
 
 describe("Equipos", () => {
   it("offers only competition and season, and selects Real Jaén by default", async () => {
@@ -119,57 +118,131 @@ describe("Equipos", () => {
     expect(screen.getByRole("table", { name: "Jugadores de la plantilla" })).toBeVisible();
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: "Rendimiento del equipo" })).toHaveFocus();
-    expect(screen.getByText("Evolución de resultados")).toBeVisible();
+    expect(screen.getByRole("heading", { level: 3, name: "Temporada" })).toBeVisible();
   });
 });
 
 describe("Rendimiento del equipo", () => {
-  it("summarises played, wins, draws, losses and goals", async () => {
+  const zone = (name: string) => screen.getByRole("region", { name });
+  /** The text of one indicator (value, label and any comparison). */
+  const indicator = (name: string) =>
+    zone("Rendimiento").querySelector(`[data-indicator="${name}"]`)!.closest("div")!;
+
+  it("shows three zones in order: Temporada, Rendimiento and Partidos", async () => {
     await openTeams();
-    const summary = screen.getByRole("region", { name: /Resumen/ });
-    const value = (abbr: string) =>
-      within(summary).getByTitle(abbr).closest("div")!.querySelector("dd");
-    expect(value("Partidos jugados")).toHaveTextContent("3");
-    expect(value("Victorias")).toHaveTextContent("1");
-    expect(value("Empates")).toHaveTextContent("1");
-    expect(value("Derrotas")).toHaveTextContent("1");
-    expect(value("Goles a favor")).toHaveTextContent("4");
-    expect(value("Goles en contra")).toHaveTextContent("4");
-    expect(summary).toHaveTextContent("2.º en la clasificación");
+    const zones = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(zones).toEqual(["Temporada", "Rendimiento", "Partidos"]);
   });
 
-  it("shows one result per finished match, with round, rival, venue and score", async () => {
+  it("TEMPORADA: position, points, balance and home/away from finished matches only", async () => {
+    await openTeams();
+    const season = zone("Temporada");
+    const value = (term: string) =>
+      within(season).getByText(term, { selector: "dt, abbr" }).closest("div")!.querySelector("dd");
+    expect(value("Clasificación")).toHaveTextContent("2.º");
+    expect(value("Puntos")).toHaveTextContent("5");
+    expect(
+      within(season).getByTitle("Partidos jugados").closest("div")!.querySelector("dd"),
+    ).toHaveTextContent("4");
+    expect(
+      within(season).getByTitle("Goles a favor").closest("div")!.querySelector("dd"),
+    ).toHaveTextContent("4");
+    expect(
+      within(season).getByTitle("Goles en contra").closest("div")!.querySelector("dd"),
+    ).toHaveTextContent("4");
+    // Postponed (away) and scheduled (home) matches are not counted.
+    expect(value("Casa")).toHaveTextContent(/^1V0E1D$/);
+    expect(value("Fuera")).toHaveTextContent(/^0V2E0D$/);
+  });
+
+  it("TEMPORADA: one result per finished match, with round, rival, venue and score", async () => {
     const user = userEvent.setup();
     await openTeams();
-    const results = screen.getByRole("list", { name: "Resultados por jornada" });
-    const chips = within(results).getAllByRole("button");
-    expect(chips.map((c) => c.textContent)).toEqual(["VJ1", "EJ2", "DJ3"]);
+    const chips = within(screen.getByRole("list", { name: "Resultados por jornada" })).getAllByRole(
+      "button",
+    );
+    expect(chips.map((c) => c.textContent)).toEqual(["VJ1", "EJ2", "DJ3", "EJ6"]);
     expect(chips[2]).toHaveAccessibleName("Jornada 3: Derrota 1-2 en casa contra Atlético Bravo");
     await user.click(chips[1]);
     expect(chips[1]).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("UD Vegaclara", { selector: "strong" })).toBeVisible();
   });
 
-  it("leaves postponed and scheduled matches out of the history (status decides, not dates)", async () => {
+  it("RENDIMIENTO · Temporada: per-match attack, defence and context over all finished matches", async () => {
     await openTeams();
-    const rows = within(resultsTable()).getAllByRole("row").slice(1);
-    expect(rows.map((r) => r.getAttribute("data-match-id"))).toEqual(["m-3", "m-2", "m-1"]);
-    expect(within(resultsTable()).queryByText(/aplazado|programado/i)).toBeNull();
-    expect(rows[0]).toHaveTextContent("D 1-2");
-    expect(rows[2]).toHaveTextContent("Local");
-    expect(rows[1]).toHaveTextContent("Visitante");
+    expect(screen.getByRole("button", { name: "Temporada" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(zone("Rendimiento")).toHaveTextContent("4 partidos");
+    const expected: [string, string][] = [
+      ["goals", "1,00"],
+      ["xg", "1,13*"],
+      ["shots", "11,0"],
+      ["shotsOnTarget", "4,5"],
+      ["goalsAgainst", "1,00"],
+      ["xgAgainst", "1,20*"],
+      ["shotsAgainst", "9,5"],
+      ["shotsOnTargetAgainst", "4,0"],
+      ["possession", "53,0 %"],
+      ["corners", "5,0"],
+    ];
+    for (const [name, text] of expected) expect(indicator(name), name).toHaveTextContent(text);
+    expect(zone("Rendimiento")).not.toHaveTextContent("vs temporada");
+    expect(zone("Rendimiento")).not.toHaveTextContent(/Faltas|Amarillas|Rojas|Tarjetas/);
+    expect(within(indicator("xg")).getByTitle("Media de 3 de 4 partidos")).toBeInTheDocument();
+    expect(zone("Rendimiento")).toHaveTextContent("Media solo de los partidos con dato.");
   });
 
-  it("shows «—» for missing stats and flags a partial total", async () => {
+  it("RENDIMIENTO · Últimos 3: the three latest finished matches, compared with the season", async () => {
+    const user = userEvent.setup();
     await openTeams();
-    const stats = screen.getByRole("region", { name: "Estadísticas de la temporada" });
-    const value = (label: string) =>
-      within(stats).getByText(label).closest("div")!.querySelector("dd")!;
-    expect(value("Faltas")).toHaveTextContent("—");
-    expect(value("Rojas")).toHaveTextContent("0");
-    expect(value("xG")).toHaveTextContent("3,10*");
-    expect(within(value("xG")).getByTitle("Dato de 2 de 3 partidos")).toBeInTheDocument();
-    expect(stats).toHaveTextContent("Total de los partidos con dato, no de toda la temporada.");
+    await user.click(screen.getByRole("button", { name: "Últimos 3" }));
+    expect(screen.getByRole("button", { name: "Últimos 3" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(zone("Rendimiento")).toHaveTextContent("Jornadas 2, 3, 6");
+    expect(indicator("goals")).toHaveTextContent("0,67");
+    expect(indicator("goals")).toHaveTextContent("−0,33 vs temporada");
+    expect(indicator("goalsAgainst")).toHaveTextContent("±0,00 vs temporada");
+    expect(indicator("shotsAgainst")).toHaveTextContent("10,0");
+    expect(indicator("shotsAgainst")).toHaveTextContent("+0,5 vs temporada");
+    // xG: 2 of 3 matches, and the comparison is flagged as partial.
+    expect(indicator("xg")).toHaveTextContent("0,95*");
+    expect(indicator("xg")).toHaveTextContent("−0,18 vs temporada*");
+    expect(
+      within(indicator("xg")).getByTitle("Comparación con datos parciales"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Temporada" }));
+    expect(indicator("goals")).toHaveTextContent("1,00");
+    expect(zone("Rendimiento")).not.toHaveTextContent("vs temporada");
+  });
+
+  it("PARTIDOS: full history of finished matches; Últimos 3 only highlights its three", async () => {
+    const user = userEvent.setup();
+    await openTeams();
+    const rows = () => within(resultsTable()).getAllByRole("row").slice(1);
+    const highlighted = () =>
+      rows()
+        .filter((r) => r.hasAttribute("data-in-period"))
+        .map((r) => r.getAttribute("data-match-id"));
+    expect(rows().map((r) => r.getAttribute("data-match-id"))).toEqual([
+      "m-6",
+      "m-3",
+      "m-2",
+      "m-1",
+    ]);
+    expect(highlighted()).toEqual([]);
+    expect(rows()[1]).toHaveTextContent("D 1-2");
+    expect(rows()[1]).toHaveTextContent("Local");
+    expect(rows()[0]).toHaveTextContent("Visitante");
+
+    await user.click(screen.getByRole("button", { name: "Últimos 3" }));
+    expect(rows()).toHaveLength(4);
+    expect(highlighted()).toEqual(["m-6", "m-3", "m-2"]);
+    expect(rows()[0]).toHaveTextContent("(en «Últimos 3»)");
+    expect(zone("Partidos")).toHaveTextContent("Partidos de «Últimos 3»");
   });
 });
 

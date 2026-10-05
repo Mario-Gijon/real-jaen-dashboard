@@ -10,7 +10,7 @@ test("Equipos: Real Jaén by default, team change, tabs and player panel", async
   await page.goto("/teams");
   const grid = page.getByRole("group", { name: "Equipo" });
   await expect(page.getByRole("heading", { level: 2, name: "Real Jaén CF" })).toBeVisible();
-  await expect(page.getByText("Evolución de resultados")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Rendimiento" })).toBeVisible();
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("teams-performance.png"), fullPage: true });
 
@@ -53,4 +53,24 @@ test("Equipos: Real Jaén by default, team change, tabs and player panel", async
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
   await expect(first).toBeFocused();
+});
+
+test("Rendimiento: Temporada and Últimos 3 with the three matches highlighted", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/teams");
+  const output = page.getByRole("region", { name: "Rendimiento" });
+  await expect(output.getByRole("region", { name: "Ataque" })).toBeVisible();
+  await expect(output.getByRole("region", { name: "Defensa" })).toBeVisible();
+  await expect(output).not.toContainText("vs temporada");
+  await page.screenshot({ path: testInfo.outputPath("rendimiento-temporada.png"), fullPage: true });
+
+  await output.getByRole("button", { name: "Últimos 3" }).click();
+  await expect(output).toContainText("vs temporada");
+  const history = page.getByRole("table", { name: "Partidos disputados" });
+  await expect(history.locator("tbody tr")).toHaveCount(13);
+  await expect(history.locator("tbody tr[data-in-period]")).toHaveCount(3);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: testInfo.outputPath("rendimiento-ultimos3.png"), fullPage: true });
 });

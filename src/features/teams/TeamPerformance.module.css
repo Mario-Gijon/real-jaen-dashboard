@@ -1,80 +1,164 @@
 .performance {
   display: grid;
-  gap: var(--rj-space-6);
   min-width: 0;
-}
-.performance > section {
-  min-width: 0;
-}
-.heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--rj-space-2) var(--rj-space-3);
-  margin-bottom: var(--rj-space-2);
-  color: var(--rj-text-secondary);
-  font-size: var(--rj-text-xs);
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.heading span {
-  color: var(--rj-purple-900);
-  font-size: var(--rj-text-sm);
-  letter-spacing: 0;
-  text-transform: none;
 }
 
-/* Summary: one football-style strip, not separate cards. */
-.summary {
+/* Three zones: a strong title and a full-width divider, no nested cards. */
+.zone {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  max-width: 640px;
+  gap: var(--rj-space-4);
+  min-width: 0;
+  padding: var(--rj-space-6) 0;
+}
+.zone:first-child {
+  padding-top: var(--rj-space-2);
+}
+.zone + .zone {
+  border-top: 1px solid var(--rj-border-strong);
+}
+.zone:last-child {
+  padding-bottom: 0;
+}
+.zoneHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rj-space-2) var(--rj-space-4);
+}
+.zoneTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--rj-space-2);
+  color: var(--rj-purple-900);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.zoneTitle::before {
+  content: "";
+  width: 4px;
+  height: 1.1em;
+  border-radius: 2px;
+  background: var(--rj-gold-600);
+}
+
+/* TEMPORADA ─────────────────────────────────────────────────────────────── */
+.standing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--rj-space-3) var(--rj-space-6);
+}
+.lead,
+.balance,
+.venues {
   margin: 0;
+}
+.lead {
+  display: flex;
+  gap: var(--rj-space-5);
+}
+.lead > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.lead dt {
+  order: 2;
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+  font-weight: 700;
+}
+.lead dd {
+  order: 1;
+  margin: 0;
+  color: var(--rj-purple-900);
+  font-size: 2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.balance {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(44px, 1fr));
+  width: min(100%, 400px);
   border: 1px solid var(--rj-border-default);
   border-radius: var(--rj-radius-sm);
   background: var(--rj-bg-card);
   overflow: hidden;
 }
-.summary > div {
+.balance > div {
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 2px;
   padding: var(--rj-space-2) var(--rj-space-1);
 }
-.summary > div + div {
+.balance > div + div {
   border-left: 1px solid var(--rj-border-default);
 }
-.summary dt {
+.balance dt {
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-xs);
   font-weight: 700;
 }
-.summary abbr {
+.balance abbr,
+.venues abbr {
   text-decoration: none;
 }
-.summary dd {
+.balance dd {
   margin: 0;
-  font-size: 1.375rem;
+  font-size: 1.25rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
-.summary [data-kind="V"] dd {
+.balance [data-kind="V"] dd {
   color: var(--rj-success);
 }
-.summary [data-kind="D"] dd {
+.balance [data-kind="D"] dd {
   color: var(--rj-danger);
 }
-.summary [data-kind="Pts"] {
-  background: var(--rj-purple-100);
+.venues {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  font-size: var(--rj-text-sm);
 }
-.summary [data-kind="Pts"] dd {
-  color: var(--rj-purple-900);
+.venues > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--rj-space-3);
+}
+.venues dt {
+  width: 3.2em;
+  color: var(--rj-text-secondary);
+  font-weight: 700;
+}
+.venues dd {
+  display: flex;
+  gap: var(--rj-space-3);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.venues dd span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.venues dd abbr {
+  color: var(--rj-text-muted);
+  font-size: var(--rj-text-xs);
+  font-weight: 700;
 }
 
-/* Results: one chip per finished match, in round order. */
+/* Results: part of TEMPORADA, so no title of its own. */
 .form {
+  display: grid;
+  gap: var(--rj-space-2);
+}
+.chips {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -130,7 +214,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--rj-space-2);
-  margin-top: var(--rj-space-2);
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-sm);
 }
@@ -164,41 +247,55 @@
   color: var(--rj-danger);
 }
 
-/* Season stats: dense label/value pairs. */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0 var(--rj-space-6);
-  margin: 0;
+/* RENDIMIENTO ───────────────────────────────────────────────────────────── */
+.periods {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--rj-border-strong);
+  border-radius: var(--rj-radius-pill);
+  background: var(--rj-bg-card);
 }
-.stats > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--rj-space-2);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--rj-border-default);
-}
-.stats dt {
+.periods button {
+  min-height: 32px;
+  padding: 0 var(--rj-space-3);
+  border: 0;
+  border-radius: var(--rj-radius-pill);
+  background: none;
   color: var(--rj-text-secondary);
-  font-size: var(--rj-text-sm);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
 }
-.stats dd {
-  margin: 0;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+.periods button:hover {
+  color: var(--rj-purple-900);
 }
-.note {
-  margin-top: var(--rj-space-2);
-  color: var(--rj-text-secondary);
+.periods button[aria-pressed="true"] {
+  background: var(--rj-purple-700);
+  color: #fff;
+}
+.periodNote {
+  color: var(--rj-text-muted);
   font-size: var(--rj-text-xs);
-}
-.note sup {
-  color: var(--rj-warning);
-  font-weight: 800;
+  font-weight: 600;
 }
 
-/* Finished matches. */
+/* PARTIDOS ──────────────────────────────────────────────────────────────── */
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+  font-weight: 600;
+}
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--rj-purple-100);
+  box-shadow: inset 3px 0 0 var(--rj-purple-700);
+}
 .scroll {
   max-width: 100%;
   overflow-x: auto;
@@ -229,6 +326,12 @@
 }
 .table tbody tr:hover {
   background: var(--rj-bg-hover);
+}
+.table tbody tr[data-in-period] {
+  background: var(--rj-purple-100);
+}
+.table tbody tr[data-in-period] > td:first-child {
+  box-shadow: inset 3px 0 0 var(--rj-purple-700);
 }
 .num {
   font-weight: 800;
@@ -265,14 +368,32 @@
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-sm);
 }
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 
 @media (max-width: 640px) {
-  .summary dd {
-    font-size: 1.125rem;
+  .zone {
+    gap: var(--rj-space-3);
+    padding: var(--rj-space-5) 0;
   }
-  .stats {
-    grid-template-columns: 1fr 1fr;
-    gap: 0 var(--rj-space-4);
+  .standing {
+    gap: var(--rj-space-3) var(--rj-space-5);
+  }
+  .lead dd {
+    font-size: 1.75rem;
+  }
+  .balance {
+    order: 3;
+    width: 100%;
+  }
+  .balance dd {
+    font-size: 1.125rem;
   }
   .table {
     min-width: 0;
