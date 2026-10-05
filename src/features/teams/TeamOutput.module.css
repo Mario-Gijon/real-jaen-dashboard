@@ -98,14 +98,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--rj-space-2) var(--rj-space-6);
-  padding: var(--rj-space-3) var(--rj-space-5);
+  gap: var(--rj-space-1) var(--rj-space-6);
+  padding: var(--rj-space-2) var(--rj-space-5);
   border-top: 1px solid var(--rj-border-default);
 }
 .context dl {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--rj-space-2) var(--rj-space-6);
+  gap: var(--rj-space-1) var(--rj-space-6);
 }
 .context dl > div {
   display: flex;
@@ -145,7 +145,7 @@
   font-weight: 800;
 }
 .note {
-  padding: 0 var(--rj-space-5) var(--rj-space-3);
+  padding: 0 var(--rj-space-5) var(--rj-space-2);
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-xs);
 }
@@ -165,7 +165,10 @@
     font-size: 1.625rem;
   }
   .context {
-    padding: var(--rj-space-3) var(--rj-space-4);
+    padding: var(--rj-space-2) var(--rj-space-4);
+  }
+  .context dl {
+    gap: 2px var(--rj-space-4);
   }
   .note {
     padding-inline: var(--rj-space-4);

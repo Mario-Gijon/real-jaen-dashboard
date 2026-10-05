@@ -161,11 +161,14 @@ describe("Rendimiento del equipo", () => {
     const chips = within(screen.getByRole("list", { name: "Resultados por jornada" })).getAllByRole(
       "button",
     );
-    expect(chips.map((c) => c.textContent)).toEqual(["VJ1", "EJ2", "DJ3", "EJ6"]);
+    // Only the letter on each chip; the round lives in its label and in the detail line.
+    expect(chips.map((c) => c.textContent)).toEqual(["V", "E", "D", "E"]);
     expect(chips[2]).toHaveAccessibleName("Jornada 3: Derrota 1-2 en casa contra Atlético Bravo");
     await user.click(chips[1]);
     expect(chips[1]).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("UD Vegaclara", { selector: "strong" })).toBeVisible();
+    const detail = screen.getByText("UD Vegaclara", { selector: "strong" }).closest("p")!;
+    for (const text of ["J2", "Visitante", "UD Vegaclara", "E 1-1"])
+      expect(detail).toHaveTextContent(text);
   });
 
   it("RENDIMIENTO · Temporada: per-match attack, defence and context over all finished matches", async () => {
@@ -174,7 +177,10 @@ describe("Rendimiento del equipo", () => {
       "aria-pressed",
       "true",
     );
-    expect(zone("Rendimiento")).toHaveTextContent("4 partidos");
+    // The header holds only the title and the period selector, no match count.
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Rendimiento" }).parentElement,
+    ).toHaveTextContent(/^RendimientoTemporadaÚltimos 3$/);
     const expected: [string, string][] = [
       ["goals", "1,00"],
       ["xg", "1,13*"],
@@ -202,7 +208,7 @@ describe("Rendimiento del equipo", () => {
       "aria-pressed",
       "true",
     );
-    expect(zone("Rendimiento")).toHaveTextContent("Jornadas 2, 3, 6");
+    expect(zone("Rendimiento")).not.toHaveTextContent("Jornadas");
     expect(indicator("goals")).toHaveTextContent("0,67");
     expect(indicator("goals")).toHaveTextContent("−0,33 vs temporada");
     expect(indicator("goalsAgainst")).toHaveTextContent("±0,00 vs temporada");

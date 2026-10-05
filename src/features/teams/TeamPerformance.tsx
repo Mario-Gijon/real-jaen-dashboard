@@ -77,11 +77,6 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
               </button>
             ))}
           </div>
-          <p className={css.periodNote}>
-            {period === "season"
-              ? `${played.length} ${played.length === 1 ? "partido" : "partidos"}`
-              : `Jornadas ${inPeriod.map((m) => m.match.round).join(", ")}`}
-          </p>
         </header>
         {played.length ? (
           <TeamOutput period={period} periodMatches={inPeriod} seasonMatches={played} />
@@ -247,7 +242,6 @@ function SeasonZone({ season, played }: { season: TeamSeason; played: readonly T
                   type="button"
                 >
                   <span className={css.letter}>{RESULT[m.result!].letter}</span>
-                  <span className={css.round}>J{m.match.round}</span>
                 </button>
               </li>
             ))}

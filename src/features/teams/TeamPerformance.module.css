@@ -161,17 +161,15 @@
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .chip {
   display: grid;
-  justify-items: center;
-  gap: 1px;
-  width: 36px;
-  padding: 3px 0 2px;
+  place-items: center;
+  padding: 3px;
   border: 0;
   border-radius: 7px;
   background: none;
@@ -203,11 +201,6 @@
 }
 .chip[data-result="loss"] .letter {
   background: var(--rj-danger);
-}
-.round {
-  color: var(--rj-text-muted);
-  font-size: 10px;
-  font-weight: 700;
 }
 .detail {
   display: flex;
@@ -273,11 +266,6 @@
 .periods button[aria-pressed="true"] {
   background: var(--rj-purple-700);
   color: #fff;
-}
-.periodNote {
-  color: var(--rj-text-muted);
-  font-size: var(--rj-text-xs);
-  font-weight: 600;
 }
 
 /* PARTIDOS ──────────────────────────────────────────────────────────────── */
