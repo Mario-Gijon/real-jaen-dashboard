@@ -29,7 +29,7 @@ DataSource (src/server)  ──►  fuente de datos (hoy: sintética)
 | `src/ui` | Tokens visuales, base y componentes compartidos |
 | `src/features/{matches,teams,players}` | Componentes de cada área |
 | `data/synthetic` | Temporada ficticia (sólo la lee el adaptador sintético) |
-| `scripts` | Utilidades de desarrollo, como el generador de datos sintéticos |
+| `scripts` | Generador de la temporada sintética (`npm run data:generate`) |
 
 **Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
 ESLint (`no-restricted-imports`) y lo comprueba `src/architecture.test.ts`.
@@ -47,12 +47,57 @@ Las métricas distinguen siempre tres casos y nunca convierten una ausencia en c
 - `{ "value": null, "reason": "not_available" }`: la fuente no lo ofrece o no aplica;
 - `{ "value": null, "reason": "not_collected" }`: debería existir y aún no se ha recopilado.
 
+Los acumulados de temporada (`SeasonStat`) añaden su cobertura: `complete`, `partial`
+(sólo `matches` de `of` partidos tenían el dato, así que el total no es de toda la
+temporada) o `none` (con su `reason`).
+
+## API v1 (sólo lectura)
+
+| Endpoint | Devuelve |
+|---|---|
+| `GET /api/v1/source` | Si los datos son sintéticos (metainformación de la app) |
+| `GET /api/v1/competitions` | Competiciones con sus temporadas |
+| `GET /api/v1/seasons/{seasonId}/matches?round=&team=` | Partidos, filtrables por jornada y equipo |
+| `GET /api/v1/matches/{matchId}` | Ficha: alineaciones, eventos, estadísticas de equipo y jugador |
+| `GET /api/v1/seasons/{seasonId}/teams` | Equipos con su clasificación |
+| `GET /api/v1/seasons/{seasonId}/teams/{teamId}` | Temporada del equipo: partidos, acumulados y plantilla |
+| `GET /api/v1/players/{playerId}?season={seasonId}` | Temporada del jugador: ficha, acumulados y partidos |
+
+Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
+(`getSeasonMatches`, `getMatch`…) y nunca construyen URLs. Los errores tienen la forma
+`{ error: { code, message } }`, con `BAD_REQUEST` (400) o `NOT_FOUND` (404).
+
 ## Datos sintéticos
 
 En desarrollo la aplicación usa una temporada inventada (`DATA_SOURCE=synthetic`,
-valor por defecto). El Real Jaén CF es el club principal; rivales, jugadores,
-resultados y estadísticas son ficticios, y la interfaz lo indica con el aviso
-«Datos sintéticos».
+valor por defecto). El Real Jaén CF es el club principal; la competición («Liga de
+Demostración»), rivales, jugadores, resultados y estadísticas son ficticios, y la
+interfaz lo indica con el aviso «Datos sintéticos».
+
+- 20 equipos de 24 jugadores y un calendario de 38 jornadas a doble vuelta.
+- Jornadas 1–14 disputadas (el Real Jaén – rival de la 9 está aplazado); el resto, programadas.
+- Las 14 primeras jornadas del Real Jaén siguen un guion (`RJ_PLAN` en
+  `scripts/synthetic/generate.mts`) para que existan todos los casos que la interfaz debe
+  mostrar: victoria, empate y derrota en casa y fuera, 0-0, 4-3, penalti, gol en el
+  añadido, doble amarilla, cinco cambios, varias formaciones, rival sin formación conocida,
+  canterano sin estadísticas detalladas, partido con datos `not_collected`, xG `not_available`…
+
+```
+data/synthetic/
+  season.json            competición, temporada, equipos y plantillas
+  players.json           datos personales
+  rounds/round-NN.json   partidos de cada jornada (alineaciones, eventos, estadísticas)
+```
+
+Sólo `src/server/synthetic` conoce estos archivos. Se generan con semilla fija y se versionan:
+
+```bash
+npm run data:generate   # regenera data/synthetic desde scripts/synthetic
+```
+
+`src/server/synthetic/dataset.test.ts` falla si los archivos no coinciden con el generador
+y comprueba su coherencia interna (identificadores, plantillas, alineaciones, sustituciones,
+goles frente al marcador, minutos, estadísticas frente a eventos).
 
 ## Comandos
 

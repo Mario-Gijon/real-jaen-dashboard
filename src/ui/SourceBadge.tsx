@@ -2,7 +2,7 @@
 
 import { FlaskConical } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "@/client/api";
+import { getSource } from "@/client/api";
 import type { SourceInfo } from "@/contract";
 import css from "./AppShell.module.css";
 
@@ -14,8 +14,7 @@ export function SourceBadge() {
   const [source, setSource] = useState<SourceInfo | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    api
-      .source({ signal: controller.signal })
+    getSource({ signal: controller.signal })
       .then(setSource)
       .catch(() => {
         // Without an answer nothing is claimed about the data.
