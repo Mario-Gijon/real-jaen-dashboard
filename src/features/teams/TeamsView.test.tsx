@@ -248,7 +248,7 @@ describe("Rendimiento del equipo", () => {
     expect(rows()).toHaveLength(4);
     expect(highlighted()).toEqual(["m-6", "m-3", "m-2"]);
     expect(rows()[0]).toHaveTextContent("(en «Últimos 3»)");
-    expect(zone("Partidos")).toHaveTextContent("Partidos de «Últimos 3»");
+    expect(zone("Partidos")).not.toHaveTextContent("Partidos de «Últimos 3»");
   });
 });
 

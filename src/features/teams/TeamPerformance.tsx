@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MatchResult, TeamMatch, TeamSeason } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel, formatNumber } from "../format";
@@ -90,12 +90,6 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
           <h3 className={css.zoneTitle} id="zone-matches">
             Partidos
           </h3>
-          {period === "last3" ? (
-            <p className={css.legend}>
-              <span aria-hidden="true" className={css.swatch} />
-              Partidos de «Últimos 3»
-            </p>
-          ) : null}
         </header>
         {played.length ? (
           <div className={css.scroll}>
@@ -168,6 +162,13 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
 /** TEMPORADA: table position and record, home/away split and the result sequence. */
 function SeasonZone({ season, played }: { season: TeamSeason; played: readonly TeamMatch[] }) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  // When the sequence overflows, start at its end: the latest results.
+  const sequence = useRef<HTMLOListElement>(null);
+  const lastId = played.at(-1)?.match.id;
+  useEffect(() => {
+    const list = sequence.current;
+    if (list) list.scrollLeft = list.scrollWidth;
+  }, [lastId]);
   const active = played.find((m) => m.match.id === activeId) ?? played[played.length - 1];
   const { record, rank } = season.standing;
   const venues = venueRecord(season.matches);
@@ -227,7 +228,7 @@ function SeasonZone({ season, played }: { season: TeamSeason; played: readonly T
 
       {played.length ? (
         <div className={css.form}>
-          <ol aria-label="Resultados por jornada" className={css.chips}>
+          <ol aria-label="Resultados por jornada" className={css.chips} ref={sequence}>
             {played.map((m) => (
               <li key={m.match.id}>
                 <button

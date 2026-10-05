@@ -74,3 +74,23 @@ test("Rendimiento: Temporada and Últimos 3 with the three matches highlighted",
   await page.mouse.move(0, 0);
   await page.screenshot({ path: testInfo.outputPath("rendimiento-ultimos3.png"), fullPage: true });
 });
+
+test("Evolución: the result chips stay on one line and scroll sideways if needed", async ({
+  page,
+}) => {
+  await page.goto("/teams");
+  const sequence = page.getByRole("list", { name: "Resultados por jornada" });
+  const chips = sequence.getByRole("button");
+  await expect(chips).toHaveCount(13);
+  const first = (await chips.first().boundingBox())!;
+  const last = (await chips.last().boundingBox())!;
+  expect(Math.abs(first.y - last.y)).toBeLessThan(1);
+  // The latest result is in view and the detail line still follows the selection.
+  await expect(chips.last()).toBeInViewport();
+  await chips.first().focus();
+  await expect(chips.first()).toBeInViewport();
+  await expect(page.getByText("CF Peñalbar", { exact: true }).first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});

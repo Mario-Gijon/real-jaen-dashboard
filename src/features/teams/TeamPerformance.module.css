@@ -158,13 +158,24 @@
   display: grid;
   gap: var(--rj-space-2);
 }
+/* One line that scrolls sideways when it no longer fits; no visible scrollbar
+   (each chip is focusable, so the keyboard scrolls it into view). The small
+   padding keeps focus rings from being clipped. */
 .chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 2px;
-  margin: 0;
-  padding: 0;
+  margin: -3px;
+  padding: 3px;
+  overflow-x: auto;
   list-style: none;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+.chips > li {
+  flex: none;
 }
 .chip {
   display: grid;
@@ -269,21 +280,6 @@
 }
 
 /* PARTIDOS ──────────────────────────────────────────────────────────────── */
-.legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--rj-text-secondary);
-  font-size: var(--rj-text-xs);
-  font-weight: 600;
-}
-.swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  background: var(--rj-purple-100);
-  box-shadow: inset 3px 0 0 var(--rj-purple-700);
-}
 .scroll {
   max-width: 100%;
   overflow-x: auto;
