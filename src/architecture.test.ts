@@ -20,7 +20,8 @@ async function restrictedImports(filePath: string, code: string) {
 }
 
 /** The boundary UI → client → /api/v1 → DataSource is enforced by lint. */
-describe("architecture boundary", () => {
+// ESLint loads its whole config on the first lint: allow for a cold start under parallel tests.
+describe("architecture boundary", { timeout: 30_000 }, () => {
   it.each([
     ["src/features/matches/MatchList.tsx", 'import { getDataSource } from "@/server/data-source";'],
     [
