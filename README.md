@@ -51,6 +51,16 @@ Los acumulados de temporada (`SeasonStat`) añaden su cobertura: `complete`, `pa
 (sólo `matches` de `of` partidos tenían el dato, así que el total no es de toda la
 temporada) o `none` (con su `reason`).
 
+## Goles y tarjetas
+
+- Un evento `goal` lleva el jugador que lo realiza y su equipo (`teamId`). Si `ownGoal` es
+  `true`, el gol suma en el marcador del rival (`scoringSide` en `src/contract`), no tiene
+  asistencia, no es penalti y no cuenta en los `goals` del jugador.
+- Un evento `card` conserva la tarjeta real: `yellow`, `second_yellow` o `red`. Las
+  estadísticas se derivan así: `yellowCards` cuenta los eventos `yellow` y `redCards` los
+  `second_yellow` y `red`. Un expulsado por doble amarilla tiene `yellowCards: 1` y
+  `redCards: 1`.
+
 ## API v1 (sólo lectura)
 
 | Endpoint | Devuelve |
@@ -79,7 +89,7 @@ interfaz lo indica con el aviso «Datos sintéticos».
 - Las 14 primeras jornadas del Real Jaén siguen un guion (`RJ_PLAN` en
   `scripts/synthetic/generate.mts`) para que existan todos los casos que la interfaz debe
   mostrar: victoria, empate y derrota en casa y fuera, 0-0, 4-3, penalti, gol en el
-  añadido, doble amarilla, cinco cambios, varias formaciones, rival sin formación conocida,
+  añadido, gol en propia puerta, doble amarilla, cinco cambios, varias formaciones, rival sin formación conocida,
   canterano sin estadísticas detalladas, partido con datos `not_collected`, xG `not_available`…
 
 ```

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { datasetFiles, generateDataset } from "../../../scripts/synthetic/generate.mts";
+import { scoringSide } from "@/contract";
 import type { RawEvent, RawLineup, RawMatch } from "./raw";
 import { loadSyntheticDataset } from "./synthetic-source";
 
@@ -215,20 +216,23 @@ describe("synthetic dataset", () => {
     it(
       "has goals that add up to the score, scored and assisted by players on the pitch",
       eachFinished((match) => {
+        const goals = match.events.filter(
+          (e): e is Extract<RawEvent, { type: "goal" }> => e.type === "goal",
+        );
         for (const side of sides) {
-          const goals = match.events.filter(
-            (e): e is Extract<RawEvent, { type: "goal" }> =>
-              e.type === "goal" && e.teamId === teamOf(match, side),
-          );
-          expect(goals).toHaveLength(match.score![side]);
-          for (const goal of goals) {
-            const t = time(goal.minute, goal.addedTime);
-            expect(onPitch(match, side, goal.playerId, t)).toBe(true);
-            if (goal.assistId === null) continue;
-            expect(goal.assistId).not.toBe(goal.playerId);
-            expect(goal.penalty).toBe(false);
-            expect(onPitch(match, side, goal.assistId, t)).toBe(true);
-          }
+          // An own goal by the other side's player counts for this side.
+          const counted = goals.filter((g) => scoringSide(g, sideOf(match, g.teamId)) === side);
+          expect(counted).toHaveLength(match.score![side]);
+        }
+        for (const goal of goals) {
+          const side = sideOf(match, goal.teamId);
+          const t = time(goal.minute, goal.addedTime);
+          expect(onPitch(match, side, goal.playerId, t)).toBe(true);
+          if (goal.ownGoal) expect([goal.assistId, goal.penalty]).toEqual([null, false]);
+          if (goal.assistId === null) continue;
+          expect(goal.assistId).not.toBe(goal.playerId);
+          expect(goal.penalty).toBe(false);
+          expect(onPitch(match, side, goal.assistId, t)).toBe(true);
         }
       }),
     );
@@ -274,7 +278,7 @@ describe("synthetic dataset", () => {
             const stats = match.playerStats[id];
             const own = match.events.filter((e) => e.type !== "substitution" && e.playerId === id);
             expect(stats.minutes).toBe(Math.floor(Math.min(off, 90)) - Math.floor(on));
-            expect(stats.goals).toBe(own.filter((e) => e.type === "goal").length);
+            expect(stats.goals).toBe(own.filter((e) => e.type === "goal" && !e.ownGoal).length);
             expect(stats.assists).toBe(
               match.events.filter((e) => e.type === "goal" && e.assistId === id).length,
             );

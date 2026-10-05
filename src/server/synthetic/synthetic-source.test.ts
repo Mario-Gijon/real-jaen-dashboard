@@ -3,6 +3,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   PLAYER_STAT_KEYS,
   TEAM_STAT_KEYS,
+  scoringSide,
+  type CardEvent,
+  type GoalEvent,
   type MatchDetail,
   type PlayerSeason,
   type Stat,
@@ -137,7 +140,7 @@ describe("SyntheticSource", () => {
     const profile = (await source.player(scorer.player.id, SEASON))!;
     const goals = profile.matches
       .flatMap((m) => m.events)
-      .filter((e) => e.type === "goal" && e.player.id === scorer.player.id);
+      .filter((e) => e.type === "goal" && !e.ownGoal && e.player.id === scorer.player.id);
     expect(goals).toHaveLength(scorer.stats.goals.value!);
     for (const goal of goals) expect(rjMatches.find((m) => m.id === goal.matchId)).toBeDefined();
   });
@@ -195,6 +198,68 @@ describe("synthetic cases the interface must show", () => {
     expect(cards.some((c) => c.card === "second_yellow" && c.teamId === RJ)).toBe(true);
     expect(cards.some((c) => c.card === "red")).toBe(true);
     expect(events.every((e) => e.clip === null)).toBe(true);
+  });
+
+  it("counts an own goal for the opponent, not as the player's goal", async () => {
+    const match = played().find((m) =>
+      m.events.some((e) => e.type === "goal" && e.ownGoal && e.teamId !== RJ),
+    )!;
+    const ownGoal = match.events.find((e): e is GoalEvent => e.type === "goal" && e.ownGoal)!;
+    const playerSide = match.home.id === ownGoal.teamId ? "home" : "away";
+    expect(scoringSide(ownGoal, playerSide)).toBe(rjSide(match));
+    expect(ownGoal).toMatchObject({ assist: null, penalty: false });
+
+    // Every score is the goals counted with scoringSide.
+    for (const m of played()) {
+      const goals = m.events.filter((e): e is GoalEvent => e.type === "goal");
+      const side = (g: GoalEvent) => scoringSide(g, m.home.id === g.teamId ? "home" : "away");
+      expect(goals.filter((g) => side(g) === "home")).toHaveLength(m.score!.home);
+      expect(goals.filter((g) => side(g) === "away")).toHaveLength(m.score!.away);
+    }
+
+    // The player's goals exclude it, but the action stays in their match events.
+    const profile = (await source.player(ownGoal.player.id, SEASON))!;
+    const line = profile.matches.find((pm) => pm.match.id === match.id)!;
+    expect(line.events.map((e) => e.id)).toContain(ownGoal.id);
+    const ownScored = match.events.filter(
+      (e) => e.type === "goal" && !e.ownGoal && e.player.id === ownGoal.player.id,
+    );
+    expect(line.stats.goals).toEqual({ value: ownScored.length });
+  });
+
+  it("keeps the real card in the event and derives yellowCards / redCards from it", async () => {
+    const match = played().find((m) =>
+      m.events.some((e) => e.type === "card" && e.card === "second_yellow" && e.teamId === RJ),
+    )!;
+    const sendingOff = match.events.find(
+      (e): e is CardEvent => e.type === "card" && e.card === "second_yellow",
+    )!;
+    const cards = match.events.filter(
+      (e): e is CardEvent => e.type === "card" && e.player.id === sendingOff.player.id,
+    );
+    expect(cards.map((c) => c.card)).toEqual(["yellow", "second_yellow"]);
+    expect(match.playerStats[sendingOff.player.id]).toMatchObject({
+      yellowCards: { value: 1 },
+      redCards: { value: 1 },
+    });
+
+    // yellowCards = yellow events; redCards = second_yellow + red events.
+    for (const m of played()) {
+      for (const side of ["home", "away"] as const) {
+        const teamCards = m.events.filter(
+          (e): e is CardEvent => e.type === "card" && e.teamId === m[side].id,
+        );
+        expect(m.teamStats![side].yellowCards).toEqual({
+          value: teamCards.filter((c) => c.card === "yellow").length,
+        });
+        expect(m.teamStats![side].redCards).toEqual({
+          value: teamCards.filter((c) => c.card !== "yellow").length,
+        });
+      }
+    }
+    expect(played().some((m) => m.events.some((e) => e.type === "card" && e.card === "red"))).toBe(
+      true,
+    );
   });
 
   it("keeps a real zero as zero", () => {

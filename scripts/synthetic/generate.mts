@@ -77,6 +77,8 @@ type Plan = {
   subs: number;
   /** The academy player with limited stats comes on as the first change. */
   academyOn?: boolean;
+  /** One of Real Jaén's goals is an own goal by an opponent. */
+  opponentOwnGoal?: boolean;
   firstGoalPenalty?: boolean;
   lastGoalAddedTime?: number;
   rjRed?: Red;
@@ -98,7 +100,7 @@ const RJ_PLAN: Record<number, Plan> = {
   8: { score: [2, 2], formation: "4-4-2", subs: 1, rjRed: { minute: 71, card: "second_yellow" } },
   10: { score: [1, 0], formation: "5-3-2", subs: 5, academyOn: true },
   11: { score: [0, 2], formation: "4-2-3-1", subs: 3, missing: "xg_not_available" },
-  12: { score: [2, 0], formation: "4-3-3", subs: 4 },
+  12: { score: [2, 0], formation: "4-3-3", subs: 4, opponentOwnGoal: true },
   13: { score: [1, 3], formation: "4-1-4-1", subs: 2 },
   14: { score: [2, 1], formation: "4-2-3-1", subs: 5, academyOn: true },
 };
@@ -248,6 +250,8 @@ function kickoff(round: number, index: number): string {
 
 type SideOptions = {
   goals: number;
+  /** Own goals by this side's players (they count for the opponent). */
+  ownGoals: number;
   subs: number;
   formation: string;
   shapeUnknown: boolean;
@@ -410,8 +414,28 @@ function playSide(rng: Rng, team: GenTeam, options: SideOptions): Side {
       playerId: scorer.id,
       assistId: assist?.id ?? null,
       penalty,
+      ownGoal: false,
     });
   });
+
+  // Own goals: any outfield player on the pitch; never assisted nor a penalty.
+  for (let i = 0; i < options.ownGoals; i++) {
+    let minute: number;
+    do minute = rng.int(1, 89);
+    while (busy.has(minute));
+    const present = [...intervals.keys()]
+      .filter((id) => onPitch(intervals.get(id), minute))
+      .map((id) => team.players.find((p) => p.id === id)!)
+      .filter((p) => p.position !== "goalkeeper");
+    event({
+      ...base(minute),
+      type: "goal",
+      playerId: rng.pick(present).id,
+      assistId: null,
+      penalty: false,
+      ownGoal: true,
+    });
+  }
 
   // Yellow cards, at most one per player (the sent-off player already has theirs).
   const booked = new Set(sentOff ? [sentOff.id] : []);
@@ -523,7 +547,7 @@ function playerNumbers(
   const f = minutes / 90;
   const rate = RATES[player.position];
   const count = (test: (e: EventDraft) => boolean) => events.filter(test).length;
-  const goals = count((e) => e.type === "goal" && e.playerId === player.id);
+  const goals = count((e) => e.type === "goal" && !e.ownGoal && e.playerId === player.id);
   const shots = goals + rng.poisson(rate.shots * f);
   const passes = rng.poisson(rate.passes * f);
   const accuracy = Math.min(1, Math.max(0.4, rate.accuracy + (rng.next() - 0.5) * 0.14));
@@ -563,11 +587,13 @@ function playMatch(
   const plan = home.id === REAL_JAEN_ID || away.id === REAL_JAEN_ID ? RJ_PLAN[round] : undefined;
   const sideOptions = (team: GenTeam, opponent: GenTeam, isHome: boolean): SideOptions => {
     const isRj = team.id === REAL_JAEN_ID;
+    const ownGoals = !isRj && plan?.opponentOwnGoal ? 1 : 0;
     const goals = plan
-      ? plan.score[isRj ? 0 : 1]
+      ? plan.score[isRj ? 0 : 1] - (isRj && plan.opponentOwnGoal ? 1 : 0)
       : Math.min(rng.poisson((isHome ? 1.45 : 1.1) * (team.strength / opponent.strength)), 6);
     return {
       goals,
+      ownGoals,
       subs: plan && isRj ? plan.subs : rng.int(2, 5),
       formation:
         plan && isRj
@@ -601,8 +627,9 @@ function playMatch(
   const events = drafts.map(
     (draft, i) => ({ id: `${id}-e${String(i + 1).padStart(2, "0")}`, ...draft }) as RawEvent,
   );
+  /** Goals in the score: the team's own goals plus the opponent's own goals. */
   const goals = (team: GenTeam) =>
-    drafts.filter((e) => e.type === "goal" && e.teamId === team.id).length;
+    drafts.filter((e) => e.type === "goal" && (e.teamId === team.id) !== e.ownGoal).length;
   const score = { home: goals(home), away: goals(away) };
 
   // Player numbers (all known internally), then goalkeepers, then what the source hides.
@@ -622,8 +649,12 @@ function playMatch(
   for (const n of numbers.values()) {
     if (n.player.position !== "goalkeeper") continue;
     const other = n.side === "home" ? "away" : "home";
+    // Saves: shots on target faced minus goals from those shots (own goals are not shots).
+    const shotGoals = drafts.filter(
+      (e) => e.type === "goal" && e.teamId === sides[other].team.id && !e.ownGoal,
+    ).length;
     n.stats.goalsConceded = score[other];
-    n.stats.saves = total(other, "shotsOnTarget") - score[other];
+    n.stats.saves = total(other, "shotsOnTarget") - shotGoals;
   }
 
   const possessionHome = Math.min(

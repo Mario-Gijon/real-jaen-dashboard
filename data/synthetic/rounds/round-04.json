@@ -66,13 +66,13 @@
         }
       },
       "events": [
-        {"id":"match-r04-01-e01","teamId":"team-navalumbre","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0383","assistId":"player-0371","penalty":false},
-        {"id":"match-r04-01-e02","teamId":"team-real-jaen","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0015","assistId":"player-0019","penalty":false},
-        {"id":"match-r04-01-e03","teamId":"team-real-jaen","minute":21,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0022","assistId":"player-0014","penalty":false},
-        {"id":"match-r04-01-e04","teamId":"team-navalumbre","minute":31,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0374","assistId":null,"penalty":false},
+        {"id":"match-r04-01-e01","teamId":"team-navalumbre","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0383","assistId":"player-0371","penalty":false,"ownGoal":false},
+        {"id":"match-r04-01-e02","teamId":"team-real-jaen","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0015","assistId":"player-0019","penalty":false,"ownGoal":false},
+        {"id":"match-r04-01-e03","teamId":"team-real-jaen","minute":21,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0022","assistId":"player-0014","penalty":false,"ownGoal":false},
+        {"id":"match-r04-01-e04","teamId":"team-navalumbre","minute":31,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0374","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r04-01-e05","teamId":"team-real-jaen","minute":43,"addedTime":null,"clip":null,"type":"card","playerId":"player-0006","card":"yellow"},
-        {"id":"match-r04-01-e06","teamId":"team-navalumbre","minute":51,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0384","assistId":null,"penalty":false},
-        {"id":"match-r04-01-e07","teamId":"team-real-jaen","minute":56,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0012","assistId":null,"penalty":false},
+        {"id":"match-r04-01-e06","teamId":"team-navalumbre","minute":51,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0384","assistId":null,"penalty":false,"ownGoal":false},
+        {"id":"match-r04-01-e07","teamId":"team-real-jaen","minute":56,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0012","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r04-01-e08","teamId":"team-navalumbre","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0373","playerOutId":"player-0376"},
         {"id":"match-r04-01-e09","teamId":"team-real-jaen","minute":63,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0017","playerOutId":"player-0013"},
         {"id":"match-r04-01-e10","teamId":"team-navalumbre","minute":66,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0377","playerOutId":"player-0378"},
@@ -81,7 +81,7 @@
         {"id":"match-r04-01-e13","teamId":"team-navalumbre","minute":80,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0364","playerOutId":"player-0369"},
         {"id":"match-r04-01-e14","teamId":"team-real-jaen","minute":83,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0023","playerOutId":"player-0022"},
         {"id":"match-r04-01-e15","teamId":"team-real-jaen","minute":86,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0009","playerOutId":"player-0006"},
-        {"id":"match-r04-01-e16","teamId":"team-real-jaen","minute":90,"addedTime":3,"clip":null,"type":"goal","playerId":"player-0012","assistId":"player-0009","penalty":false}
+        {"id":"match-r04-01-e16","teamId":"team-real-jaen","minute":90,"addedTime":3,"clip":null,"type":"goal","playerId":"player-0012","assistId":"player-0009","penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":49,"shots":23,"shotsOnTarget":6,"xg":2.18,"corners":2,"fouls":12,"yellowCards":1,"redCards":0},
@@ -184,12 +184,12 @@
         }
       },
       "events": [
-        {"id":"match-r04-02-e01","teamId":"team-mirabruma","minute":3,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0405","assistId":null,"penalty":false},
+        {"id":"match-r04-02-e01","teamId":"team-mirabruma","minute":3,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0405","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r04-02-e02","teamId":"team-benalaurel","minute":18,"addedTime":null,"clip":null,"type":"card","playerId":"player-0422","card":"yellow"},
-        {"id":"match-r04-02-e03","teamId":"team-benalaurel","minute":23,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0426","assistId":"player-0413","penalty":false},
+        {"id":"match-r04-02-e03","teamId":"team-benalaurel","minute":23,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0426","assistId":"player-0413","penalty":false,"ownGoal":false},
         {"id":"match-r04-02-e04","teamId":"team-mirabruma","minute":32,"addedTime":null,"clip":null,"type":"card","playerId":"player-0398","card":"yellow"},
-        {"id":"match-r04-02-e05","teamId":"team-mirabruma","minute":48,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0403","assistId":"player-0404","penalty":false},
-        {"id":"match-r04-02-e06","teamId":"team-mirabruma","minute":54,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0406","assistId":null,"penalty":false},
+        {"id":"match-r04-02-e05","teamId":"team-mirabruma","minute":48,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0403","assistId":"player-0404","penalty":false,"ownGoal":false},
+        {"id":"match-r04-02-e06","teamId":"team-mirabruma","minute":54,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0406","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r04-02-e07","teamId":"team-benalaurel","minute":54,"addedTime":null,"clip":null,"type":"card","playerId":"player-0426","card":"yellow"},
         {"id":"match-r04-02-e08","teamId":"team-mirabruma","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0400","playerOutId":"player-0403"},
         {"id":"match-r04-02-e09","teamId":"team-benalaurel","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0414","playerOutId":"player-0413"},
@@ -199,7 +199,7 @@
         {"id":"match-r04-02-e13","teamId":"team-benalaurel","minute":72,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0423","playerOutId":"player-0421"},
         {"id":"match-r04-02-e14","teamId":"team-mirabruma","minute":75,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0388","playerOutId":"player-0391"},
         {"id":"match-r04-02-e15","teamId":"team-benalaurel","minute":75,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0419","playerOutId":"player-0417"},
-        {"id":"match-r04-02-e16","teamId":"team-benalaurel","minute":79,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0422","assistId":"player-0429","penalty":false}
+        {"id":"match-r04-02-e16","teamId":"team-benalaurel","minute":79,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0422","assistId":"player-0429","penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":55,"shots":20,"shotsOnTarget":11,"xg":2.65,"corners":8,"fouls":15,"yellowCards":2,"redCards":0},
@@ -302,10 +302,10 @@
         }
       },
       "events": [
-        {"id":"match-r04-03-e01","teamId":"team-cerrolinde","minute":9,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0455","assistId":null,"penalty":false},
-        {"id":"match-r04-03-e02","teamId":"team-torreluna","minute":17,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0187","assistId":null,"penalty":false},
-        {"id":"match-r04-03-e03","teamId":"team-cerrolinde","minute":39,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0438","assistId":"player-0450","penalty":false},
-        {"id":"match-r04-03-e04","teamId":"team-cerrolinde","minute":42,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0450","assistId":"player-0446","penalty":false},
+        {"id":"match-r04-03-e01","teamId":"team-cerrolinde","minute":9,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0455","assistId":null,"penalty":false,"ownGoal":false},
+        {"id":"match-r04-03-e02","teamId":"team-torreluna","minute":17,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0187","assistId":null,"penalty":false,"ownGoal":false},
+        {"id":"match-r04-03-e03","teamId":"team-cerrolinde","minute":39,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0438","assistId":"player-0450","penalty":false,"ownGoal":false},
+        {"id":"match-r04-03-e04","teamId":"team-cerrolinde","minute":42,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0450","assistId":"player-0446","penalty":false,"ownGoal":false},
         {"id":"match-r04-03-e05","teamId":"team-cerrolinde","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0444","playerOutId":"player-0446"},
         {"id":"match-r04-03-e06","teamId":"team-cerrolinde","minute":51,"addedTime":null,"clip":null,"type":"card","playerId":"player-0442","card":"yellow"},
         {"id":"match-r04-03-e07","teamId":"team-cerrolinde","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0456","playerOutId":"player-0455"},
@@ -424,21 +424,21 @@
         }
       },
       "events": [
-        {"id":"match-r04-04-e01","teamId":"team-salinoria","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0473","assistId":"player-0474","penalty":false},
-        {"id":"match-r04-04-e02","teamId":"team-penalbar","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0111","assistId":"player-0107","penalty":false},
+        {"id":"match-r04-04-e01","teamId":"team-salinoria","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0473","assistId":"player-0474","penalty":false,"ownGoal":false},
+        {"id":"match-r04-04-e02","teamId":"team-penalbar","minute":12,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0111","assistId":"player-0107","penalty":false,"ownGoal":false},
         {"id":"match-r04-04-e03","teamId":"team-penalbar","minute":60,"addedTime":null,"clip":null,"type":"card","playerId":"player-0117","card":"red"},
         {"id":"match-r04-04-e04","teamId":"team-penalbar","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0108","playerOutId":"player-0110"},
         {"id":"match-r04-04-e05","teamId":"team-salinoria","minute":66,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0480","playerOutId":"player-0479"},
         {"id":"match-r04-04-e06","teamId":"team-penalbar","minute":66,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0114","playerOutId":"player-0115"},
         {"id":"match-r04-04-e07","teamId":"team-penalbar","minute":68,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0120","playerOutId":"player-0118"},
-        {"id":"match-r04-04-e08","teamId":"team-salinoria","minute":69,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0474","assistId":"player-0469","penalty":false},
+        {"id":"match-r04-04-e08","teamId":"team-salinoria","minute":69,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0474","assistId":"player-0469","penalty":false,"ownGoal":false},
         {"id":"match-r04-04-e09","teamId":"team-salinoria","minute":70,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0462","playerOutId":"player-0461"},
         {"id":"match-r04-04-e10","teamId":"team-penalbar","minute":73,"addedTime":null,"clip":null,"type":"card","playerId":"player-0108","card":"yellow"},
         {"id":"match-r04-04-e11","teamId":"team-salinoria","minute":75,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0467","playerOutId":"player-0465"},
         {"id":"match-r04-04-e12","teamId":"team-salinoria","minute":80,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0477","playerOutId":"player-0463"},
         {"id":"match-r04-04-e13","teamId":"team-salinoria","minute":82,"addedTime":null,"clip":null,"type":"card","playerId":"player-0480","card":"yellow"},
         {"id":"match-r04-04-e14","teamId":"team-salinoria","minute":83,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0460","playerOutId":"player-0466"},
-        {"id":"match-r04-04-e15","teamId":"team-penalbar","minute":85,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0120","assistId":"player-0108","penalty":false}
+        {"id":"match-r04-04-e15","teamId":"team-penalbar","minute":85,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0120","assistId":"player-0108","penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":44,"shots":14,"shotsOnTarget":6,"xg":1.69,"corners":4,"fouls":15,"yellowCards":1,"redCards":0},
@@ -542,11 +542,11 @@
         }
       },
       "events": [
-        {"id":"match-r04-05-e01","teamId":"team-castroalba","minute":14,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0288","assistId":"player-0283","penalty":false},
+        {"id":"match-r04-05-e01","teamId":"team-castroalba","minute":14,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0288","assistId":"player-0283","penalty":false,"ownGoal":false},
         {"id":"match-r04-05-e02","teamId":"team-sotoverde","minute":34,"addedTime":null,"clip":null,"type":"card","playerId":"player-0126","card":"yellow"},
-        {"id":"match-r04-05-e03","teamId":"team-sotoverde","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0144","assistId":"player-0139","penalty":false},
-        {"id":"match-r04-05-e04","teamId":"team-castroalba","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0288","assistId":null,"penalty":false},
-        {"id":"match-r04-05-e05","teamId":"team-sotoverde","minute":43,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0135","assistId":"player-0139","penalty":false},
+        {"id":"match-r04-05-e03","teamId":"team-sotoverde","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0144","assistId":"player-0139","penalty":false,"ownGoal":false},
+        {"id":"match-r04-05-e04","teamId":"team-castroalba","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0288","assistId":null,"penalty":false,"ownGoal":false},
+        {"id":"match-r04-05-e05","teamId":"team-sotoverde","minute":43,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0135","assistId":"player-0139","penalty":false,"ownGoal":false},
         {"id":"match-r04-05-e06","teamId":"team-sotoverde","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0137","playerOutId":"player-0139"},
         {"id":"match-r04-05-e07","teamId":"team-sotoverde","minute":54,"addedTime":null,"clip":null,"type":"card","playerId":"player-0137","card":"yellow"},
         {"id":"match-r04-05-e08","teamId":"team-castroalba","minute":61,"addedTime":null,"clip":null,"type":"card","playerId":"player-0288","card":"yellow"},
@@ -767,12 +767,12 @@
       "events": [
         {"id":"match-r04-07-e01","teamId":"team-montealto","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0041","playerOutId":"player-0042"},
         {"id":"match-r04-07-e02","teamId":"team-montealto","minute":50,"addedTime":null,"clip":null,"type":"card","playerId":"player-0048","card":"yellow"},
-        {"id":"match-r04-07-e03","teamId":"team-montealto","minute":59,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0032","assistId":"player-0043","penalty":false},
+        {"id":"match-r04-07-e03","teamId":"team-montealto","minute":59,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0032","assistId":"player-0043","penalty":false,"ownGoal":false},
         {"id":"match-r04-07-e04","teamId":"team-lomahermosa","minute":63,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0343","playerOutId":"player-0346"},
         {"id":"match-r04-07-e05","teamId":"team-montealto","minute":63,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0034","playerOutId":"player-0031"},
         {"id":"match-r04-07-e06","teamId":"team-lomahermosa","minute":66,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0360","playerOutId":"player-0357"},
         {"id":"match-r04-07-e07","teamId":"team-montealto","minute":66,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0047","playerOutId":"player-0048"},
-        {"id":"match-r04-07-e08","teamId":"team-lomahermosa","minute":83,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0354","assistId":"player-0343","penalty":false}
+        {"id":"match-r04-07-e08","teamId":"team-lomahermosa","minute":83,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0354","assistId":"player-0343","penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":45,"shots":15,"shotsOnTarget":2,"xg":1.05,"corners":4,"fouls":16,"yellowCards":0,"redCards":0},
@@ -873,15 +873,15 @@
         }
       },
       "events": [
-        {"id":"match-r04-08-e01","teamId":"team-valdecedro","minute":11,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0207","assistId":"player-0205","penalty":false},
-        {"id":"match-r04-08-e02","teamId":"team-vegaclara","minute":57,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0057","assistId":"player-0053","penalty":false},
+        {"id":"match-r04-08-e01","teamId":"team-valdecedro","minute":11,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0207","assistId":"player-0205","penalty":false,"ownGoal":false},
+        {"id":"match-r04-08-e02","teamId":"team-vegaclara","minute":57,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0057","assistId":"player-0053","penalty":false,"ownGoal":false},
         {"id":"match-r04-08-e03","teamId":"team-valdecedro","minute":61,"addedTime":null,"clip":null,"type":"card","playerId":"player-0196","card":"yellow"},
         {"id":"match-r04-08-e04","teamId":"team-valdecedro","minute":68,"addedTime":null,"clip":null,"type":"card","playerId":"player-0200","card":"yellow"},
         {"id":"match-r04-08-e05","teamId":"team-valdecedro","minute":68,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0209","playerOutId":"player-0205"},
         {"id":"match-r04-08-e06","teamId":"team-vegaclara","minute":70,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0056","playerOutId":"player-0057"},
         {"id":"match-r04-08-e07","teamId":"team-vegaclara","minute":72,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0069","playerOutId":"player-0071"},
         {"id":"match-r04-08-e08","teamId":"team-valdecedro","minute":73,"addedTime":null,"clip":null,"type":"card","playerId":"player-0214","card":"yellow"},
-        {"id":"match-r04-08-e09","teamId":"team-valdecedro","minute":76,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0207","assistId":"player-0196","penalty":false},
+        {"id":"match-r04-08-e09","teamId":"team-valdecedro","minute":76,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0207","assistId":"player-0196","penalty":false,"ownGoal":false},
         {"id":"match-r04-08-e10","teamId":"team-vegaclara","minute":78,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0052","playerOutId":"player-0053"},
         {"id":"match-r04-08-e11","teamId":"team-valdecedro","minute":80,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0216","playerOutId":"player-0214"}
       ],
@@ -986,10 +986,10 @@
       "events": [
         {"id":"match-r04-09-e01","teamId":"team-fuenteluz","minute":8,"addedTime":null,"clip":null,"type":"card","playerId":"player-0222","card":"yellow"},
         {"id":"match-r04-09-e02","teamId":"team-fuenteluz","minute":9,"addedTime":null,"clip":null,"type":"card","playerId":"player-0221","card":"yellow"},
-        {"id":"match-r04-09-e03","teamId":"team-almadrava","minute":27,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0253","assistId":null,"penalty":false},
+        {"id":"match-r04-09-e03","teamId":"team-almadrava","minute":27,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0253","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r04-09-e04","teamId":"team-fuenteluz","minute":33,"addedTime":null,"clip":null,"type":"card","playerId":"player-0220","card":"yellow"},
         {"id":"match-r04-09-e05","teamId":"team-almadrava","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0258","playerOutId":"player-0257"},
-        {"id":"match-r04-09-e06","teamId":"team-fuenteluz","minute":58,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0236","assistId":null,"penalty":false},
+        {"id":"match-r04-09-e06","teamId":"team-fuenteluz","minute":58,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0236","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r04-09-e07","teamId":"team-fuenteluz","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0228","playerOutId":"player-0235"},
         {"id":"match-r04-09-e08","teamId":"team-almadrava","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0246","playerOutId":"player-0245"},
         {"id":"match-r04-09-e09","teamId":"team-almadrava","minute":78,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0254","playerOutId":"player-0252"},
@@ -1097,7 +1097,7 @@
         }
       },
       "events": [
-        {"id":"match-r04-10-e01","teamId":"team-robledal","minute":9,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0336","assistId":"player-0317","penalty":false},
+        {"id":"match-r04-10-e01","teamId":"team-robledal","minute":9,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0336","assistId":"player-0317","penalty":false,"ownGoal":false},
         {"id":"match-r04-10-e02","teamId":"team-alcorrubia","minute":53,"addedTime":null,"clip":null,"type":"card","playerId":"player-0158","card":"yellow"},
         {"id":"match-r04-10-e03","teamId":"team-alcorrubia","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0166","playerOutId":"player-0164"},
         {"id":"match-r04-10-e04","teamId":"team-alcorrubia","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0168","playerOutId":"player-0148"},

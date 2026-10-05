@@ -56,7 +56,14 @@ type RawEventBase = {
 };
 
 export type RawEvent =
-  | (RawEventBase & { type: "goal"; playerId: string; assistId: string | null; penalty: boolean })
+  | (RawEventBase & {
+      type: "goal";
+      playerId: string;
+      assistId: string | null;
+      penalty: boolean;
+      /** Counts for the other team; `teamId` stays the player's team. */
+      ownGoal: boolean;
+    })
   | (RawEventBase & { type: "card"; playerId: string; card: "yellow" | "second_yellow" | "red" })
   | (RawEventBase & { type: "substitution"; playerInId: string; playerOutId: string });
 

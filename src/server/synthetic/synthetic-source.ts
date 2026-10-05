@@ -199,6 +199,7 @@ function buildIndex(data: RawDataset) {
           player: playerRef(raw.playerId),
           assist: raw.assistId ? playerRef(raw.assistId) : null,
           penalty: raw.penalty,
+          ownGoal: raw.ownGoal,
         };
       case "card":
         return { ...base, type: "card", player: playerRef(raw.playerId), card: raw.card };

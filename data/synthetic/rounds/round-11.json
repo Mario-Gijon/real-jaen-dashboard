@@ -66,8 +66,8 @@
         }
       },
       "events": [
-        {"id":"match-r11-01-e01","teamId":"team-vegaclara","minute":3,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0062","assistId":null,"penalty":true},
-        {"id":"match-r11-01-e02","teamId":"team-vegaclara","minute":10,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0069","assistId":"player-0071","penalty":false},
+        {"id":"match-r11-01-e01","teamId":"team-vegaclara","minute":3,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0062","assistId":null,"penalty":true,"ownGoal":false},
+        {"id":"match-r11-01-e02","teamId":"team-vegaclara","minute":10,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0069","assistId":"player-0071","penalty":false,"ownGoal":false},
         {"id":"match-r11-01-e03","teamId":"team-real-jaen","minute":39,"addedTime":null,"clip":null,"type":"card","playerId":"player-0004","card":"yellow"},
         {"id":"match-r11-01-e04","teamId":"team-vegaclara","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0068","playerOutId":"player-0071"},
         {"id":"match-r11-01-e05","teamId":"team-real-jaen","minute":63,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0021","playerOutId":"player-0022"},
@@ -179,7 +179,7 @@
         }
       },
       "events": [
-        {"id":"match-r11-02-e01","teamId":"team-montealto","minute":16,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0038","assistId":"player-0042","penalty":false},
+        {"id":"match-r11-02-e01","teamId":"team-montealto","minute":16,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0038","assistId":"player-0042","penalty":false,"ownGoal":false},
         {"id":"match-r11-02-e02","teamId":"team-almadrava","minute":31,"addedTime":null,"clip":null,"type":"card","playerId":"player-0243","card":"yellow"},
         {"id":"match-r11-02-e03","teamId":"team-almadrava","minute":35,"addedTime":null,"clip":null,"type":"card","playerId":"player-0244","card":"yellow"},
         {"id":"match-r11-02-e04","teamId":"team-montealto","minute":55,"addedTime":null,"clip":null,"type":"card","playerId":"player-0042","card":"yellow"},
@@ -289,7 +289,7 @@
       },
       "events": [
         {"id":"match-r11-03-e01","teamId":"team-riosanto","minute":9,"addedTime":null,"clip":null,"type":"card","playerId":"player-0087","card":"yellow"},
-        {"id":"match-r11-03-e02","teamId":"team-riosanto","minute":11,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0093","assistId":"player-0091","penalty":false},
+        {"id":"match-r11-03-e02","teamId":"team-riosanto","minute":11,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0093","assistId":"player-0091","penalty":false,"ownGoal":false},
         {"id":"match-r11-03-e03","teamId":"team-riosanto","minute":19,"addedTime":null,"clip":null,"type":"card","playerId":"player-0085","card":"yellow"},
         {"id":"match-r11-03-e04","teamId":"team-riosanto","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0094","playerOutId":"player-0093"},
         {"id":"match-r11-03-e05","teamId":"team-alcorrubia","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0164","playerOutId":"player-0166"},
@@ -402,10 +402,10 @@
         }
       },
       "events": [
-        {"id":"match-r11-04-e01","teamId":"team-castroalba","minute":5,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0277","assistId":null,"penalty":false},
-        {"id":"match-r11-04-e02","teamId":"team-robledal","minute":13,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0336","assistId":"player-0327","penalty":false},
-        {"id":"match-r11-04-e03","teamId":"team-robledal","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0328","assistId":"player-0331","penalty":false},
-        {"id":"match-r11-04-e04","teamId":"team-robledal","minute":43,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0333","assistId":null,"penalty":false},
+        {"id":"match-r11-04-e01","teamId":"team-castroalba","minute":5,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0277","assistId":null,"penalty":false,"ownGoal":false},
+        {"id":"match-r11-04-e02","teamId":"team-robledal","minute":13,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0336","assistId":"player-0327","penalty":false,"ownGoal":false},
+        {"id":"match-r11-04-e03","teamId":"team-robledal","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0328","assistId":"player-0331","penalty":false,"ownGoal":false},
+        {"id":"match-r11-04-e04","teamId":"team-robledal","minute":43,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0333","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r11-04-e05","teamId":"team-castroalba","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0273","playerOutId":"player-0275"},
         {"id":"match-r11-04-e06","teamId":"team-robledal","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0329","playerOutId":"player-0331"},
         {"id":"match-r11-04-e07","teamId":"team-robledal","minute":57,"addedTime":null,"clip":null,"type":"card","playerId":"player-0329","card":"yellow"},
@@ -516,7 +516,7 @@
         }
       },
       "events": [
-        {"id":"match-r11-05-e01","teamId":"team-fuenteluz","minute":25,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0220","assistId":null,"penalty":false},
+        {"id":"match-r11-05-e01","teamId":"team-fuenteluz","minute":25,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0220","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r11-05-e02","teamId":"team-fuenteluz","minute":45,"addedTime":3,"clip":null,"type":"card","playerId":"player-0228","card":"yellow"},
         {"id":"match-r11-05-e03","teamId":"team-fuenteluz","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0235","playerOutId":"player-0230"},
         {"id":"match-r11-05-e04","teamId":"team-fuenteluz","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0229","playerOutId":"player-0228"},
@@ -632,11 +632,11 @@
         }
       },
       "events": [
-        {"id":"match-r11-06-e01","teamId":"team-cerrolinde","minute":19,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0446","assistId":"player-0448","penalty":false},
+        {"id":"match-r11-06-e01","teamId":"team-cerrolinde","minute":19,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0446","assistId":"player-0448","penalty":false,"ownGoal":false},
         {"id":"match-r11-06-e02","teamId":"team-cerrolinde","minute":29,"addedTime":null,"clip":null,"type":"card","playerId":"player-0448","card":"yellow"},
-        {"id":"match-r11-06-e03","teamId":"team-valdecedro","minute":35,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0196","assistId":"player-0216","penalty":false},
-        {"id":"match-r11-06-e04","teamId":"team-cerrolinde","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0455","assistId":null,"penalty":true},
-        {"id":"match-r11-06-e05","teamId":"team-cerrolinde","minute":38,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0450","assistId":null,"penalty":false},
+        {"id":"match-r11-06-e03","teamId":"team-valdecedro","minute":35,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0196","assistId":"player-0216","penalty":false,"ownGoal":false},
+        {"id":"match-r11-06-e04","teamId":"team-cerrolinde","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0455","assistId":null,"penalty":true,"ownGoal":false},
+        {"id":"match-r11-06-e05","teamId":"team-cerrolinde","minute":38,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0450","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r11-06-e06","teamId":"team-cerrolinde","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0453","playerOutId":"player-0455"},
         {"id":"match-r11-06-e07","teamId":"team-cerrolinde","minute":63,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0454","playerOutId":"player-0456"},
         {"id":"match-r11-06-e08","teamId":"team-cerrolinde","minute":68,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0439","playerOutId":"player-0438"},
@@ -757,7 +757,7 @@
         {"id":"match-r11-07-e02","teamId":"team-mirabruma","minute":30,"addedTime":null,"clip":null,"type":"card","playerId":"player-0402","card":"yellow"},
         {"id":"match-r11-07-e03","teamId":"team-lomahermosa","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0340","playerOutId":"player-0343"},
         {"id":"match-r11-07-e04","teamId":"team-lomahermosa","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0356","playerOutId":"player-0360"},
-        {"id":"match-r11-07-e05","teamId":"team-mirabruma","minute":48,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0406","assistId":null,"penalty":false},
+        {"id":"match-r11-07-e05","teamId":"team-mirabruma","minute":48,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0406","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r11-07-e06","teamId":"team-mirabruma","minute":49,"addedTime":null,"clip":null,"type":"card","playerId":"player-0403","card":"yellow"},
         {"id":"match-r11-07-e07","teamId":"team-mirabruma","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0390","playerOutId":"player-0394"},
         {"id":"match-r11-07-e08","teamId":"team-lomahermosa","minute":68,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0357","playerOutId":"player-0359"},
@@ -766,7 +766,7 @@
         {"id":"match-r11-07-e11","teamId":"team-mirabruma","minute":76,"addedTime":null,"clip":null,"type":"card","playerId":"player-0404","card":"yellow"},
         {"id":"match-r11-07-e12","teamId":"team-lomahermosa","minute":78,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0347","playerOutId":"player-0342"},
         {"id":"match-r11-07-e13","teamId":"team-mirabruma","minute":82,"addedTime":null,"clip":null,"type":"card","playerId":"player-0389","card":"yellow"},
-        {"id":"match-r11-07-e14","teamId":"team-lomahermosa","minute":89,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0352","assistId":"player-0351","penalty":false}
+        {"id":"match-r11-07-e14","teamId":"team-lomahermosa","minute":89,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0352","assistId":"player-0351","penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":41,"shots":14,"shotsOnTarget":9,"xg":2.17,"corners":2,"fouls":8,"yellowCards":0,"redCards":0},
@@ -869,10 +869,10 @@
         }
       },
       "events": [
-        {"id":"match-r11-08-e01","teamId":"team-navalumbre","minute":7,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0383","assistId":"player-0376","penalty":false},
+        {"id":"match-r11-08-e01","teamId":"team-navalumbre","minute":7,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0383","assistId":"player-0376","penalty":false,"ownGoal":false},
         {"id":"match-r11-08-e02","teamId":"team-puertoclaro","minute":9,"addedTime":null,"clip":null,"type":"card","playerId":"player-0301","card":"yellow"},
-        {"id":"match-r11-08-e03","teamId":"team-puertoclaro","minute":17,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0305","assistId":"player-0302","penalty":false},
-        {"id":"match-r11-08-e04","teamId":"team-puertoclaro","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0301","assistId":"player-0294","penalty":false},
+        {"id":"match-r11-08-e03","teamId":"team-puertoclaro","minute":17,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0305","assistId":"player-0302","penalty":false,"ownGoal":false},
+        {"id":"match-r11-08-e04","teamId":"team-puertoclaro","minute":36,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0301","assistId":"player-0294","penalty":false,"ownGoal":false},
         {"id":"match-r11-08-e05","teamId":"team-puertoclaro","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0292","playerOutId":"player-0295"},
         {"id":"match-r11-08-e06","teamId":"team-puertoclaro","minute":55,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0298","playerOutId":"player-0299"},
         {"id":"match-r11-08-e07","teamId":"team-puertoclaro","minute":57,"addedTime":null,"clip":null,"type":"card","playerId":"player-0310","card":"yellow"},
@@ -884,8 +884,8 @@
         {"id":"match-r11-08-e13","teamId":"team-puertoclaro","minute":80,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0296","playerOutId":"player-0305"},
         {"id":"match-r11-08-e14","teamId":"team-navalumbre","minute":86,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0366","playerOutId":"player-0370"},
         {"id":"match-r11-08-e15","teamId":"team-puertoclaro","minute":86,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0307","playerOutId":"player-0302"},
-        {"id":"match-r11-08-e16","teamId":"team-navalumbre","minute":88,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0384","assistId":"player-0375","penalty":false},
-        {"id":"match-r11-08-e17","teamId":"team-puertoclaro","minute":88,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0310","assistId":null,"penalty":false}
+        {"id":"match-r11-08-e16","teamId":"team-navalumbre","minute":88,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0384","assistId":"player-0375","penalty":false,"ownGoal":false},
+        {"id":"match-r11-08-e17","teamId":"team-puertoclaro","minute":88,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0310","assistId":null,"penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":40,"shots":14,"shotsOnTarget":9,"xg":1.99,"corners":5,"fouls":15,"yellowCards":1,"redCards":0},
@@ -990,18 +990,18 @@
       },
       "events": [
         {"id":"match-r11-09-e01","teamId":"team-sotoverde","minute":11,"addedTime":null,"clip":null,"type":"card","playerId":"player-0139","card":"yellow"},
-        {"id":"match-r11-09-e02","teamId":"team-sotoverde","minute":14,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0138","assistId":"player-0132","penalty":false},
+        {"id":"match-r11-09-e02","teamId":"team-sotoverde","minute":14,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0138","assistId":"player-0132","penalty":false,"ownGoal":false},
         {"id":"match-r11-09-e03","teamId":"team-sotoverde","minute":14,"addedTime":null,"clip":null,"type":"card","playerId":"player-0121","card":"yellow"},
-        {"id":"match-r11-09-e04","teamId":"team-sotoverde","minute":26,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0144","assistId":"player-0138","penalty":false},
+        {"id":"match-r11-09-e04","teamId":"team-sotoverde","minute":26,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0144","assistId":"player-0138","penalty":false,"ownGoal":false},
         {"id":"match-r11-09-e05","teamId":"team-benalaurel","minute":28,"addedTime":null,"clip":null,"type":"card","playerId":"player-0413","card":"yellow"},
         {"id":"match-r11-09-e06","teamId":"team-benalaurel","minute":44,"addedTime":null,"clip":null,"type":"card","playerId":"player-0420","card":"yellow"},
         {"id":"match-r11-09-e07","teamId":"team-sotoverde","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0131","playerOutId":"player-0126"},
         {"id":"match-r11-09-e08","teamId":"team-sotoverde","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0129","playerOutId":"player-0128"},
         {"id":"match-r11-09-e09","teamId":"team-benalaurel","minute":60,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0423","playerOutId":"player-0420"},
-        {"id":"match-r11-09-e10","teamId":"team-benalaurel","minute":65,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0431","assistId":null,"penalty":false},
+        {"id":"match-r11-09-e10","teamId":"team-benalaurel","minute":65,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0431","assistId":null,"penalty":false,"ownGoal":false},
         {"id":"match-r11-09-e11","teamId":"team-benalaurel","minute":75,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0418","playerOutId":"player-0415"},
         {"id":"match-r11-09-e12","teamId":"team-sotoverde","minute":78,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0141","playerOutId":"player-0144"},
-        {"id":"match-r11-09-e13","teamId":"team-sotoverde","minute":84,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0135","assistId":"player-0141","penalty":false}
+        {"id":"match-r11-09-e13","teamId":"team-sotoverde","minute":84,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0135","assistId":"player-0141","penalty":false,"ownGoal":false}
       ],
       "teamStats": {
         "home": {"possession":56,"shots":12,"shotsOnTarget":9,"xg":1.91,"corners":8,"fouls":11,"yellowCards":2,"redCards":0},
@@ -1102,8 +1102,8 @@
         }
       },
       "events": [
-        {"id":"match-r11-10-e01","teamId":"team-penalbar","minute":30,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0115","assistId":"player-0118","penalty":false},
-        {"id":"match-r11-10-e02","teamId":"team-penalbar","minute":33,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0119","assistId":"player-0109","penalty":false},
+        {"id":"match-r11-10-e01","teamId":"team-penalbar","minute":30,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0115","assistId":"player-0118","penalty":false,"ownGoal":false},
+        {"id":"match-r11-10-e02","teamId":"team-penalbar","minute":33,"addedTime":null,"clip":null,"type":"goal","playerId":"player-0119","assistId":"player-0109","penalty":false,"ownGoal":false},
         {"id":"match-r11-10-e03","teamId":"team-torreluna","minute":46,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0183","playerOutId":"player-0182"},
         {"id":"match-r11-10-e04","teamId":"team-torreluna","minute":66,"addedTime":null,"clip":null,"type":"substitution","playerInId":"player-0191","playerOutId":"player-0192"},
         {"id":"match-r11-10-e05","teamId":"team-torreluna","minute":74,"addedTime":null,"clip":null,"type":"card","playerId":"player-0180","card":"yellow"},

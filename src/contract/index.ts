@@ -146,7 +146,10 @@ export type Clip = { clipUrl: string; startSec: number; endSec: number };
 type EventBase = {
   id: string;
   matchId: string;
-  /** Team the action belongs to. */
+  /**
+   * Team of the player who performs the action. For an own goal this is NOT
+   * the team that scores: see `GoalEvent.ownGoal`.
+   */
   teamId: string;
   /** Match minute (1–90); added time goes in `addedTime` (45+2 → 45, 2). */
   minute: number;
@@ -154,18 +157,34 @@ type EventBase = {
   clip: Clip | null;
 };
 
+/**
+ * A goal. `player` is who put the ball in the net and `teamId` is their team.
+ * The goal counts in the score for `teamId`, unless `ownGoal` is true: then
+ * it counts for the opponent. An own goal has no assist, is never a penalty and
+ * does not add to the player's `goals` (see {@link scoringSide}).
+ */
 export type GoalEvent = EventBase & {
   type: "goal";
   player: PlayerRef;
-  /** `null` when nobody is credited with the assist. */
+  /** `null` when nobody is credited with the assist (always for an own goal). */
   assist: PlayerRef | null;
   penalty: boolean;
+  ownGoal: boolean;
 };
+
+/** Side whose score a goal adds to, given the side of the player's team. */
+export function scoringSide(goal: Pick<GoalEvent, "ownGoal">, playerSide: Side): Side {
+  if (!goal.ownGoal) return playerSide;
+  return playerSide === "home" ? "away" : "home";
+}
 
 export type CardEvent = EventBase & {
   type: "card";
   player: PlayerRef;
-  /** `second_yellow` is the yellow that sends a player off. */
+  /**
+   * The real card, never simplified: `second_yellow` is a player's second
+   * yellow, which sends them off; `red` is a straight red.
+   */
   card: "yellow" | "second_yellow" | "red";
 };
 
@@ -189,7 +208,11 @@ export const TEAM_STAT_KEYS = [
   "redCards",
 ] as const;
 export type TeamStatKey = (typeof TEAM_STAT_KEYS)[number];
-/** `possession` is a percentage (home + away = 100); `xg` has two decimals. */
+/**
+ * `possession` is a percentage (home + away = 100); `xg` has two decimals.
+ * `yellowCards` and `redCards` are derived from card events as in
+ * {@link PlayerMatchStats}.
+ */
 export type TeamMatchStats = Record<TeamStatKey, Stat>;
 
 export const PLAYER_STAT_KEYS = [
@@ -214,6 +237,11 @@ export type PlayerStatKey = (typeof PLAYER_STAT_KEYS)[number];
 /**
  * `passAccuracy` is a percentage with one decimal; `fouls` are committed;
  * `saves` and `goalsConceded` are `not_available` for outfield players.
+ *
+ * `goals` excludes own goals. Cards are derived from card events:
+ * `yellowCards` counts `yellow` events and `redCards` counts `second_yellow`
+ * and `red` events. A player sent off for two yellows therefore has
+ * `yellowCards: 1, redCards: 1`; the event list keeps which card it was.
  */
 export type PlayerMatchStats = Record<PlayerStatKey, Stat>;
 
