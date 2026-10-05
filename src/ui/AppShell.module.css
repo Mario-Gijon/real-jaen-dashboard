@@ -1,0 +1,148 @@
+.skip {
+  position: absolute;
+  top: -100px;
+  left: var(--rj-space-4);
+  z-index: 20;
+  padding: var(--rj-space-2) var(--rj-space-3);
+  border-radius: var(--rj-radius-sm);
+  background: var(--rj-bg-card);
+  font-weight: 700;
+}
+.skip:focus {
+  top: var(--rj-space-2);
+}
+
+/* Top bar with the purple of the Real Jaén sidebar. */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(100deg, var(--rj-purple-900), var(--rj-purple-700));
+  color: var(--rj-text-inverse);
+  box-shadow: var(--rj-shadow-sm);
+}
+.inner {
+  display: flex;
+  align-items: center;
+  gap: var(--rj-space-8);
+  max-width: 1280px;
+  min-height: 68px;
+  margin: 0 auto;
+  padding: 0 var(--rj-space-8);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--rj-space-3);
+  border-radius: var(--rj-radius-sm);
+  text-decoration: none;
+}
+.brand:focus-visible,
+.navLink:focus-visible {
+  outline: 3px solid var(--rj-gold-300);
+  outline-offset: 2px;
+}
+.crest {
+  width: 28px;
+  height: auto;
+}
+.brandText {
+  display: grid;
+  line-height: 1.15;
+}
+.brandText strong {
+  font-size: var(--rj-text-lg);
+  font-weight: 800;
+}
+.brandText span {
+  color: var(--rj-gold-300);
+  font-size: var(--rj-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.nav {
+  display: flex;
+  gap: var(--rj-space-2);
+}
+.navLink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--rj-control-height);
+  padding: 0 var(--rj-space-4);
+  border-radius: var(--rj-radius-sm);
+  color: rgb(255 255 255 / 0.82);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color var(--rj-motion-fast), color var(--rj-motion-fast);
+}
+.navLink:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: var(--rj-text-inverse);
+}
+.navLink[aria-current="page"] {
+  background: rgb(255 255 255 / 0.14);
+  color: var(--rj-text-inverse);
+}
+.navLink[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  right: var(--rj-space-4);
+  bottom: 6px;
+  left: var(--rj-space-4);
+  height: 3px;
+  border-radius: var(--rj-radius-pill);
+  background: var(--rj-gold-600);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid rgb(232 200 103 / 0.55);
+  border-radius: var(--rj-radius-pill);
+  background: rgb(255 255 255 / 0.08);
+  color: var(--rj-gold-300);
+  font-size: var(--rj-text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--rj-space-8);
+}
+
+/* Phones: brand and notice on one row, the two sections as equal tabs below. */
+@media (max-width: 640px) {
+  .inner {
+    flex-wrap: wrap;
+    gap: 0 var(--rj-space-3);
+    min-height: 0;
+    padding: var(--rj-space-2) var(--rj-space-4) 0;
+  }
+  .brand {
+    min-height: 48px;
+  }
+  .nav {
+    order: 3;
+    flex: 1 0 100%;
+    gap: 0;
+  }
+  .navLink {
+    flex: 1;
+    justify-content: center;
+    border-radius: 0;
+  }
+  .navLink[aria-current="page"] {
+    background: transparent;
+  }
+  .navLink[aria-current="page"]::after {
+    bottom: 0;
+  }
+  .main {
+    padding: var(--rj-space-6) var(--rj-space-4);
+  }
+}
