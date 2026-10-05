@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import type { Stat } from "@/contract";
-import { seasonStat } from "./season-stats";
+import { seasonStat, type Stat } from "@/contract";
 
 const v = (value: number): Stat => ({ value });
 const na: Stat = { value: null, reason: "not_available" };

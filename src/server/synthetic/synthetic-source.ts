@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   PLAYER_STAT_KEYS,
+  seasonStat,
   TEAM_STAT_KEYS,
+  type Accumulation,
   type Competition,
   type Lineup,
   type MatchDetail,
@@ -25,7 +27,6 @@ import {
   type TeamStanding,
 } from "@/contract";
 import type { DataSource } from "../data-source";
-import { seasonStat, type Accumulation } from "../season-stats";
 import type {
   RawDataset,
   RawEvent,
@@ -280,11 +281,19 @@ function buildIndex(data: RawDataset) {
         side === "home" ? match.score.home - match.score.away : match.score.away - match.score.home;
       result = diff > 0 ? "win" : diff === 0 ? "draw" : "loss";
     }
+    const other = side === "home" ? "away" : "home";
     return {
       match: summary(match),
       side,
       opponent: teamRef(side === "home" ? match.awayTeamId : match.homeTeamId),
       result,
+      teamStats:
+        match.status === "finished" && match.teamStats
+          ? {
+              own: toTeamStats(match.teamStats[side]),
+              opponent: toTeamStats(match.teamStats[other]),
+            }
+          : null,
     };
   };
 

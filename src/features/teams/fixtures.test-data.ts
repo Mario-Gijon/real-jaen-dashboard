@@ -172,6 +172,7 @@ const rjMatch = (
   side,
   opponent,
   result,
+  teamStats: null,
 });
 
 export const rjSeason: TeamSeason = {

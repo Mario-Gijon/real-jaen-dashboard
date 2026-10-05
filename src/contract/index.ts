@@ -280,6 +280,12 @@ export type TeamMatch = {
   opponent: TeamRef;
   /** `null` unless the match is finished. */
   result: MatchResult | null;
+  /**
+   * Team stats of that match from this team's side: `own` is what the team
+   * did, `opponent` what its rival did (so, what the team conceded).
+   * `null` unless the match is finished.
+   */
+  teamStats: { own: TeamMatchStats; opponent: TeamMatchStats } | null;
 };
 
 export type PlayerSeasonStats = Record<PlayerStatKey | "appearances" | "starts", SeasonStat>;
@@ -323,6 +329,8 @@ export type PlayerSeason = {
   /** Matches the player took part in, by round. */
   matches: PlayerMatch[];
 };
+
+export { seasonStat, type Accumulation } from "./season-stat";
 
 // ─── Application ────────────────────────────────────────────────────────────
 

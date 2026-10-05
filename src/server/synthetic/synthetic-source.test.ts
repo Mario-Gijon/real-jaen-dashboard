@@ -115,6 +115,30 @@ describe("SyntheticSource", () => {
     });
   });
 
+  it("gives each finished team match its own and its rival's stats, as in the match sheet", () => {
+    for (const teamMatch of rj.matches) {
+      const detail = rjMatches.find((m) => m.id === teamMatch.match.id)!;
+      if (teamMatch.match.status !== "finished") {
+        expect(teamMatch.teamStats).toBeNull();
+        continue;
+      }
+      const other = teamMatch.side === "home" ? "away" : "home";
+      expect(teamMatch.teamStats).toEqual({
+        own: detail.teamStats![teamMatch.side],
+        opponent: detail.teamStats![other],
+      });
+    }
+    // The rival's view of the same match mirrors it.
+    const first = rj.matches[0];
+    return source.teamSeason(SEASON, first.opponent.id).then((rival) => {
+      const same = rival!.matches.find((m) => m.match.id === first.match.id)!;
+      expect(same.teamStats).toEqual({
+        own: first.teamStats!.opponent,
+        opponent: first.teamStats!.own,
+      });
+    });
+  });
+
   it("justifies every squad player's season totals with the matches they played", async () => {
     for (const { player, stats } of rj.squad) {
       const profile = (await source.player(player.id, SEASON))!;

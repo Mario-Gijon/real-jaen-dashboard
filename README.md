@@ -49,7 +49,11 @@ Las métricas distinguen siempre tres casos y nunca convierten una ausencia en c
 
 Los acumulados de temporada (`SeasonStat`) añaden su cobertura: `complete`, `partial`
 (sólo `matches` de `of` partidos tenían el dato, así que el total no es de toda la
-temporada) o `none` (con su `reason`).
+temporada) o `none` (con su `reason`). La regla está en `seasonStat` (`src/contract`), que
+comparten el servidor y las pantallas para cualquier conjunto de partidos.
+
+Cada partido de un equipo (`TeamMatch`) incluye sus estadísticas de equipo vistas desde ese
+equipo: `own` (lo que hizo) y `opponent` (lo que hizo el rival, es decir, lo que concedió).
 
 ## Goles y tarjetas
 

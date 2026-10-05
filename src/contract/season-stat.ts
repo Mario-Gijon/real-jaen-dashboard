@@ -1,8 +1,9 @@
-import type { MissingReason, SeasonStat, Stat } from "@/contract";
+import type { MissingReason, SeasonStat, Stat } from "./index";
 
 /**
- * How per-match values become a season figure. Works on contract types only,
- * so any `DataSource` adapter can reuse it.
+ * How per-match values become a figure over several matches, with its
+ * coverage. Pure and on contract types only, so data sources and screens
+ * share one rule (season totals, a "last 3 matches" period…).
  *
  * - `sum`: total of the covered matches;
  * - `mean`: average of the covered matches (possession);
