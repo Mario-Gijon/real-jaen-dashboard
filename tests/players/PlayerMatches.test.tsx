@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSeasonMatches } from "@/client/api";
 import { PLAYER_STAT_KEYS, type GoalEvent, type MatchEvent, type MatchSummary, type PlayerMatch,
   type PlayerMatchStats, type PlayerSeason, type PlayerSeasonStats, type TeamRef } from "@/contract";
-import { PlayerMatches } from "./PlayerMatches";
+import { PlayerMatches } from "@/features/players/PlayerMatches";
 
 vi.mock("@/client/api", async importOriginal => ({
   ...await importOriginal<typeof import("@/client/api")>(), getSeasonMatches: vi.fn(),

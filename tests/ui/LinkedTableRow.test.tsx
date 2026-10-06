@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import { LinkedTableRow } from "./LinkedTableRow";
+import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import Link from "next/link";
 
 it("activates the native link from a row cell and preserves navigation modifiers", () => {

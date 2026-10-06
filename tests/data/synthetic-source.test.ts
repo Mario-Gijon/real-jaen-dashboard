@@ -12,7 +12,7 @@ import {
   type TeamSeason,
   type TeamStanding,
 } from "@/contract";
-import { createSyntheticSource, loadSyntheticDataset } from "./synthetic-source";
+import { createSyntheticSource, loadSyntheticDataset } from "@/server/synthetic/synthetic-source";
 
 /**
  * The synthetic season through the contract: what the screens will receive,

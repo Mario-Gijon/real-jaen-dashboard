@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { GoalEvent, MatchDetail, MatchEvent, PlayerRef, TeamRef } from "@/contract";
-import { MatchTimeline } from "./MatchTimeline";
+import { MatchTimeline } from "@/features/matches/MatchTimeline";
 
 const home: TeamRef = { id: "home", name: "Real Jaén CF", shortName: "Real Jaén",
   crestUrl: null, colors: { primary: "#4b2677", secondary: "#ffffff" } };

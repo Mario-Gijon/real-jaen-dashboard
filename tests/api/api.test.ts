@@ -8,12 +8,12 @@ import type {
   TeamSeason,
   TeamStanding,
 } from "@/contract";
-import { GET as competitions } from "./competitions/route";
-import { GET as match } from "./matches/[matchId]/route";
-import { GET as player } from "./players/[playerId]/route";
-import { GET as seasonMatches } from "./seasons/[seasonId]/matches/route";
-import { GET as teamSeason } from "./seasons/[seasonId]/teams/[teamId]/route";
-import { GET as seasonTeams } from "./seasons/[seasonId]/teams/route";
+import { GET as competitions } from "@/app/api/v1/competitions/route";
+import { GET as match } from "@/app/api/v1/matches/[matchId]/route";
+import { GET as player } from "@/app/api/v1/players/[playerId]/route";
+import { GET as seasonMatches } from "@/app/api/v1/seasons/[seasonId]/matches/route";
+import { GET as teamSeason } from "@/app/api/v1/seasons/[seasonId]/teams/[teamId]/route";
+import { GET as seasonTeams } from "@/app/api/v1/seasons/[seasonId]/teams/route";
 
 const SEASON = "season-demo-2026-27";
 const request = (path: string) => new Request(`http://localhost/api/v1${path}`);

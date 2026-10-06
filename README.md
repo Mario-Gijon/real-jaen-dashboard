@@ -32,7 +32,7 @@ DataSource (src/server)  ──►  fuente de datos (hoy: sintética)
 | `scripts` | Generador de la temporada sintética (`npm run data:generate`) |
 
 **Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
-ESLint (`no-restricted-imports`) y lo comprueba `src/architecture.test.ts`.
+ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture.test.ts`.
 Sin base de datos, Docker, workers ni autenticación.
 
 ## Independencia de la fuente de datos
@@ -109,7 +109,7 @@ Sólo `src/server/synthetic` conoce estos archivos. Se generan con semilla fija 
 npm run data:generate   # regenera data/synthetic desde scripts/synthetic
 ```
 
-`src/server/synthetic/dataset.test.ts` falla si los archivos no coinciden con el generador
+`tests/data/dataset.test.ts` falla si los archivos no coinciden con el generador
 y comprueba su coherencia interna (identificadores, plantillas, alineaciones, sustituciones,
 goles frente al marcador, minutos, estadísticas frente a eventos).
 

@@ -10,7 +10,7 @@ import {
   squad,
   standings,
 } from "./fixtures.test-data";
-import { TeamsView } from "./TeamsView";
+import { TeamsView } from "@/features/teams/TeamsView";
 
 /** Answers the typed client's GETs from the fixtures, like `/api/v1` would. */
 function serveApi() {

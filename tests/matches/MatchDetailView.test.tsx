@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError, getCompetitions, getMatch } from "@/client/api";
 import { TEAM_STAT_KEYS, type MatchDetail, type TeamMatchStats, type TeamRef } from "@/contract";
-import { MatchDetailView } from "./MatchDetailView";
+import { MatchDetailView } from "@/features/matches/MatchDetailView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),

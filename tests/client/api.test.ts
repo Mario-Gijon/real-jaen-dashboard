@@ -8,7 +8,7 @@ import {
   getSeasonTeams,
   getSource,
   getTeamSeason,
-} from "./api";
+} from "@/client/api";
 
 function answer(body: unknown, status = 200) {
   const fetch = vi.fn(async () => new Response(JSON.stringify(body), { status }));

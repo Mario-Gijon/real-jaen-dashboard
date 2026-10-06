@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playerHref, playerReturnHref } from "./navigation";
+import { playerHref, playerReturnHref } from "@/features/players/navigation";
 
 describe("Player navigation context", () => {
   it("returns to the same team, season and players tab without browser history", () => {

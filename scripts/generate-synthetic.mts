@@ -3,7 +3,7 @@
  *
  *   npm run data:generate
  *
- * The output is versioned; `src/server/synthetic/dataset.test.ts` fails when
+ * The output is versioned; `tests/data/dataset.test.ts` fails when
  * it no longer matches the generator.
  */
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";

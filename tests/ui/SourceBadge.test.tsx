@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SourceBadge } from "./SourceBadge";
+import { SourceBadge } from "@/ui/SourceBadge";
 
 function answer(body: unknown, status = 200) {
   vi.stubGlobal(

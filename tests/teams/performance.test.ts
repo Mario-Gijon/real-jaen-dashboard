@@ -7,7 +7,7 @@ import {
   periodMatches,
   venueRecord,
   type Indicator,
-} from "./performance";
+} from "@/features/teams/performance";
 
 const rounds = (matches: { match: { round: number } }[]) => matches.map((m) => m.match.round);
 const season = periodMatches(rjSeason.matches, "season");

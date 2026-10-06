@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import { describe, expect, it } from "vitest";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const eslint = new ESLint({ cwd: root });
 
 function sourceFiles(dir: string): string[] {

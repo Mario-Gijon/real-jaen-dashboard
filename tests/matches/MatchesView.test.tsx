@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCompetitions, getSeasonMatches, getSeasonTeams } from "@/client/api";
 import type { MatchSummary, Season, TeamRef } from "@/contract";
-import { MatchesView } from "./MatchesView";
-import { MatchList } from "./MatchList";
+import { MatchesView } from "@/features/matches/MatchesView";
+import { MatchList } from "@/features/matches/MatchList";
 
 vi.mock("@/client/api", () => ({
   getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getSeasonTeams: vi.fn(),

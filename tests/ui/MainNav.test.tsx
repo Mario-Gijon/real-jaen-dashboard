@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { MainNav } from "./MainNav";
+import { MainNav } from "@/ui/MainNav";
 
 const pathname = vi.hoisted(() => ({ value: "/matches" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));

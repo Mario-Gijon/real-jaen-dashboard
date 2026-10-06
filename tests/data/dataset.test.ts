@@ -2,10 +2,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { datasetFiles, generateDataset } from "../../../scripts/synthetic/generate.mts";
+import { datasetFiles, generateDataset } from "../../scripts/synthetic/generate.mts";
 import { scoringSide } from "@/contract";
-import type { RawEvent, RawLineup, RawMatch } from "./raw";
-import { loadSyntheticDataset } from "./synthetic-source";
+import type { RawEvent, RawLineup, RawMatch } from "@/server/synthetic/raw";
+import { loadSyntheticDataset } from "@/server/synthetic/synthetic-source";
 
 /**
  * Coherence of the versioned synthetic season. These checks catch the

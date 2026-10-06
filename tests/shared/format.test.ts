@@ -9,7 +9,7 @@ import {
   positionLabel,
   seasonText,
   statText,
-} from "./format";
+} from "@/features/format";
 
 describe("presentation of contract values", () => {
   it("keeps a real 0 and turns any absence into «—»", () => {

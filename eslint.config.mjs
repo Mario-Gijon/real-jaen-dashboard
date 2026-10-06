@@ -23,14 +23,14 @@ const eslintConfig = [
   ...nextVitals,
   ...nextTs,
   {
-    files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/**", "src/server/**"],
+    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    ignores: ["src/app/api/**", "src/server/**", "tests/api/**", "tests/data/**"],
     rules: {
       "no-restricted-imports": ["error", { patterns: [serverAndData] }],
     },
   },
   {
-    files: ["src/server/**/*.{ts,tsx}"],
+    files: ["src/server/**/*.{ts,tsx}", "tests/data/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", { patterns: [uiFromServer] }],
     },
