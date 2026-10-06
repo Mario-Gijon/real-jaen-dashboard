@@ -276,7 +276,7 @@ describe("Jugadores", () => {
       "Iker Cantera",
       "Diego Goleador",
     ]);
-    expect(row("Tomás Reserva")).toHaveTextContent(/^13Tomás ReservaPorteroPOR00000$/);
+    expect(row("Tomás Reserva")).toHaveTextContent(/^13TRTomás ReservaPorteroPOR00000$/);
   });
 
   it("shows a real 0 as 0 and a missing total as «—»", async () => {
@@ -333,7 +333,7 @@ describe("Jugadores", () => {
       );
     }
     expect(
-      within(panel).getByText("Asistencias").closest("div")!.querySelector("dd"),
+      within(panel).getByText("Asist.").closest("div")!.querySelector("dd"),
     ).toHaveTextContent("1");
   });
 });

@@ -36,12 +36,22 @@ export function TeamPlayerSheet({
     ["Estatura", profile.data ? heightLabel(profile.data.player.heightCm) : null],
     ["Pierna dominante", profile.data ? footLabel(profile.data.player.preferredFoot) : null],
   ];
-  const season: [string, SeasonStat][] = [
-    ["Partidos jugados", stats.appearances],
-    ["Titularidades", stats.starts],
-    ["Minutos", stats.minutes],
-    ["Goles", stats.goals],
-    ["Asistencias", stats.assists],
+  const season: { title: string; metrics: [string, string, SeasonStat][] }[] = [
+    {
+      title: "Participación",
+      metrics: [
+        ["PJ", "Partidos jugados", stats.appearances],
+        ["Tit.", "Titularidades", stats.starts],
+        ["Min.", "Minutos", stats.minutes],
+      ],
+    },
+    {
+      title: "Aportación",
+      metrics: [
+        ["Goles", "Goles", stats.goals],
+        ["Asist.", "Asistencias", stats.assists],
+      ],
+    },
   ];
   const href = `/players/${encodeURIComponent(player.id)}?season=${encodeURIComponent(seasonId)}`;
 
@@ -96,16 +106,30 @@ export function TeamPlayerSheet({
           <h3 className={css.heading} id="sheet-season">
             Temporada
           </h3>
-          <dl className={css.season}>
-            {season.map(([label, stat]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>
-                  <SeasonValue stat={stat} />
-                </dd>
-              </div>
+          <div className={css.summary}>
+            {season.map(({ title, metrics }) => (
+              <section aria-labelledby={`sheet-${title}`} key={title}>
+                <h4 className={css.subheading} id={`sheet-${title}`}>
+                  {title}
+                </h4>
+                <dl
+                  className={css.season}
+                  style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }}
+                >
+                  {metrics.map(([label, fullLabel, stat]) => (
+                    <div key={label}>
+                      <dt>
+                        {label === fullLabel ? label : <abbr title={fullLabel}>{label}</abbr>}
+                      </dt>
+                      <dd>
+                        <SeasonValue stat={stat} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
             ))}
-          </dl>
+          </div>
         </section>
       </div>
     </SidePanel>

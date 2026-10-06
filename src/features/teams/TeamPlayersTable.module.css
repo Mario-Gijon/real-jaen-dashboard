@@ -43,8 +43,7 @@
   overflow-x: auto;
 }
 .table {
-  width: 100%;
-  max-width: 880px;
+  width: auto;
   border-collapse: collapse;
   font-size: var(--rj-text-sm);
 }
@@ -60,14 +59,9 @@
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-xs);
 }
-.table tbody tr:hover {
+.table tbody tr:hover,
+.table tbody tr:focus-within {
   background: var(--rj-bg-hover);
-}
-.table tbody tr[data-unused] {
-  color: var(--rj-text-secondary);
-}
-.player {
-  width: 100%;
 }
 .stat {
   text-align: right !important;
@@ -117,9 +111,9 @@
   text-align: left;
   cursor: pointer;
 }
-.open:hover .name {
+.open:hover .name,
+.open:focus-visible .name {
   color: var(--rj-purple-700);
-  text-decoration: underline;
 }
 .shirt {
   display: inline-grid;
@@ -178,6 +172,13 @@
   .positionShort {
     display: inline;
   }
+  .minutesValue .bar {
+    display: none;
+  }
+  .minutes .minutesValue {
+    display: inline;
+    min-width: 0;
+  }
   .player {
     position: sticky;
     left: 0;
@@ -185,4 +186,26 @@
     max-width: 128px;
     background: var(--rj-bg-card);
   }
+}
+
+/* Fixed graphic space keeps the squad-wide scale comparable without taller rows. */
+.minutesValue {
+  position: relative;
+  display: inline-block;
+  min-width: 50px;
+}
+.bar {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  width: 50px;
+  height: 3px;
+  border-radius: var(--rj-radius-pill);
+}
+.bar > span {
+  display: block;
+  height: 100%;
+  min-width: 1px;
+  border-radius: inherit;
+  background: var(--rj-purple-500);
 }

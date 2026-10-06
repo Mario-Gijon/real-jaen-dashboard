@@ -10,6 +10,7 @@ import {
   POSITION_SHORT,
   positionLabel,
 } from "../format";
+import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { SeasonValue } from "../SeasonValue";
 import css from "./TeamPlayersTable.module.css";
 
@@ -53,6 +54,16 @@ function sortSquad(rows: readonly SquadPlayer[], { key, direction }: Sort): Squa
   });
 }
 
+/** Thin bar below the minutes: share of the squad's highest figure, a visual aid only. */
+function MinutesBar({ minutes, max }: { minutes: number; max: number }) {
+  const share = max > 0 ? Math.min(1, minutes / max) : 0;
+  return (
+    <span aria-hidden="true" className={css.bar}>
+      {minutes > 0 ? <span style={{ width: `${share * 100}%` }} /> : null}
+    </span>
+  );
+}
+
 /**
  * The season squad: filter by line, sort by column, open a player's sheet.
  * Every squad member appears, with or without minutes; a real 0 reads «0».
@@ -73,6 +84,11 @@ export function TeamPlayersTable({
     }
     return result;
   }, [squad]);
+  // Scale of the minutes bars: the whole squad, so the line filter never rescales them.
+  const maxMinutes = useMemo(
+    () => Math.max(0, ...squad.map((row) => row.stats.minutes.value ?? 0)),
+    [squad],
+  );
   const rows = useMemo(
     () =>
       sortSquad(
@@ -163,6 +179,8 @@ export function TeamPlayersTable({
                     <span aria-hidden="true" className={css.shirt}>
                       {row.shirtNumber ?? "—"}
                     </span>
+                    {/* The contract has no player picture yet: always the neutral fallback. */}
+                    <PlayerAvatar name={row.player.name} />
                     <span className={css.name}>{row.player.name}</span>
                   </button>
                 </th>
@@ -176,8 +194,16 @@ export function TeamPlayersTable({
                   </abbr>
                 </td>
                 {STAT_COLUMNS.map(([key]) => (
-                  <td className={css.stat} key={key}>
-                    <SeasonValue stat={row.stats[key]} />
+                  <td
+                    className={key === "minutes" ? `${css.stat} ${css.minutes}` : css.stat}
+                    key={key}
+                  >
+                    {key === "minutes" ? (
+                      <span className={css.minutesValue}>
+                        <SeasonValue stat={row.stats[key]} />
+                        <MinutesBar max={maxMinutes} minutes={row.stats.minutes.value ?? 0} />
+                      </span>
+                    ) : <SeasonValue stat={row.stats[key]} />}
                   </td>
                 ))}
               </tr>
