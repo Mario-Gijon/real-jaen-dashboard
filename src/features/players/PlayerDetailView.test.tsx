@@ -49,6 +49,17 @@ function metric(region: string, label: string) {
 }
 
 describe("Player season detail", () => {
+  it("provides a deterministic internal return without relying on browser history", async () => {
+    await load();
+    expect(screen.getByRole("link", { name: "← Volver" })).toHaveAttribute("href", "/teams?season=season&tab=players");
+  });
+
+  it("uses the explicit originating match and tab for the return action", async () => {
+    render(<PlayerDetailView playerId="player" seasonId="season" returnHref="/matches/m1?tab=lineups" />);
+    await screen.findByRole("heading", { name: profile.player.name });
+    expect(screen.getByRole("link", { name: "← Volver" })).toHaveAttribute("href", "/matches/m1?tab=lineups");
+  });
+
   it("activates Partidos by keyboard and restores the approved season without reloading the player", async () => {
     await load();
     expect(getSeasonMatches).not.toHaveBeenCalled();

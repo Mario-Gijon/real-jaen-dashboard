@@ -3,6 +3,7 @@ import type { LineupPlayer, MatchDetail, SubstitutionEvent } from "@/contract";
 import { MISSING, POSITION_SHORT, positionLabel } from "../format";
 import { GoalIcon } from "./GoalIcon";
 import { AssistIcon } from "./AssistIcon";
+import { PlayerLink } from "../players/PlayerLink";
 import css from "./MatchLineups.module.css";
 
 type Contribution = { goals: number; assists: number };
@@ -43,18 +44,18 @@ export function MatchLineups({ match }: { match: MatchDetail }) {
           {lineup.formation ? <p className={css.formation}>Formación: {lineup.formation}</p> : null}
         </header>
         <h3 className={css.sectionTitle}>Once inicial</h3>
-        <PlayerList players={lineup.starters} changes={[]} contributions={contributions}
+        <PlayerList matchId={match.id} seasonId={match.seasonId} players={lineup.starters} changes={[]} contributions={contributions}
           substitutedPlayers={new Set(changes.map(event => event.playerOut.id))} label={`Once inicial de ${team.name}`} />
         <h3 className={css.sectionTitle}>Banquillo</h3>
-        <PlayerList players={lineup.bench} changes={changes} contributions={contributions} label={`Banquillo de ${team.name}`} />
+        <PlayerList matchId={match.id} seasonId={match.seasonId} players={lineup.bench} changes={changes} contributions={contributions} label={`Banquillo de ${team.name}`} />
       </section>;
     })}
   </div>;
 }
 
-function PlayerList({ players, changes, contributions, substitutedPlayers, label }: {
+function PlayerList({ players, changes, contributions, substitutedPlayers, label, seasonId, matchId }: {
   players: readonly LineupPlayer[]; changes: readonly SubstitutionEvent[];
-  contributions: ReadonlyMap<string, Contribution>; substitutedPlayers?: ReadonlySet<string>; label: string;
+  contributions: ReadonlyMap<string, Contribution>; substitutedPlayers?: ReadonlySet<string>; label: string; seasonId: string; matchId: string;
 }) {
   return <ul className={css.players} aria-label={label}>
     {players.map(({ player, shirtNumber }) => <li key={player.id} className={css.player}>
@@ -62,7 +63,7 @@ function PlayerList({ players, changes, contributions, substitutedPlayers, label
         {shirtNumber ?? MISSING}
       </span>
       <span className={css.playerIdentity}>
-        <span className={css.name}>{player.name}</span>
+        <PlayerLink player={player} seasonId={seasonId} className={css.name} origin={{ kind: "match", id: matchId, tab: "lineups" }} />
         <span className={css.position} title={player.position ? positionLabel(player.position) : "Posición no disponible"}
           aria-label={player.position ? positionLabel(player.position) : "Posición no disponible"}>
           {player.position ? POSITION_SHORT[player.position] : MISSING}

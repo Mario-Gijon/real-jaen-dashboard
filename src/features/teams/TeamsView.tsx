@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getCompetitions, getSeasonTeams, getTeamSeason } from "@/client/api";
-import type { SquadPlayer, TeamRef } from "@/contract";
+import type { TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
@@ -12,7 +12,6 @@ import { tabId, tabPanelId, Tabs } from "@/ui/Tabs";
 import { useApi } from "../use-api";
 import { TeamCrestGrid } from "./TeamCrestGrid";
 import { TeamPerformance } from "./TeamPerformance";
-import { TeamPlayerSheet } from "./TeamPlayerSheet";
 import { TeamPlayersTable } from "./TeamPlayersTable";
 import css from "./TeamsView.module.css";
 
@@ -43,12 +42,14 @@ function gridOrder(teams: readonly TeamRef[]): TeamRef[] {
  * its collective performance and its squad. Everything comes from `/api/v1`
  * through the typed client.
  */
-export function TeamsView() {
+export function TeamsView({ initialTeamId, initialSeasonId, initialTab = "performance" }: {
+  initialTeamId?: string; initialSeasonId?: string; initialTab?: Tab;
+}) {
   const competitions = useApi("competitions", (signal) => getCompetitions({ signal }));
   const [competitionId, setCompetitionId] = useState<string | null>(null);
-  const [seasonId, setSeasonId] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId ?? null);
   const competition =
-    competitions.data?.find((c) => c.id === competitionId) ?? competitions.data?.[0] ?? null;
+    competitions.data?.find((c) => c.id === competitionId) ?? competitions.data?.find(c => c.seasons.some(s => s.id === seasonId)) ?? competitions.data?.[0] ?? null;
   const season =
     competition?.seasons.find((s) => s.id === seasonId) ?? competition?.seasons[0] ?? null;
 
@@ -59,7 +60,7 @@ export function TeamsView() {
     () => gridOrder(standings.data?.map((row) => row.team) ?? []),
     [standings.data],
   );
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const [teamId, setTeamId] = useState<string | null>(initialTeamId ?? null);
   const team =
     teams.find((t) => t.id === teamId) ??
     teams.find((t) => t.id === CLUB_TEAM_ID) ??
@@ -69,8 +70,7 @@ export function TeamsView() {
   const detail = useApi(season && team && `team|${season.id}|${team.id}`, (signal) =>
     getTeamSeason(season!.id, team!.id, { signal }),
   );
-  const [tab, setTab] = useState<Tab>("performance");
-  const [sheet, setSheet] = useState<SquadPlayer | null>(null);
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   // Phones fold the grid while a club is shown; desktop always shows it (CSS).
   const [gridOpen, setGridOpen] = useState(false);
@@ -158,7 +158,6 @@ export function TeamsView() {
               }}
               onSelect={(next) => {
                 setTeamId(next.id);
-                setSheet(null);
               }}
               selectedId={team.id}
               teams={teams}
@@ -217,21 +216,13 @@ export function TeamsView() {
               ) : tab === "performance" ? (
                 <TeamPerformance season={detail.data} />
               ) : (
-                <TeamPlayersTable onOpen={setSheet} squad={detail.data.squad} />
+                <TeamPlayersTable key={`${detail.data.team.id}|${detail.data.season.id}`} squad={detail.data.squad} seasonId={detail.data.season.id} teamId={detail.data.team.id} />
               )}
             </div>
           </section>
         </div>
       )}
 
-      {sheet && season ? (
-        <TeamPlayerSheet
-          onClose={() => setSheet(null)}
-          row={sheet}
-          seasonId={season.id}
-          teamName={team?.name ?? ""}
-        />
-      ) : null}
     </>
   );
 }

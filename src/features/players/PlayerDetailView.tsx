@@ -6,6 +6,8 @@ import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { Tabs, tabId, tabPanelId } from "@/ui/Tabs";
 import { useState } from "react";
+import Link from "next/link";
+import { playerReturnHref } from "./navigation";
 import { FIELD_GROUPS, KEEPER_GROUPS } from "./player-metrics";
 import { PlayerMatches } from "./PlayerMatches";
 import { birthLabel, footLabel, heightLabel, positionLabel } from "../format";
@@ -20,7 +22,7 @@ const PARTICIPATION: readonly Metric[] = [
 ];
 
 
-export function PlayerDetailView({ playerId, seasonId }: { playerId: string; seasonId: string | null }) {
+export function PlayerDetailView({ playerId, seasonId, returnHref }: { playerId: string; seasonId: string | null; returnHref?: string }) {
   const [tab, setTab] = useState<"season" | "matches">("season");
   const profile = useApi(seasonId ? `player|${playerId}|${seasonId}` : null,
     (signal) => getPlayer(playerId, seasonId!, { signal }));
@@ -39,6 +41,7 @@ export function PlayerDetailView({ playerId, seasonId }: { playerId: string; sea
   const data = profile.data;
   const noParticipation = data.stats.appearances.value === 0;
   return <div className={css.page}>
+    <Link className={css.back} href={returnHref ?? playerReturnHref(seasonId, {})}>← Volver</Link>
     <Identity data={data} />
     <Tabs items={[{ id: "season", label: "Temporada" }, { id: "matches", label: "Partidos" }]}
       selected={tab} onSelect={setTab} label="Secciones del jugador" prefix="player" />

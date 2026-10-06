@@ -58,6 +58,12 @@
   border-bottom-color: var(--rj-border-strong);
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.table thead .personalHeader {
+  text-transform: none;
 }
 .table tbody tr:hover,
 .table tbody tr:focus-within {
@@ -80,9 +86,6 @@
   background: none;
   color: inherit;
   font: inherit;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   cursor: pointer;
 }
 .sort abbr {
@@ -110,7 +113,10 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  text-decoration: none;
 }
+.table tbody tr { cursor: pointer; }
+.open:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .open:hover .name,
 .open:focus-visible .name {
   color: var(--rj-purple-700);

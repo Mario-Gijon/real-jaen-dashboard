@@ -1,4 +1,7 @@
 .page { max-width: 960px; min-width: 0; }
+.back { display: inline-block; margin-bottom: var(--rj-space-4); color: var(--rj-text-secondary); font-size: var(--rj-text-sm); text-decoration: none; }
+.back:hover { color: var(--rj-purple-900); }
+.back:focus-visible { outline: var(--rj-focus-ring); outline-offset: 3px; }
 .header { padding-bottom: var(--rj-space-5); }
 .identity { display: flex; align-items: center; gap: var(--rj-space-3); }
 .identityText { min-width: 0; }

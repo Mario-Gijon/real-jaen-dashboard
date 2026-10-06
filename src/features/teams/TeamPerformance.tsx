@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { LinkedTableRow } from "@/ui/LinkedTableRow";
 
 import { useEffect, useRef, useState } from "react";
 import type { MatchResult, TeamMatch, TeamSeason } from "@/contract";
@@ -113,8 +115,7 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
                 {[...played].reverse().map((m) => {
                   const marked = highlighted.has(m.match.id);
                   return (
-                    // Prepared for /matches/[matchId] once that page exists.
-                    <tr
+                    <LinkedTableRow
                       data-in-period={marked || undefined}
                       data-match-id={m.match.id}
                       key={m.match.id}
@@ -128,13 +129,13 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
                       </td>
                       <td className={css.venue}>{m.side === "home" ? "Local" : "Visitante"}</td>
                       <td className={css.rival}>
-                        <span className={css.opponent}>
+                        <Link href={`/matches/${encodeURIComponent(m.match.id)}`} className={css.opponent} prefetch={false}>
                           <span aria-hidden="true" className={css.venueShort}>
                             {m.side === "home" ? "vs" : "en"}
                           </span>
                           <TeamCrest size={22} team={m.opponent} />
                           <span className={css.opponentName}>{m.opponent.name}</span>
-                        </span>
+                        </Link>
                       </td>
                       <td className={css.end}>
                         <span
@@ -145,7 +146,7 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
                           {RESULT[m.result!].letter} {teamScore(m)}
                         </span>
                       </td>
-                    </tr>
+                    </LinkedTableRow>
                   );
                 })}
               </tbody>

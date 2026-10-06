@@ -28,8 +28,8 @@ const METRICS: readonly { key: TeamStatKey; label: string; decimals?: number }[]
   { key: "redCards", label: "Rojas" },
 ];
 
-export function MatchDetailView({ matchId }: { matchId: string }) {
-  const [section, setSection] = useState<(typeof SECTIONS)[number]>("summary");
+export function MatchDetailView({ matchId, initialSection = "summary" }: { matchId: string; initialSection?: (typeof SECTIONS)[number] }) {
+  const [section, setSection] = useState<(typeof SECTIONS)[number]>(initialSection);
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
     const index = SECTIONS.indexOf(section);

@@ -2,6 +2,11 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { getPlayer } from "@/client/api";
+import { LinkedTableRow } from "@/ui/LinkedTableRow";
+import { playerHref } from "../players/navigation";
+import { useApi } from "../use-api";
 import type { PlayerPosition, PlayerSeasonStats, SquadPlayer } from "@/contract";
 import {
   POSITION_LABEL,
@@ -9,6 +14,7 @@ import {
   POSITION_PLURAL,
   POSITION_SHORT,
   positionLabel,
+  footLabel,
 } from "../format";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { SeasonValue } from "../SeasonValue";
@@ -65,15 +71,17 @@ function MinutesBar({ minutes, max }: { minutes: number; max: number }) {
 }
 
 /**
- * The season squad: filter by line, sort by column, open a player's sheet.
+ * The season squad: filter by line, sort by column, navigate to the player.
  * Every squad member appears, with or without minutes; a real 0 reads «0».
  */
 export function TeamPlayersTable({
   squad,
-  onOpen,
+  seasonId,
+  teamId,
 }: {
   squad: readonly SquadPlayer[];
-  onOpen: (row: SquadPlayer) => void;
+  seasonId: string;
+  teamId: string;
 }) {
   const [line, setLine] = useState<PlayerPosition | "all">("all");
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "ascending" });
@@ -164,17 +172,19 @@ export function TeamPlayersTable({
                   {header(key, short, long, true, phone)}
                 </th>
               ))}
+              <th className={css.personalHeader} scope="col">Estatura</th>
+              <th className={css.personalHeader} scope="col">Pierna</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr data-unused={row.stats.appearances.value === 0 || undefined} key={row.player.id}>
+              <LinkedTableRow data-unused={row.stats.appearances.value === 0 || undefined} key={row.player.id}>
                 <th className={css.player} scope="row">
-                  <button
+                  <Link
                     aria-label={`Ver ficha de ${row.player.name}`}
                     className={css.open}
-                    onClick={() => onOpen(row)}
-                    type="button"
+                    href={playerHref(row.player.id, seasonId, { kind: "team", id: teamId })}
+                    prefetch={false}
                   >
                     <span aria-hidden="true" className={css.shirt}>
                       {row.shirtNumber ?? "—"}
@@ -182,7 +192,7 @@ export function TeamPlayersTable({
                     {/* The contract has no player picture yet: always the neutral fallback. */}
                     <PlayerAvatar name={row.player.name} />
                     <span className={css.name}>{row.player.name}</span>
-                  </button>
+                  </Link>
                 </th>
                 <td className={css.position}>
                   <span className={css.positionLong}>{positionLabel(row.player.position)}</span>
@@ -206,7 +216,8 @@ export function TeamPlayersTable({
                     ) : <SeasonValue stat={row.stats[key]} />}
                   </td>
                 ))}
-              </tr>
+                <PersonalCells playerId={row.player.id} seasonId={seasonId} />
+              </LinkedTableRow>
             ))}
           </tbody>
         </table>
@@ -214,4 +225,14 @@ export function TeamPlayersTable({
       {rows.length === 0 ? <p className={css.empty}>No hay jugadores en esta posición.</p> : null}
     </div>
   );
+}
+
+function PersonalCells({ playerId, seasonId }: { playerId: string; seasonId: string }) {
+  const profile = useApi(`personal|${playerId}|${seasonId}`, signal => getPlayer(playerId, seasonId, { signal }));
+  const player = profile.data?.player;
+  const note = profile.error ? "No se pudieron cargar los datos personales" : profile.loading ? "Cargando datos personales" : undefined;
+  return <>
+    <td aria-busy={profile.loading || undefined} title={note}>{profile.loading ? "…" : player?.heightCm != null ? `${player.heightCm} cm` : "—"}</td>
+    <td aria-busy={profile.loading || undefined} title={note}>{profile.loading ? "…" : footLabel(player?.preferredFoot ?? null)}</td>
+  </>;
 }

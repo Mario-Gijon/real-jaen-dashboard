@@ -103,7 +103,17 @@ describe("Match lineup lists", () => {
     expect(within(screen.getByRole("list", { name: `Banquillo de ${home.name}` })).getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getAllByRole("heading", { name: "Once inicial" })).toHaveLength(2);
     expect(screen.getAllByRole("heading", { name: "Banquillo" })).toHaveLength(2);
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(4);
+  });
+
+  it("links starter and bench names by their own IDs and the match season", () => {
+    render(<MatchLineups match={{ ...match, seasonId: "season-other" }} />);
+    for (const member of [starter, bench, unused, rival]) {
+      const link = screen.getByRole("link", { name: member.player.name });
+      expect(link).toHaveAttribute("href", `/players/${member.player.id}?season=season-other&from=match&origin=m1&tab=lineups`);
+      expect(link).toHaveTextContent(member.player.name);
+      expect(link.closest("li")).not.toBe(link);
+    }
   });
 
   it("shows no substitution symbol for a starter who completes the match", () => {

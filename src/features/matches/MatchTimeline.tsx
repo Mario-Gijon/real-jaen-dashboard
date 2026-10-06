@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { scoringSide, type MatchDetail, type MatchEvent } from "@/contract";
 import { GoalIcon } from "./GoalIcon";
+import { PlayerLink } from "../players/PlayerLink";
 import css from "./MatchTimeline.module.css";
 
 const CARD_LABEL = { yellow: "Amarilla", second_yellow: "Segunda amarilla", red: "Roja" };
@@ -27,7 +28,7 @@ export function MatchTimeline({ match }: { match: MatchDetail }) {
           <span className={css.minute}>{event.minute}{event.addedTime ? `+${event.addedTime}` : ""}′</span>
           <div className={css.action}>
             <span className={css.teamLabel}>{team.shortName} · {side === "home" ? "Local" : "Visitante"}</span>
-            <Action event={event} ownGoalTeam={match[actorSide].shortName} />
+            <Action event={event} ownGoalTeam={match[actorSide].shortName} seasonId={match.seasonId} matchId={match.id} />
           </div>
         </li>;
       })}
@@ -35,27 +36,28 @@ export function MatchTimeline({ match }: { match: MatchDetail }) {
   </>;
 }
 
-function Action({ event, ownGoalTeam }: { event: MatchEvent; ownGoalTeam: string }) {
+function Action({ event, ownGoalTeam, seasonId, matchId }: { event: MatchEvent; ownGoalTeam: string; seasonId: string; matchId: string }) {
+  const origin = { kind: "match", id: matchId, tab: "timeline" } as const;
   if (event.type === "goal") return <>
     <div className={css.primary}>
       <GoalIcon />
-      <span>{event.player.name}</span>
+      <PlayerLink player={event.player} seasonId={seasonId} origin={origin} />
     </div>
     {event.ownGoal ? <p className={css.secondary}>Propia puerta · {ownGoalTeam}</p> : null}
     {event.penalty ? <p className={css.secondary}>Penalti</p> : null}
-    {event.assist ? <p className={css.secondary}>Asist. {event.assist.name}</p> : null}
+    {event.assist ? <p className={css.secondary}>Asist. <PlayerLink player={event.assist} seasonId={seasonId} origin={origin} /></p> : null}
   </>;
   if (event.type === "card") return <>
     <div className={css.primary}>
       <span className={css.cardIcon} data-card={event.card} aria-hidden="true">
         <span />{event.card === "second_yellow" ? <span /> : null}
       </span>
-      <span>{event.player.name}</span>
+      <PlayerLink player={event.player} seasonId={seasonId} origin={origin} />
     </div>
     <p className={css.secondary}>{CARD_LABEL[event.card]}</p>
   </>;
   return <>
-    <div className={css.primary}><ArrowUp size={16} aria-hidden="true" /><span>Entra · {event.playerIn.name}</span></div>
-    <div className={css.departure}><ArrowDown size={16} aria-hidden="true" /><span>Sale · {event.playerOut.name}</span></div>
+    <div className={css.primary}><ArrowUp size={16} aria-hidden="true" /><span>Entra · <PlayerLink player={event.playerIn} seasonId={seasonId} origin={origin} /></span></div>
+    <div className={css.departure}><ArrowDown size={16} aria-hidden="true" /><span>Sale · <PlayerLink player={event.playerOut} seasonId={seasonId} origin={origin} /></span></div>
   </>;
 }

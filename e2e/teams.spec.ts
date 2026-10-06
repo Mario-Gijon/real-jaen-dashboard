@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-test("Equipos: Real Jaén by default, team change, tabs and player panel", async ({
+test("Equipos: Real Jaén by default, team change, tabs and direct player navigation", async ({
   page,
 }, testInfo) => {
   const phone = testInfo.project.name === "mobile";
@@ -39,20 +39,14 @@ test("Equipos: Real Jaén by default, team change, tabs and player panel", async
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("teams-players.png"), fullPage: true });
 
-  const first = table.getByRole("button", { name: /Ver ficha de/ }).first();
+  const first = table.getByRole("link", { name: /Ver ficha de/ }).first();
   const name = (await first.getAttribute("aria-label"))!.replace("Ver ficha de ", "");
   await first.click();
-  const panel = page.getByRole("dialog", { name });
-  await expect(panel).toBeVisible();
-  await expect(panel.getByText("Pierna dominante")).toBeVisible();
-  await expect(panel.getByRole("link", { name: /Ver ficha completa/ })).toHaveAttribute(
-    "href",
-    /\/players\/player-\d+\?season=/,
-  );
-  await page.screenshot({ path: testInfo.outputPath("teams-sheet.png") });
-  await page.keyboard.press("Escape");
-  await expect(panel).toBeHidden();
-  await expect(first).toBeFocused();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("link", { name: "\u2190 Volver", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "CD Montealto" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("Rendimiento: Temporada and Últimos 3 with the three matches highlighted", async ({

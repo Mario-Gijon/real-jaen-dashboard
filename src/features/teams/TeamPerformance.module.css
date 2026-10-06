@@ -308,9 +308,12 @@
   border-bottom: 1px solid var(--rj-border-default);
   white-space: nowrap;
 }
-.table tbody tr:hover {
+.table tbody tr:hover, .table tbody tr:focus-within {
   background: var(--rj-bg-hover);
 }
+.table tbody tr { cursor: pointer; }
+.opponent { color: inherit; text-decoration: none; }
+.opponent:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .table tbody tr[data-in-period] {
   background: var(--rj-purple-100);
 }

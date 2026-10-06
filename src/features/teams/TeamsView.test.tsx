@@ -240,6 +240,7 @@ describe("Rendimiento del equipo", () => {
       "m-1",
     ]);
     expect(highlighted()).toEqual([]);
+    for (const row of rows()) expect(within(row).getByRole("link")).toHaveAttribute("href", `/matches/${row.getAttribute("data-match-id")}`);
     expect(rows()[1]).toHaveTextContent("D 1-2");
     expect(rows()[1]).toHaveTextContent("Local");
     expect(rows()[0]).toHaveTextContent("Visitante");
@@ -247,6 +248,7 @@ describe("Rendimiento del equipo", () => {
     await user.click(screen.getByRole("button", { name: "Últimos 3" }));
     expect(rows()).toHaveLength(4);
     expect(highlighted()).toEqual(["m-6", "m-3", "m-2"]);
+    for (const row of rows()) expect(within(row).getByRole("link")).toHaveAttribute("href", `/matches/${row.getAttribute("data-match-id")}`);
     expect(rows()[0]).toHaveTextContent("(en «Últimos 3»)");
     expect(zone("Partidos")).not.toHaveTextContent("Partidos de «Últimos 3»");
   });
@@ -261,10 +263,10 @@ describe("Jugadores", () => {
   }
   const names = () =>
     within(screen.getByRole("table", { name: "Jugadores de la plantilla" }))
-      .getAllByRole("button", { name: /Ver ficha de/ })
+      .getAllByRole("link", { name: /Ver ficha de/ })
       .map((b) => b.getAttribute("aria-label")!.replace("Ver ficha de ", ""));
   const row = (name: string) =>
-    screen.getByRole("button", { name: `Ver ficha de ${name}` }).closest("tr")!;
+    screen.getByRole("link", { name: `Ver ficha de ${name}` }).closest("tr")!;
 
   it("lists every squad player by line and shirt number, including those without minutes", async () => {
     await openPlayers();
@@ -276,7 +278,7 @@ describe("Jugadores", () => {
       "Iker Cantera",
       "Diego Goleador",
     ]);
-    expect(row("Tomás Reserva")).toHaveTextContent(/^13TRTomás ReservaPorteroPOR00000$/);
+    expect(Array.from(row("Tom\u00e1s Reserva").querySelectorAll("td")).slice(1, 6).map(cell => cell.textContent)).toEqual(["0", "0", "0", "0", "0"]);
   });
 
   it("shows a real 0 as 0 and a missing total as «—»", async () => {
@@ -306,34 +308,29 @@ describe("Jugadores", () => {
     expect(names()).toHaveLength(6);
   });
 
-  it("opens the side panel with personal data and the season, and closes it", async () => {
-    const user = await openPlayers();
-    await user.click(screen.getByRole("button", { name: "Ver ficha de Mario Medio" }));
-    const panel = await screen.findByRole("dialog", { name: "Mario Medio" });
-    expect(panel).toHaveTextContent("Centrocampista · Real Jaén CF");
-    expect(await within(panel).findByText("1,81 m")).toBeVisible();
-    expect(within(panel).getByText("Izquierda")).toBeVisible();
-    expect(within(panel).getByText(/^10\/05\/2000 \(\d+ años\)$/)).toBeVisible();
-    expect(within(panel).getByRole("link", { name: /Ver ficha completa/ })).toHaveAttribute(
-      "href",
-      `/players/p-mid?season=${SEASON_ID}`,
-    );
-    await user.click(within(panel).getByRole("button", { name: "Cerrar" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  it("links directly to the player with season and team context, without a panel", async () => {
+    await openPlayers();
+    const link = screen.getByRole("link", { name: "Ver ficha de Mario Medio" });
+    expect(link).toHaveAttribute("href", `/players/p-mid?season=${SEASON_ID}&from=team&origin=team-real-jaen`);
+    link.focus();
+    expect(link).toHaveFocus();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Ver ficha completa/ })).toBeNull();
+    await waitFor(() => expect(row("Mario Medio").querySelectorAll("td")[6]).toHaveTextContent("181 cm"));
+    expect(row("Mario Medio").querySelectorAll("td")[7]).toHaveTextContent("Izquierda");
   });
 
-  it("shows «—» for personal data the source does not have", async () => {
-    const user = await openPlayers();
-    await user.click(screen.getByRole("button", { name: "Ver ficha de Lucas Defensa" }));
-    const panel = await screen.findByRole("dialog", { name: "Lucas Defensa" });
-    await waitFor(() => expect(within(panel).queryByText("…")).toBeNull());
-    for (const label of ["Nacimiento", "Estatura", "Pierna dominante"]) {
-      expect(within(panel).getByText(label).closest("div")!.querySelector("dd")).toHaveTextContent(
-        "—",
-      );
-    }
-    expect(
-      within(panel).getByText("Asist.").closest("div")!.querySelector("dd"),
-    ).toHaveTextContent("1");
+  it("shows missing personal data as dashes while preserving real statistics", async () => {
+    await openPlayers();
+    await waitFor(() => expect(row("Lucas Defensa").querySelectorAll("td")[6]).toHaveTextContent("\u2014"));
+    expect(row("Lucas Defensa").querySelectorAll("td")[7]).toHaveTextContent("\u2014");
+    expect(row("Lucas Defensa").querySelectorAll("td")[5]).toHaveTextContent("1");
+  });
+
+  it("restores the originating team, season and players tab", async () => {
+    render(<TeamsView initialTeamId="team-alto" initialSeasonId={SEASON_ID} initialTab="players" />);
+    expect(await screen.findByRole("heading", { level: 2, name: "CD Montealto" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
+    expect(requested(fetch)).toContain(`/api/v1/seasons/${SEASON_ID}/teams/team-alto`);
   });
 });
