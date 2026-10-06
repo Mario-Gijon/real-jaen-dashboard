@@ -66,7 +66,7 @@
   font-size: var(--rj-text-sm);
 }
 /* Desktop: the grid is always visible, so there is nothing to unfold. */
-.change {
+.identity .change {
   display: none;
 }
 .panel {
@@ -92,7 +92,7 @@
   .picker:not([data-open]) {
     display: none;
   }
-  .change {
+  .identity .change {
     display: inline-flex;
   }
   .change[aria-expanded="true"] svg {
