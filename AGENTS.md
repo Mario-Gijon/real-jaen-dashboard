@@ -35,13 +35,15 @@ Actualmente se utiliza `SyntheticSource` y `data/synthetic`.
 
 ## Producto
 
-La navegación principal es **Partidos** y **Equipos**. Los jugadores se alcanzan desde estas áreas y posteriormente mediante `/players/[id]`.
+La navegación principal es **Inicio**, **Partidos** y **Equipos**. Los jugadores se alcanzan desde estas áreas y posteriormente mediante `/players/[id]`.
 
 - **Equipos:** análisis longitudinal/de temporada de cualquier equipo y participación/aportación de sus jugadores.
 - **Partidos:** análisis detallado de un encuentro.
 - **Jugador:** análisis longitudinal individual e historial de acciones.
 
 No convertir la aplicación en una plataforma genérica de scouting ni añadir funcionalidades porque los datos lo permitan. Cada elemento debe justificar una necesidad del analista.
+
+Drill-down analítico: los datos agregados deben conducir a sus partidos, jugadores y acciones cuando los datos disponibles lo permitan. Los clips son evidencia asociada a acciones, no una sección independiente. No mostrar placeholders de vídeo no disponible.
 
 ## UX
 

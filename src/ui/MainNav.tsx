@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import css from "./AppShell.module.css";
 
-/** The only two sections of the app; players open from matches and teams. */
+/** Players open from matches and teams, outside the main navigation. */
 export const SECTIONS = [
+  { href: "/", label: "Inicio" },
   { href: "/matches", label: "Partidos" },
   { href: "/teams", label: "Equipos" },
 ] as const;

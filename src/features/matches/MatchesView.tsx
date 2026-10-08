@@ -11,12 +11,12 @@ import { useApi } from "../use-api";
 import { MatchList } from "./MatchList";
 import css from "./MatchesView.module.css";
 
-export function MatchesView() {
+export function MatchesView({ initialSeasonId, initialTeamId }: { initialSeasonId?: string; initialTeamId?: string } = {}) {
   const competitions = useApi("competitions", (signal) => getCompetitions({ signal }));
   const [competitionId, setCompetitionId] = useState<string | null>(null);
-  const [seasonId, setSeasonId] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId ?? null);
   const competition = competitions.data?.find((c) => c.id === competitionId)
-    ?? competitions.data?.[0] ?? null;
+    ?? competitions.data?.find(c => c.seasons.some(s => s.id === seasonId)) ?? competitions.data?.[0] ?? null;
   const season = competition?.seasons.find((s) => s.id === seasonId)
     ?? competition?.seasons[0] ?? null;
 
@@ -55,7 +55,7 @@ export function MatchesView() {
       {competitions.error ? (
         <LoadError message="No se pudieron cargar las competiciones." retry={competitions.retry} />
       ) : season ? (
-        <SeasonMatches key={season.id} season={season} />
+        <SeasonMatches key={season.id} season={season} initialTeamId={season.id === initialSeasonId ? initialTeamId : undefined} />
       ) : (
         <p className={css.status} role="status">
           {competitions.loading ? "Cargando competiciones…" : "No hay temporadas disponibles."}
@@ -66,9 +66,9 @@ export function MatchesView() {
 }
 
 /** Each season starts with its latest played round; without one, use the first round. */
-function SeasonMatches({ season }: { season: Season }) {
-  const [round, setRound] = useState<number | "all">(season.currentRound ?? (season.rounds ? 1 : "all"));
-  const [teamId, setTeamId] = useState("all");
+function SeasonMatches({ season, initialTeamId }: { season: Season; initialTeamId?: string }) {
+  const [round, setRound] = useState<number | "all">(initialTeamId ? "all" : season.currentRound ?? (season.rounds ? 1 : "all"));
+  const [teamId, setTeamId] = useState(initialTeamId ?? "all");
   const standings = useApi(`teams|${season.id}`, (signal) => getSeasonTeams(season.id, { signal }));
   const teams = useMemo(() =>
     [...(standings.data ?? [])].sort((a, b) => a.team.name.localeCompare(b.team.name, "es")),

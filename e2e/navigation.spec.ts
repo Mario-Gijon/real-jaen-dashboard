@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test("opens on Partidos and moves to Equipos with the synthetic-data notice", async ({ page }) => {
+test("opens on Inicio and moves to Equipos with the synthetic-data notice", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveURL(/\/matches$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Partidos" })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Preparación de rival" })).toBeVisible();
   await expect(page.getByText("Datos sintéticos")).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Secciones" });
-  await expect(nav.getByRole("link")).toHaveText(["Partidos", "Equipos"]);
+  await expect(nav.getByRole("link")).toHaveText(["Inicio", "Partidos", "Equipos"]);
   await nav.getByRole("link", { name: "Equipos" }).click();
   await expect(page).toHaveURL(/\/teams$/);
   await expect(page.getByRole("heading", { level: 1, name: "Equipos" })).toBeVisible();

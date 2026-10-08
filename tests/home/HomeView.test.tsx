@@ -1,0 +1,89 @@
+﻿import { render, screen, within, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, it, vi } from "vitest";
+import { getCompetitions, getSeasonMatches, getTeamSeason, getSeasonTeams } from "@/client/api";
+import { HomeView } from "@/features/home/HomeView";
+import { MatchesView } from "@/features/matches/MatchesView";
+import { NOW, season, target, second, rival, other, teamSeason, history } from "./fixtures";
+
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/client/api", () => ({ getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getTeamSeason: vi.fn(), getSeasonTeams: vi.fn() }));
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(getCompetitions).mockResolvedValue([{ id: "c1", name: "Liga", shortName: "Liga", seasons: [season] }]);
+  vi.mocked(getSeasonMatches).mockResolvedValue([target, second]);
+  vi.mocked(getTeamSeason).mockImplementation(async (_, id) => ({ ...teamSeason, team: id === other.id ? other : rival }));
+  vi.mocked(getSeasonTeams).mockResolvedValue([{ ...teamSeason.standing, team: rival }]);
+});
+
+it("suggests the next fixture and links the rival and five recent plus three earlier matches", async () => {
+  render(<HomeView now={NOW} />);
+  const recent = await screen.findByRole("list", { name: "Partidos recientes del rival" });
+  expect(screen.queryByText(/Sugerencia inicial/)).not.toBeInTheDocument();
+  expect(screen.queryByText("Rival en análisis")).not.toBeInTheDocument();
+  expect(getSeasonMatches).toHaveBeenCalledWith("s1", { teamId: "team-real-jaen" }, expect.anything());
+  expect(screen.getByRole("link", { name: "Analizar Rival" })).toHaveAttribute("href", "/teams?season=s1&team=rival");
+  expect(screen.getByRole("link", { name: "Sus partidos" })).toHaveAttribute("href", "/matches?season=s1&team=rival&round=all");
+  expect(within(recent).getAllByRole("link").map(link => link.getAttribute("href")))
+    .toEqual([10, 9, 8, 7, 6].map(i => `/matches/played-${i}`));
+  expect(within(screen.getByRole("list", { name: "Partidos anteriores del rival" })).getAllByRole("link").map(link => link.getAttribute("href")))
+    .toEqual([5, 4, 3].map(i => `/matches/played-${i}`));
+});
+
+it("limits the selector, restores focus, updates URL and derives an away opponent from the chosen fixture", async () => {
+  const user = userEvent.setup();
+  vi.mocked(getSeasonMatches).mockResolvedValue([target, second, ...Array.from({ length: 6 }, (_, i) => ({ ...second, id: `later-${i}`, round: 13 + i, kickoff: `2026-12-${String(i + 1).padStart(2, "0")}T11:00:00Z` }))]);
+  const view = render(<HomeView now={NOW} />);
+  const trigger = await screen.findByRole("button", { name: "Cambiar rival" });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  await user.click(trigger);
+  const panel = screen.getByRole("region", { name: "Próximos encuentros del Real Jaén" });
+  const buttons = within(panel).getAllByRole("button");
+  expect(buttons).toHaveLength(6);
+  expect(buttons[0]).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(trigger).toHaveFocus();
+  expect(screen.queryByRole("region", { name: "Próximos encuentros del Real Jaén" })).toBeNull();
+  await user.keyboard("{Enter}{Tab}{Enter}");
+  expect(push).toHaveBeenCalledWith("/?season=s1&match=second", { scroll: false });
+  expect(trigger).toHaveFocus();
+  view.rerender(<HomeView now={NOW} seasonId="s1" matchId="second" />);
+  expect(await screen.findByRole("link", { name: "Analizar Otro Rival" })).toBeInTheDocument();
+  const header = screen.getByRole("region", { name: "Encuentro de preparación" });
+  expect(within(header).getByText(other.name).parentElement).toHaveTextContent("Local");
+  expect(within(header).getByText("Real Jaén CF").parentElement).toHaveTextContent("Visitante");
+  expect(screen.queryByText(/Sugerencia inicial/)).toBeNull();
+});
+
+it("shows partial xG coverage and unavailable data without converting them to zeros", async () => {
+  vi.mocked(getTeamSeason).mockResolvedValue({ ...teamSeason, matches: history.slice(0, 2).map((entry, i) => ({ ...entry, teamStats: { own: { ...entry.teamStats!.own, xg: i ? { value: null, reason: "not_available" } : { value: 0 } }, opponent: { ...entry.teamStats!.opponent, xg: { value: null, reason: "not_collected" } } } })) });
+  render(<HomeView now={NOW} />);
+  await screen.findByRole("list", { name: "Partidos recientes del rival" });
+  expect(screen.getByText("1/2 partidos con dato")).toBeInTheDocument();
+  expect(screen.getByTitle("Datos disponibles en 1 de 2 partidos")).toHaveTextContent("0");
+  expect(screen.getByTitle("Dato no recogido")).toHaveTextContent("—");
+  expect(screen.getByText("No hay partidos anteriores adicionales.")).toBeInTheDocument();
+});
+
+it("does not replace an invalid explicit target with a suggestion", async () => {
+  render(<HomeView now={NOW} seasonId="s1" matchId="unknown" />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("no es un próximo partido válido");
+  expect(getTeamSeason).not.toHaveBeenCalled();
+});
+
+it("shows an honest empty state when no valid future fixtures remain", async () => {
+  vi.mocked(getSeasonMatches).mockResolvedValue([]);
+  render(<HomeView now={NOW} />);
+  expect(await screen.findByText("No hay próximos encuentros con fecha disponible para preparar.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cambiar rival" })).toBeDisabled();
+});
+
+it("initializes the existing explorer with the rival and full season context", async () => {
+  render(<MatchesView initialSeasonId="s1" initialTeamId="rival" />);
+  await screen.findByRole("list", { name: "Partidos de la temporada" });
+  expect(screen.getByLabelText("Jornada")).toHaveValue("all");
+  await waitFor(() => expect(screen.getByLabelText("Equipo")).toHaveValue("rival"));
+  expect(getSeasonMatches).toHaveBeenLastCalledWith("s1", { round: undefined, teamId: "rival" }, expect.anything());
+});
+
