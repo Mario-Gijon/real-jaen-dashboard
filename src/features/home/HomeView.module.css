@@ -24,8 +24,7 @@
 .options time, .current { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .history { display: grid; gap: var(--rj-space-8); padding-top: var(--rj-space-6); }
 .history h2 { font-size: var(--rj-text-lg); font-weight: 700; }
-.subtitle { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); margin-top: 4px; margin-bottom: var(--rj-space-4); }
-.history > section:first-child > .subtitle { margin-bottom: var(--rj-space-3); }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--rj-space-3); margin-bottom: var(--rj-space-3); }
 .summary { display: grid; grid-template-columns: 1fr 1fr 1.5fr; max-width: 760px; gap: var(--rj-space-3) var(--rj-space-8); padding-bottom: var(--rj-space-4); }
 .summary dt { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); text-transform: uppercase; letter-spacing: .04em; }
 .summary dd { display: flex; flex-wrap: wrap; align-items: baseline; font-size: var(--rj-text-sm); font-variant-numeric: tabular-nums; margin-top: 4px; white-space: pre-wrap; }

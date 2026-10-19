@@ -22,8 +22,9 @@ test("Home changes preparation context by keyboard and opens a recent match", as
   await page.reload();
   await expect(page.getByRole("region", { name: "Encuentro de preparación" }).getByText(opponent, { exact: true })).toBeVisible();
   await expect(page).toHaveURL(url);
-  await expect(page.getByRole("list", { name: "Partidos recientes del rival" }).getByRole("link")).toHaveCount(5);
-  await expect(page.getByRole("list", { name: "Partidos anteriores del rival" }).getByRole("link")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "Últimos 5 partidos", exact: true })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link")).toHaveCount(5);
+  await expect(page.getByText(/Partidos anteriores|Material complementario/)).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await trigger.click();
@@ -31,14 +32,14 @@ test("Home changes preparation context by keyboard and opens a recent match", as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
-  await page.getByRole("list", { name: "Partidos recientes del rival" }).getByRole("link").first().click();
+  await page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link").first().click();
   await expect(page).toHaveURL(/\/matches\/[^/?]+$/);
   await expect(page.getByRole("link", { name: "Volver a partidos" })).toBeVisible();
 });
 
-test("Sus partidos preserves season and opens all rounds for the selected rival", async ({ page }) => {
+test("Ver todos preserves season and opens all rounds for the selected rival", async ({ page }) => {
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Sus partidos" });
+  const link = page.getByRole("region", { name: "Últimos 5 partidos" }).getByRole("link", { name: "Ver todos" });
   await expect(link).toBeVisible();
   const context = new URL((await link.getAttribute("href"))!, page.url());
   await link.click();

@@ -9,25 +9,21 @@ describe("Preparation derivations", () => {
       { ...target, home: rival, away: other }, { ...target, status: "finished" }, target], NOW).map(match => match.id))
       .toEqual(["target", "second"]);
   });
-  it("splits the five latest finished matches and the three immediately preceding without overlap", () => {
-    const { recent, earlier } = preparationHistory(history, target);
-    expect(recent.map(row => row.match.id)).toEqual([10, 9, 8, 7, 6].map(n => `played-${n}`));
-    expect(earlier.map(row => row.match.id)).toEqual([5, 4, 3].map(n => `played-${n}`));
+  it("selects only the five latest finished matches before the target", () => {
+    expect(preparationHistory(history, target).map(row => row.match.id)).toEqual([10, 9, 8, 7, 6].map(n => `played-${n}`));
   });
   it("excludes scheduled, postponed, undated and finished matches on or after the target", () => {
     const extra = ["scheduled", "postponed"].map(status => ({ ...played(1), match: { ...played(1).match, status: status as "scheduled" | "postponed" } }));
     expect(preparationHistory([...extra, { ...played(1), match: { ...played(1).match, kickoff: null } },
       { ...played(1), match: { ...played(1).match, kickoff: target.kickoff } },
-      { ...played(1), match: { ...played(1).match, kickoff: second.kickoff } }], target).recent).toEqual([]);
+      { ...played(1), match: { ...played(1).match, kickoff: second.kickoff } }], target)).toEqual([]);
   });
   it("uses dates rather than round order to determine recency", () => {
     const rows = [played(1), { ...played(2), match: { ...played(2).match, round: 38, kickoff: "2026-08-01T11:00:00Z" } }];
-    expect(preparationHistory(rows, target).recent[0].match.id).toBe("played-1");
+    expect(preparationHistory(rows, target)[0].match.id).toBe("played-1");
   });
   it.each([0, 2, 6, 7])("handles %s historical matches without invented rows", count => {
-    const result = preparationHistory(history.slice(0, count), target);
-    expect(result.recent).toHaveLength(Math.min(count, 5));
-    expect(result.earlier).toHaveLength(Math.max(0, count - 5));
+    expect(preparationHistory(history.slice(0, count), target)).toHaveLength(Math.min(count, 5));
   });
   it("calculates V/E/D and goals from the analyzed rival's side", () => {
     const away = { ...played(1), side: "away" as const, opponent: club, result: "loss" as const,

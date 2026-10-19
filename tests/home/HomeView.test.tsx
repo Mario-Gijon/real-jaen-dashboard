@@ -17,18 +17,29 @@ beforeEach(() => {
   vi.mocked(getSeasonTeams).mockResolvedValue([{ ...teamSeason.standing, team: rival }]);
 });
 
-it("suggests the next fixture and links the rival and five recent plus three earlier matches", async () => {
+it("suggests the next fixture and links the rival and only its last five matches", async () => {
   render(<HomeView now={NOW} />);
-  const recent = await screen.findByRole("list", { name: "Partidos recientes del rival" });
+  const recent = await screen.findByRole("list", { name: "Últimos partidos del rival" });
   expect(screen.queryByText(/Sugerencia inicial/)).not.toBeInTheDocument();
   expect(screen.queryByText("Rival en análisis")).not.toBeInTheDocument();
   expect(getSeasonMatches).toHaveBeenCalledWith("s1", { teamId: "team-real-jaen" }, expect.anything());
   expect(screen.getByRole("link", { name: "Analizar Rival" })).toHaveAttribute("href", "/teams?season=s1&team=rival");
-  expect(screen.getByRole("link", { name: "Sus partidos" })).toHaveAttribute("href", "/matches?season=s1&team=rival&round=all");
+  const section = screen.getByRole("region", { name: "Últimos 5 partidos" });
+  expect(within(section).getByRole("link", { name: "Ver todos" })).toHaveAttribute("href", "/matches?season=s1&team=rival&round=all");
+  expect(screen.getAllByRole("link", { name: /Ver todos|Sus partidos/ })).toHaveLength(1);
   expect(within(recent).getAllByRole("link").map(link => link.getAttribute("href")))
     .toEqual([10, 9, 8, 7, 6].map(i => `/matches/played-${i}`));
-  expect(within(screen.getByRole("list", { name: "Partidos anteriores del rival" })).getAllByRole("link").map(link => link.getAttribute("href")))
-    .toEqual([5, 4, 3].map(i => `/matches/played-${i}`));
+  expect(screen.getByText("Forma", { selector: "dt" }).nextElementSibling).toHaveTextContent("5 V · 0 E · 0 D");
+  expect(screen.getAllByRole("list", { name: /del rival/ })).toHaveLength(1);
+  expect(screen.queryByText(/Partidos anteriores|Material complementario/)).toBeNull();
+});
+
+it("names fewer previous matches by their real count", async () => {
+  vi.mocked(getTeamSeason).mockResolvedValue({ ...teamSeason, matches: history.slice(0, 3) });
+  render(<HomeView now={NOW} />);
+  const section = await screen.findByRole("region", { name: "Últimos 3 partidos" });
+  expect(within(section).getAllByRole("listitem")).toHaveLength(3);
+  expect(within(section).getByRole("link", { name: "Ver todos" })).toBeInTheDocument();
 });
 
 it("limits the selector, restores focus, updates URL and derives an away opponent from the chosen fixture", async () => {
@@ -59,11 +70,10 @@ it("limits the selector, restores focus, updates URL and derives an away opponen
 it("shows partial xG coverage and unavailable data without converting them to zeros", async () => {
   vi.mocked(getTeamSeason).mockResolvedValue({ ...teamSeason, matches: history.slice(0, 2).map((entry, i) => ({ ...entry, teamStats: { own: { ...entry.teamStats!.own, xg: i ? { value: null, reason: "not_available" } : { value: 0 } }, opponent: { ...entry.teamStats!.opponent, xg: { value: null, reason: "not_collected" } } } })) });
   render(<HomeView now={NOW} />);
-  await screen.findByRole("list", { name: "Partidos recientes del rival" });
+  await screen.findByRole("list", { name: "Últimos partidos del rival" });
   expect(screen.getByText("1/2 partidos con dato")).toBeInTheDocument();
   expect(screen.getByTitle("Datos disponibles en 1 de 2 partidos")).toHaveTextContent("0");
   expect(screen.getByTitle("Dato no recogido")).toHaveTextContent("—");
-  expect(screen.getByText("No hay partidos anteriores adicionales.")).toBeInTheDocument();
 });
 
 it("does not replace an invalid explicit target with a suggestion", async () => {

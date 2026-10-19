@@ -72,7 +72,6 @@ export function HomeView({ seasonId, matchId, now }: { seasonId?: string; matchI
                     </div>
                     <div className={css.actions}>
                       <Link className={css.primaryLink} href={`/teams?${new URLSearchParams({ season: season.id, team: rival!.id })}`}>Analizar {rival!.shortName}</Link>
-                      <Link className={css.secondaryLink} href={`/matches?${new URLSearchParams({ season: season.id, team: rival!.id, round: "all" })}`}>Sus partidos</Link>
                     </div>
                   </>}
                   {open ? <div ref={options} id={selectorId} role="region" aria-label="Próximos encuentros del Real Jaén"
@@ -88,7 +87,8 @@ export function HomeView({ seasonId, matchId, now }: { seasonId?: string; matchI
                   </div> : null}
                 </section>
                 {target && rival ? team.error ? <LoadError message="No se pudieron cargar los partidos del rival." retry={team.retry} />
-                  : team.data ? <History matches={team.data.matches} target={target} />
+                  : team.data ? <History matches={team.data.matches} target={target}
+                    allHref={`/matches?${new URLSearchParams({ season: season.id, team: rival.id, round: "all" })}`} />
                     : <p role="status" className={css.message}>Cargando partidos del rival…</p> : null}
               </>}
   </div>;
@@ -102,26 +102,25 @@ function FixtureTeam({ match, side }: { match: MatchSummary; side: "home" | "awa
   </div>;
 }
 
-function History({ matches, target }: { matches: readonly TeamMatch[]; target: MatchSummary }) {
-  const { recent, earlier } = preparationHistory(matches, target);
+function History({ matches, target, allHref }: { matches: readonly TeamMatch[]; target: MatchSummary; allHref: string }) {
+  const recent = preparationHistory(matches, target);
   const summary = preparationSummary(recent);
+  // Fewer than five previous matches are named by their real count.
+  const title = recent.length === 1 ? "Último partido" : `Últimos ${recent.length || 5} partidos`;
   return <div className={css.history}>
     <section aria-labelledby="home-recent-title">
-      <h2 id="home-recent-title">Partidos recientes</h2>
-      <p className={css.subtitle}>{recent.length ? `Últimos ${recent.length} partidos del rival` : "Todavía no hay partidos finalizados con fecha anterior al encuentro objetivo."}</p>
+      <div className={css.sectionHeader}>
+        <h2 id="home-recent-title">{title}</h2>
+        <Link className={css.secondaryLink} href={allHref}>Ver todos</Link>
+      </div>
       {recent.length ? <>
         <dl className={css.summary} aria-label="Síntesis de partidos recientes">
           <div><dt>Forma</dt><dd><strong>{summary.wins}</strong> V · <strong>{summary.draws}</strong> E · <strong>{summary.losses}</strong> D</dd></div>
           <div><dt>Goles</dt><dd><SummaryValue label="GF" stat={summary.goalsFor} /><span aria-hidden="true"> · </span><SummaryValue label="GC" stat={summary.goalsAgainst} /></dd></div>
           <div><dt>Expectativa</dt><dd><SummaryValue label="xG" stat={summary.xg} decimals={2} /><span aria-hidden="true"> · </span><SummaryValue label="xG rival" stat={summary.opponentXg} decimals={2} /></dd></div>
         </dl>
-        <PreparationMatches matches={recent} label="Partidos recientes del rival" />
-      </> : null}
-    </section>
-    <section aria-labelledby="home-earlier-title">
-      <h2 id="home-earlier-title">Partidos anteriores</h2><p className={css.subtitle}>Material complementario</p>
-      {earlier.length ? <PreparationMatches matches={earlier} label="Partidos anteriores del rival" />
-        : <p className={css.message}>No hay partidos anteriores adicionales.</p>}
+        <PreparationMatches matches={recent} label="Últimos partidos del rival" />
+      </> : <p className={css.message}>Todavía no hay partidos finalizados con fecha anterior al encuentro objetivo.</p>}
     </section>
   </div>;
 }

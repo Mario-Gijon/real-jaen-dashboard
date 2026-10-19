@@ -11,13 +11,13 @@ export function upcomingMatches(matches: readonly MatchSummary[], now: number) {
     .sort((a, b) => timestamp(a.kickoff) - timestamp(b.kickoff) || a.id.localeCompare(b.id));
 }
 
-/** Unknown dates cannot establish that a match preceded the preparation target. */
+/** The five latest finished matches before the target; unknown dates cannot establish that a match preceded it. */
 export function preparationHistory(matches: readonly TeamMatch[], target: MatchSummary) {
   const ordered = matches.filter(({ match }) => match.status === "finished"
     && timestamp(match.kickoff) < timestamp(target.kickoff))
     .sort((a, b) => timestamp(b.match.kickoff) - timestamp(a.match.kickoff)
       || b.match.round - a.match.round || a.match.id.localeCompare(b.match.id));
-  return { recent: ordered.slice(0, 5), earlier: ordered.slice(5, 8) };
+  return ordered.slice(0, 5);
 }
 
 export function preparationSummary(matches: readonly TeamMatch[]) {
