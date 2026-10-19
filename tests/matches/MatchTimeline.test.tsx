@@ -37,8 +37,8 @@ describe("Match chronology", () => {
     expect(screen.getByRole("img", { name: "Gol" })).toBeVisible();
     expect(screen.queryByText("Gol · García")).toBeNull();
     expect(screen.getByRole("link", { name: "Pérez" }).closest("p")).toHaveTextContent("Asist. Pérez");
-    expect(screen.getByRole("link", { name: "García" })).toHaveAttribute("href", "/players/p1?season=s1&from=match&origin=m1&tab=timeline");
-    expect(screen.getByRole("link", { name: "Pérez" })).toHaveAttribute("href", "/players/p2?season=s1&from=match&origin=m1&tab=timeline");
+    expect(screen.getByRole("link", { name: "García" })).toHaveAttribute("href", "/players/p1?season=s1&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
+    expect(screen.getByRole("link", { name: "Pérez" })).toHaveAttribute("href", "/players/p2?season=s1&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
     expect(screen.getByRole("listitem", { name: "Real Jaén CF · Local" })).toHaveAttribute("data-side", "home");
     expect(screen.queryByText("Penalti")).toBeNull();
   });
@@ -58,7 +58,7 @@ describe("Match chronology", () => {
     expect(row).toHaveAccessibleName(`${match[beneficiary].name} · ${beneficiary === "home" ? "Local" : "Visitante"}`);
     expect(row).toHaveTextContent(`Propia puerta · ${match[actorSide].shortName}`);
     expect(row).toHaveTextContent("García");
-    expect(within(row).getByRole("link", { name: "García" })).toHaveAttribute("href", "/players/p1?season=s1&from=match&origin=m1&tab=timeline");
+    expect(within(row).getByRole("link", { name: "García" })).toHaveAttribute("href", "/players/p1?season=s1&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
     expect(screen.queryByText(/Asist\./)).toBeNull();
   });
 
@@ -68,7 +68,7 @@ describe("Match chronology", () => {
     render(<MatchTimeline match={{ ...match, events: [{ ...base, type: "card", card, player }] }} />);
     expect(screen.getByText(label)).toBeVisible();
     expect(screen.getByText("García")).toBeVisible();
-    expect(screen.getByRole("link", { name: "García" })).toHaveAttribute("href", "/players/p1?season=s1&from=match&origin=m1&tab=timeline");
+    expect(screen.getByRole("link", { name: "García" })).toHaveAttribute("href", "/players/p1?season=s1&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
   });
 
   it("identifies the incoming and outgoing player and substitution minute", () => {
@@ -78,8 +78,8 @@ describe("Match chronology", () => {
     const outgoing = screen.getByRole("link", { name: "Pérez" });
     expect(incoming.parentElement).toHaveTextContent("Entra · García");
     expect(outgoing.parentElement).toHaveTextContent("Sale · Pérez");
-    expect(incoming).toHaveAttribute("href", "/players/p1?season=s1&from=match&origin=m1&tab=timeline");
-    expect(outgoing).toHaveAttribute("href", "/players/p2?season=s1&from=match&origin=m1&tab=timeline");
+    expect(incoming).toHaveAttribute("href", "/players/p1?season=s1&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
+    expect(outgoing).toHaveAttribute("href", "/players/p2?season=s1&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
   });
 
   it("uses the current match season and leaves unidentified names as text", () => {
@@ -87,7 +87,7 @@ describe("Match chronology", () => {
       player: { ...player, id: "" }, assist: other }] }} />);
     expect(screen.getByText(player.name)).toBeVisible();
     expect(screen.queryByRole("link", { name: player.name })).toBeNull();
-    expect(screen.getByRole("link", { name: other.name })).toHaveAttribute("href", "/players/p2?season=season-other&from=match&origin=m1&tab=timeline");
+    expect(screen.getByRole("link", { name: other.name })).toHaveAttribute("href", "/players/p2?season=season-other&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 

@@ -110,7 +110,7 @@ describe("Match lineup lists", () => {
     render(<MatchLineups match={{ ...match, seasonId: "season-other" }} />);
     for (const member of [starter, bench, unused, rival]) {
       const link = screen.getByRole("link", { name: member.player.name });
-      expect(link).toHaveAttribute("href", `/players/${member.player.id}?season=season-other&from=match&origin=m1&tab=lineups`);
+      expect(link).toHaveAttribute("href", `/players/${member.player.id}?season=season-other&tab=matches&match=m1&from=match&origin=m1&originTab=lineups`);
       expect(link).toHaveTextContent(member.player.name);
       expect(link.closest("li")).not.toBe(link);
     }

@@ -34,8 +34,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getSeasonMatches).mockResolvedValue([match(5, "scheduled"), match(3), match(4, "postponed"), match(1), match(2)]);
 });
-async function load(data = profile) {
-  render(<PlayerMatches data={data} />);
+async function load(data = profile, initialMatchId: string | null = null) {
+  render(<PlayerMatches data={data} initialMatchId={initialMatchId} />);
   await screen.findByRole("list", { name: "Histórico de partidos" });
 }
 function detail() { return screen.getByRole("region", { name: "Detalle del partido" }); }
@@ -232,5 +232,81 @@ describe("Player matches", () => {
     await load({ ...profile, matches: [] });
     expect(screen.getByText("Todavía no hay partidos finalizados del equipo.")).toBeVisible();
     expect(within(history()).queryByRole("listitem")).toBeNull();
+  });
+
+  describe("initial match from navigation", () => {
+    it("selects the requested appearance instead of the latest and synchronizes history, sequence and detail", async () => {
+      await load(profile, "match-1");
+      const row = within(history()).getByRole("button", { name: /J1/ });
+      expect(row).toHaveAttribute("aria-pressed", "true");
+      expect(row).toHaveAttribute("aria-expanded", "true");
+      expect(within(history()).getByRole("button", { name: /J3/ })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: "Jornada 1 · Titular · 90 minutos" })).toHaveAttribute("aria-pressed", "true");
+      expect(detail()).toHaveTextContent("J1 · vs CD Rival");
+      expect(detail()).toHaveTextContent("Titular · 90′");
+      expect(screen.getByRole("region", { name: "Detalle inline del partido" })).toHaveTextContent("J1 · vs CD Rival");
+      expect(screen.queryByRole("status")).toBeNull();
+      // Later selections keep working as before.
+      await userEvent.setup().click(within(history()).getByRole("button", { name: /J3/ }));
+      expect(detail()).toHaveTextContent("Suplente · 20′");
+    });
+
+    it("selects a finished team match without appearance and shows nonparticipation without stats or reasons", async () => {
+      await load(profile, "match-2");
+      const row = within(history()).getAllByRole("listitem")[1];
+      expect(row.firstElementChild).toHaveAttribute("aria-current", "true");
+      expect(row).toHaveTextContent("No participó");
+      expect(within(history()).getAllByRole("button").every(button => button.getAttribute("aria-pressed") === "false")).toBe(true);
+      const unit = within(screen.getByRole("listitem", { name: "Jornada 2 · No participó" })).getByText("J2").parentElement!;
+      expect(unit).toHaveAttribute("aria-current", "true");
+      for (const region of [detail(), screen.getByRole("region", { name: "Detalle inline del partido" })]) {
+        expect(region).toHaveTextContent("J2 · vs CD Rival");
+        expect(region).toHaveTextContent("No participó");
+        expect(region).toHaveTextContent("Sin minutos ni estadísticas individuales en este partido.");
+        expect(within(region).queryByRole("definition")).toBeNull();
+        expect(region).not.toHaveTextContent(/′|lesión|sanción|convocado/);
+        expect(within(region).getByRole("link", { name: "Ver partido completo" })).toHaveAttribute("href", "/matches/match-2");
+      }
+      await userEvent.setup().click(within(history()).getByRole("button", { name: /J1/ }));
+      expect(row.firstElementChild).not.toHaveAttribute("aria-current");
+      expect(detail()).toHaveTextContent("Titular · 90′");
+    });
+
+    it.each([
+      ["a nonexistent match", "missing"],
+      ["a match outside the team calendar", "match-other-team"],
+      ["a team match that is not finished", "match-5"],
+    ])("selects nothing for %s and explains it", async (_case, matchId) => {
+      await load(profile, matchId);
+      expect(screen.getByRole("status")).toHaveTextContent("El partido indicado no figura entre los partidos finalizados de Real Jaén CF en 2026/27.");
+      expect(within(history()).getAllByRole("button").every(button => button.getAttribute("aria-pressed") === "false")).toBe(true);
+      expect(within(history()).getAllByRole("listitem").every(item => !item.querySelector("[aria-current]"))).toBe(true);
+      expect(screen.queryByRole("region", { name: "Detalle inline del partido" })).toBeNull();
+      expect(detail()).toHaveTextContent("Selecciona un partido del histórico.");
+      expect(within(detail()).queryByRole("definition")).toBeNull();
+      await userEvent.setup().click(within(history()).getByRole("button", { name: /J3/ }));
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(detail()).toHaveTextContent("Suplente · 20′");
+    });
+
+    it("reveals the requested match inside the history viewport without scrolling the page", async () => {
+      const pageScroll = vi.spyOn(window, "scrollTo");
+      const original = Element.prototype.getBoundingClientRect;
+      const isHistory = (element: Element) => element.getAttribute("aria-label") === "Histórico de partidos";
+      // The history is a scrollable 300px viewport and row J1 lies below it.
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) { return isHistory(this) ? 1000 : 0; });
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return isHistory(this) ? 300 : this === document.documentElement ? 1000 : 0;
+      });
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+        if (isHistory(this)) return { top: 100, bottom: 400 } as DOMRect;
+        if (this instanceof HTMLButtonElement && this.dataset.matchId === "match-1") return { top: 600, bottom: 680 } as DOMRect;
+        return original.call(this);
+      });
+      await load(profile, "match-1");
+      expect(history().scrollTop).toBe(280);
+      expect(pageScroll).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+    });
   });
 });

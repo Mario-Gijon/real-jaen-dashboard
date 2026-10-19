@@ -1,19 +1,33 @@
 export type PlayerOrigin = { kind: "team"; id: string } | { kind: "match"; id: string; tab: "lineups" | "timeline" };
+export type PlayerTab = "season" | "matches";
 
+const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
+
+/** A player reached from a match opens its Partidos tab on that match; any other origin opens Temporada. */
 export function playerHref(playerId: string, seasonId: string, origin?: PlayerOrigin) {
   const query = new URLSearchParams({ season: seasonId });
+  if (origin?.kind === "match") {
+    query.set("tab", "matches");
+    query.set("match", origin.id);
+  }
   if (origin) {
     query.set("from", origin.kind);
     query.set("origin", origin.id);
-    if (origin.kind === "match") query.set("tab", origin.tab);
+    if (origin.kind === "match") query.set("originTab", origin.tab);
   }
   return `/players/${encodeURIComponent(playerId)}?${query}`;
 }
 
-export function playerReturnHref(seasonId: string | null, query: { from?: string; origin?: string; tab?: string }) {
-  const validId = query.origin && /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(query.origin);
+/** Initial player tab and match from the URL; unknown values fall back to Temporada without a match. */
+export function playerInitialView(query: { tab?: string | string[]; match?: string | string[] }): { tab: PlayerTab; matchId: string | null } {
+  if (query.tab !== "matches") return { tab: "season", matchId: null };
+  return { tab: "matches", matchId: typeof query.match === "string" && query.match ? query.match : null };
+}
+
+export function playerReturnHref(seasonId: string | null, query: { from?: string; origin?: string; originTab?: string }) {
+  const validId = query.origin && SAFE_ID.test(query.origin);
   if (query.from === "match" && validId) {
-    const tab = query.tab === "lineups" || query.tab === "timeline" ? `?tab=${query.tab}` : "";
+    const tab = query.originTab === "lineups" || query.originTab === "timeline" ? `?tab=${query.originTab}` : "";
     return `/matches/${encodeURIComponent(query.origin!)}${tab}`;
   }
   const teamQuery = new URLSearchParams();

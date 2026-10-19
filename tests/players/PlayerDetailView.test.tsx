@@ -60,6 +60,30 @@ describe("Player season detail", () => {
     expect(screen.getByRole("link", { name: "← Volver" })).toHaveAttribute("href", "/matches/m1?tab=lineups");
   });
 
+  it("opens Temporada by default and does not load the calendar", async () => {
+    await load();
+    expect(screen.getByRole("tab", { name: "Temporada" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "Temporada" })).toBeVisible();
+    expect(getSeasonMatches).not.toHaveBeenCalled();
+  });
+
+  it("opens Partidos on the origin match and keeps it when returning to the tab", async () => {
+    const played = appearance([], 12);
+    const latest = appearance([], 14);
+    vi.mocked(getPlayer).mockResolvedValue({ ...profile, matches: [played, latest] });
+    vi.mocked(getSeasonMatches).mockResolvedValue([played.match, latest.match]);
+    render(<PlayerDetailView playerId="player" seasonId="season" returnHref="/matches/match-12?tab=timeline"
+      initialTab="matches" initialMatchId="match-12" />);
+    const panel = await screen.findByRole("region", { name: "Detalle del partido" });
+    expect(screen.getByRole("tab", { name: "Partidos" })).toHaveAttribute("aria-selected", "true");
+    expect(panel).toHaveTextContent("J12 · vs CD Rival de Nombre Largo");
+    expect(screen.getByRole("link", { name: "← Volver" })).toHaveAttribute("href", "/matches/match-12?tab=timeline");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Temporada" }));
+    await user.click(screen.getByRole("tab", { name: "Partidos" }));
+    expect(await screen.findByRole("region", { name: "Detalle del partido" })).toHaveTextContent("J12 · vs");
+  });
+
   it("activates Partidos by keyboard and restores the approved season without reloading the player", async () => {
     await load();
     expect(getSeasonMatches).not.toHaveBeenCalled();

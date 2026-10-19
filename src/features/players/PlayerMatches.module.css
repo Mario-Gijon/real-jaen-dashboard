@@ -5,7 +5,7 @@
 .sequenceButton, .sequenceUnit { display: block; width: 100%; padding: 4px 0; }
 .sequenceButton { border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .sequenceButton:hover { background: var(--rj-bg-hover); }
-.sequenceButton[aria-pressed="true"] { background: var(--rj-purple-100); }
+.sequenceButton[aria-pressed="true"], .sequenceUnit[aria-current="true"] { background: var(--rj-purple-100); }
 .sequenceButton:focus-visible { outline: var(--rj-focus-ring); outline-offset: -3px; }
 .sequence li[data-role="substitute"] { border-bottom-style: dotted; }
 .sequence li[data-role="absent"] { border-bottom-color: var(--rj-border-default); }
@@ -25,7 +25,7 @@
 .playerContext { grid-column: 2 / 4; grid-row: 2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--rj-space-3); }
 button.historyRow { cursor: pointer; }
 button.historyRow:hover { background: var(--rj-bg-hover); }
-button.historyRow[aria-pressed="true"] { background: var(--rj-purple-100); }
+button.historyRow[aria-pressed="true"], div.historyRow[aria-current="true"] { background: var(--rj-purple-100); }
 button.historyRow:focus-visible { outline: var(--rj-focus-ring); outline-offset: -2px; }
 .fixture { min-width: 0; }
 .teams { font-size: var(--rj-text-sm); font-weight: 600; overflow-wrap: anywhere; }

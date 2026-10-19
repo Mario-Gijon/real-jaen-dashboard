@@ -14,41 +14,23 @@ import { FIELD_GROUPS, KEEPER_GROUPS } from "./player-metrics";
 import shared from "./PlayerDetailView.module.css";
 import css from "./PlayerMatches.module.css";
 
-export function PlayerMatches({ data }: { data: PlayerSeason }) {
+/** `initialMatchId` comes from navigation (e.g. a match context); it is selected only if it is a finished team match. */
+export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSeason; initialMatchId?: string | null }) {
   const calendar = useApi(`player-calendar|${data.season.id}|${data.team.id}`,
     signal => getSeasonMatches(data.season.id, { teamId: data.team.id }, { signal }));
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialMatchId);
   const sequenceViewport = useRef<HTMLDivElement>(null);
   const historyViewport = useRef<HTMLUListElement>(null);
+  const initialMatch = useRef(initialMatchId);
   useEffect(() => {
     if (sequenceViewport.current) sequenceViewport.current.scrollLeft = 0;
+    // Reveal the requested match once, inside the history and sequence viewports only.
+    if (calendar.data && initialMatch.current) revealMatch(historyViewport.current, sequenceViewport.current, initialMatch.current, true);
+    if (calendar.data) initialMatch.current = null;
   }, [calendar.data]);
   function selectMatch(matchId: string, fromParticipation = false) {
     setSelectedId(matchId);
-    if (fromParticipation) {
-      const history = historyViewport.current;
-      const row = history && [...history.querySelectorAll<HTMLButtonElement>("button[data-match-id]")]
-        .find(element => element.dataset.matchId === matchId);
-      if (history && row && history.scrollHeight > history.clientHeight) {
-        const bounds = history.getBoundingClientRect();
-        const rowBounds = row.getBoundingClientRect();
-        const visibleTop = Math.max(bounds.top, 0);
-        const visibleBottom = Math.min(bounds.bottom, document.documentElement.clientHeight);
-        const top = visibleBottom > visibleTop ? visibleTop : bounds.top;
-        const bottom = visibleBottom > visibleTop ? visibleBottom : bounds.bottom;
-        if (rowBounds.top < top) history.scrollTop += rowBounds.top - top;
-        else if (rowBounds.bottom > bottom) history.scrollTop += rowBounds.bottom - bottom;
-      }
-    }
-    const viewport = sequenceViewport.current;
-    const item = viewport && [...viewport.querySelectorAll<HTMLElement>("[data-match-id]")]
-      .find(element => element.dataset.matchId === matchId);
-    if (!viewport || !item) return;
-    const bounds = viewport.getBoundingClientRect();
-    const itemBounds = item.getBoundingClientRect();
-    // Move only this horizontal viewport; never scroll the page or detail into view.
-    if (itemBounds.left < bounds.left) viewport.scrollLeft += itemBounds.left - bounds.left;
-    else if (itemBounds.right > bounds.right) viewport.scrollLeft += itemBounds.right - bounds.right;
+    revealMatch(historyViewport.current, sequenceViewport.current, matchId, fromParticipation);
   }
   if (calendar.error) return <div role="alert" className={shared.message}>
     <p>No se pudo cargar el calendario del equipo.</p><Button size="sm" onClick={calendar.retry}>Reintentar</Button>
@@ -58,8 +40,13 @@ export function PlayerMatches({ data }: { data: PlayerSeason }) {
     .sort((a, b) => (a.kickoff && b.kickoff ? a.kickoff.localeCompare(b.kickoff) : 0) || a.round - b.round);
   const appearances = new Map(data.matches.map(appearance => [appearance.match.id, appearance]));
   const recent = [...matches].reverse();
-  const selected = appearances.get(selectedId ?? "")
-    ?? recent.map(match => appearances.get(match.id)).find(appearance => appearance !== undefined);
+  // An explicit selection may be a match without appearance; an unknown one selects nothing.
+  const requested = selectedId === null ? null : matches.find(match => match.id === selectedId) ?? null;
+  const selected = selectedId === null
+    ? recent.map(match => appearances.get(match.id)).find(appearance => appearance !== undefined)
+    : requested ? appearances.get(requested.id) : undefined;
+  const absent = requested && !selected ? requested : null;
+  const selectedMatchId = selected?.match.id ?? absent?.id ?? null;
   return <>
     <section className={shared.block} aria-labelledby="player-match-participation">
       <h2 id="player-match-participation">Participación</h2>
@@ -79,7 +66,7 @@ export function PlayerMatches({ data }: { data: PlayerSeason }) {
                 {appearance ? <button type="button" className={css.sequenceButton}
                   aria-label={`Jornada ${match.round} · ${role} · ${minutesLabel(appearance.stats.minutes)}`}
                   aria-pressed={selected?.match.id === match.id} onClick={() => selectMatch(match.id, true)}>{content}</button>
-                  : <div className={css.sequenceUnit}>{content}</div>}
+                  : <div className={css.sequenceUnit} aria-current={absent?.id === match.id || undefined}>{content}</div>}
               </li>;
             })}
           </ol>
@@ -89,19 +76,22 @@ export function PlayerMatches({ data }: { data: PlayerSeason }) {
     <div className={css.masterDetail}>
     <section className={`${shared.block} ${css.master}`} aria-labelledby="player-match-history">
       <h2 id="player-match-history">Partidos</h2>
+      {selectedId !== null && !requested ? <p role="status" className={shared.message}>
+        El partido indicado no figura entre los partidos finalizados de {data.team.name} en {data.season.name}.
+      </p> : null}
       <ul ref={historyViewport} className={css.history} aria-label="Histórico de partidos">
         {recent.map(match => {
           const appearance = appearances.get(match.id);
-          const active = selected?.match.id === match.id;
+          const active = selectedMatchId === match.id;
           const content = <HistoryRow match={match} appearance={appearance} data={data} />;
           return <li key={match.id}>{appearance ? <button type="button" className={css.historyRow} data-match-id={match.id}
             aria-pressed={active} aria-expanded={active} aria-controls={active ? "player-match-detail-panel player-inline-detail" : undefined}
             onClick={() => selectMatch(match.id)}>
             {content}
-          </button> : <div className={css.historyRow}>{content}</div>}
-            {active && appearance ? <section id="player-inline-detail" className={css.inlineDetail} aria-label="Detalle inline del partido">
+          </button> : <div className={css.historyRow} data-match-id={match.id} aria-current={active || undefined}>{content}</div>}
+            {active ? <section id="player-inline-detail" className={css.inlineDetail} aria-label="Detalle inline del partido">
               <h3 className={css.detailHeading}>Detalle del partido</h3>
-              <AppearanceDetail appearance={appearance} data={data} />
+              {appearance ? <AppearanceDetail appearance={appearance} data={data} /> : <AbsentDetail match={match} data={data} />}
             </section> : null}
           </li>;
         })}
@@ -110,10 +100,37 @@ export function PlayerMatches({ data }: { data: PlayerSeason }) {
     <section id="player-match-detail-panel" className={`${shared.block} ${css.desktopDetail}`} aria-labelledby="player-match-detail">
       <h2 id="player-match-detail">Detalle del partido</h2>
       {selected ? <AppearanceDetail appearance={selected} data={data} />
-        : <p className={shared.message}>Sin apariciones esta temporada.</p>}
+        : absent ? <AbsentDetail match={absent} data={data} />
+        : <p className={shared.message}>{selectedId !== null && data.matches.length ? "Selecciona un partido del histórico." : "Sin apariciones esta temporada."}</p>}
     </section>
     </div>
   </>;
+}
+
+/** Moves only the history and sequence viewports, never the page. */
+function revealMatch(history: HTMLElement | null, viewport: HTMLElement | null, matchId: string, inHistory: boolean) {
+  if (inHistory) {
+    const row = history && [...history.querySelectorAll<HTMLElement>("[data-match-id]")]
+      .find(element => element.dataset.matchId === matchId);
+    if (history && row && history.scrollHeight > history.clientHeight) {
+      const bounds = history.getBoundingClientRect();
+      const rowBounds = row.getBoundingClientRect();
+      const visibleTop = Math.max(bounds.top, 0);
+      const visibleBottom = Math.min(bounds.bottom, document.documentElement.clientHeight);
+      const top = visibleBottom > visibleTop ? visibleTop : bounds.top;
+      const bottom = visibleBottom > visibleTop ? visibleBottom : bounds.bottom;
+      if (rowBounds.top < top) history.scrollTop += rowBounds.top - top;
+      else if (rowBounds.bottom > bottom) history.scrollTop += rowBounds.bottom - bottom;
+    }
+  }
+  const item = viewport && [...viewport.querySelectorAll<HTMLElement>("[data-match-id]")]
+    .find(element => element.dataset.matchId === matchId);
+  if (!viewport || !item) return;
+  const bounds = viewport.getBoundingClientRect();
+  const itemBounds = item.getBoundingClientRect();
+  // Move only this horizontal viewport; never scroll the page or detail into view.
+  if (itemBounds.left < bounds.left) viewport.scrollLeft += itemBounds.left - bounds.left;
+  else if (itemBounds.right > bounds.right) viewport.scrollLeft += itemBounds.right - bounds.right;
 }
 
 function minutesLabel(stat: Stat) {
@@ -182,6 +199,18 @@ function AppearanceDetail({ appearance, data }: { appearance: PlayerMatch; data:
         </li>)}
       </ol> : <p className={shared.message}>Sin acciones registradas en este partido.</p>}
     </section>
+    <Link className={css.fullMatch} href={`/matches/${match.id}`}>Ver partido completo</Link>
+  </>;
+}
+/** A team match the player did not play: context only, no minutes or stats, and no assumed reason. */
+function AbsentDetail({ match, data }: { match: MatchSummary; data: PlayerSeason }) {
+  const home = match.home.id === data.team.id;
+  return <>
+    <div className={css.detailContext}>
+      <p className={css.teams}>J{match.round} · vs {(home ? match.away : match.home).name} <Score match={match} /></p>
+      <p className={css.meta}>{home ? "Local" : "Visitante"} · {dateLabel(match.kickoff)} · No participó</p>
+    </div>
+    <p className={shared.message}>Sin minutos ni estadísticas individuales en este partido.</p>
     <Link className={css.fullMatch} href={`/matches/${match.id}`}>Ver partido completo</Link>
   </>;
 }

@@ -7,7 +7,7 @@ import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { Tabs, tabId, tabPanelId } from "@/ui/Tabs";
 import { useState } from "react";
 import Link from "next/link";
-import { playerReturnHref } from "./navigation";
+import { playerReturnHref, type PlayerTab } from "./navigation";
 import { FIELD_GROUPS, KEEPER_GROUPS } from "./player-metrics";
 import { PlayerMatches } from "./PlayerMatches";
 import { birthLabel, footLabel, heightLabel, positionLabel } from "../format";
@@ -22,8 +22,10 @@ const PARTICIPATION: readonly Metric[] = [
 ];
 
 
-export function PlayerDetailView({ playerId, seasonId, returnHref }: { playerId: string; seasonId: string | null; returnHref?: string }) {
-  const [tab, setTab] = useState<"season" | "matches">("season");
+export function PlayerDetailView({ playerId, seasonId, returnHref, initialTab = "season", initialMatchId = null }: {
+  playerId: string; seasonId: string | null; returnHref?: string; initialTab?: PlayerTab; initialMatchId?: string | null;
+}) {
+  const [tab, setTab] = useState<PlayerTab>(initialTab);
   const profile = useApi(seasonId ? `player|${playerId}|${seasonId}` : null,
     (signal) => getPlayer(playerId, seasonId!, { signal }));
   if (!seasonId) return <div role="alert" className={css.message}>
@@ -46,7 +48,7 @@ export function PlayerDetailView({ playerId, seasonId, returnHref }: { playerId:
     <Tabs items={[{ id: "season", label: "Temporada" }, { id: "matches", label: "Partidos" }]}
       selected={tab} onSelect={setTab} label="Secciones del jugador" prefix="player" />
     <section role="tabpanel" id={tabPanelId("player")} aria-labelledby={tabId("player", tab)} className={`${css.season} ${tab === "matches" ? css.matches : ""}`}>
-      {tab === "matches" ? <PlayerMatches key={`${data.player.id}|${data.season.id}`} data={data} /> : <>
+      {tab === "matches" ? <PlayerMatches key={`${data.player.id}|${data.season.id}`} data={data} initialMatchId={initialMatchId} /> : <>
       <section aria-labelledby="player-participation" className={css.block}>
         <h2 id="player-participation">Participación</h2>
         <Metrics metrics={PARTICIPATION} stats={data.stats} participation />
