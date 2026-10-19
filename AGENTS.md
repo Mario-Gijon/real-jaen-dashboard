@@ -75,7 +75,16 @@ Antes de considerar terminada una implementación, ejecutar según corresponda:
 - `npm run build`
 - `npm run e2e`
 
-Para cambios visuales importantes, comprobar escritorio a 1440 px y móvil a 390 px. No arreglar fallos ajenos a la tarea sin autorización.
+No arreglar fallos ajenos a la tarea sin autorización.
+
+### Revisión visual
+
+En cambios de interfaz, revisar visualmente con capturas (Playwright u otra automatización de navegador) a 1440 px y 390 px, sin pedir autorización cada vez. Los tests E2E no sustituyen esta revisión.
+
+- Comprobar alineación, espaciados, textos cortados o desbordados, scroll horizontal, superposiciones, responsive, estados seleccionados/desplegados y coherencia con el resto del dashboard.
+- Corregir solo errores visuales evidentes causados por la tarea; proponer, sin implementar, cualquier mejora de diseño subjetiva.
+- Guardar las capturas fuera del repositorio (o en `artifacts/`, siempre fuera de Git). No modificar el proyecto solo para generarlas.
+- En el informe: resoluciones, pantallas y estados revisados, problemas detectados, correcciones y puntos para revisión manual. Si no se ha podido capturar, decirlo; no presentar tests como revisión visual.
 
 ## Forma de trabajo
 
