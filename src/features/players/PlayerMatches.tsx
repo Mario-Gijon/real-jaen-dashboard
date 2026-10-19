@@ -19,19 +19,13 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
   const calendar = useApi(`player-calendar|${data.season.id}|${data.team.id}`,
     signal => getSeasonMatches(data.season.id, { teamId: data.team.id }, { signal }));
   const [selectedId, setSelectedId] = useState<string | null>(initialMatchId);
-  const sequenceViewport = useRef<HTMLDivElement>(null);
   const historyViewport = useRef<HTMLUListElement>(null);
   const initialMatch = useRef(initialMatchId);
   useEffect(() => {
-    if (sequenceViewport.current) sequenceViewport.current.scrollLeft = 0;
-    // Reveal the requested match once, inside the history and sequence viewports only.
-    if (calendar.data && initialMatch.current) revealMatch(historyViewport.current, sequenceViewport.current, initialMatch.current, true);
+    // Reveal the requested match once, inside the history viewport only.
+    if (calendar.data && initialMatch.current) revealMatch(historyViewport.current, initialMatch.current);
     if (calendar.data) initialMatch.current = null;
   }, [calendar.data]);
-  function selectMatch(matchId: string, fromParticipation = false) {
-    setSelectedId(matchId);
-    revealMatch(historyViewport.current, sequenceViewport.current, matchId, fromParticipation);
-  }
   if (calendar.error) return <div role="alert" className={shared.message}>
     <p>No se pudo cargar el calendario del equipo.</p><Button size="sm" onClick={calendar.retry}>Reintentar</Button>
   </div>;
@@ -47,38 +41,13 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
     : requested ? appearances.get(requested.id) : undefined;
   const absent = requested && !selected ? requested : null;
   const selectedMatchId = selected?.match.id ?? absent?.id ?? null;
-  return <>
-    <section className={shared.block} aria-labelledby="player-match-participation">
-      <h2 id="player-match-participation">Participación</h2>
-      {matches.length ? <>
-        <div ref={sequenceViewport} className={css.sequenceViewport} tabIndex={0} role="region" aria-label="Secuencia de participación por partido">
-          <ol className={css.sequence}>
-            {matches.map(match => {
-              const appearance = appearances.get(match.id);
-              const role = appearance ? appearance.started ? "Titular" : "Suplente" : "No participó";
-              const content = <>
-                <span className={css.round}>J{match.round}</span>
-                <span className={css.sequenceMinutes}>{appearance ? <MatchValue stat={appearance.stats.minutes} /> : "—"}</span>
-                <span className={css.sequenceRole}>{role}</span>
-              </>;
-              return <li key={match.id} data-match-id={match.id} data-role={appearance ? appearance.started ? "starter" : "substitute" : "absent"}
-                aria-label={`Jornada ${match.round} · ${role}${appearance ? ` · ${minutesLabel(appearance.stats.minutes)}` : ""}`}>
-                {appearance ? <button type="button" className={css.sequenceButton}
-                  aria-label={`Jornada ${match.round} · ${role} · ${minutesLabel(appearance.stats.minutes)}`}
-                  aria-pressed={selected?.match.id === match.id} onClick={() => selectMatch(match.id, true)}>{content}</button>
-                  : <div className={css.sequenceUnit} aria-current={absent?.id === match.id || undefined}>{content}</div>}
-              </li>;
-            })}
-          </ol>
-        </div>
-      </> : <p className={shared.message}>Todavía no hay partidos finalizados del equipo.</p>}
-    </section>
-    <div className={css.masterDetail}>
+  return <div className={css.masterDetail}>
     <section className={`${shared.block} ${css.master}`} aria-labelledby="player-match-history">
       <h2 id="player-match-history">Partidos</h2>
       {selectedId !== null && !requested ? <p role="status" className={shared.message}>
         El partido indicado no figura entre los partidos finalizados de {data.team.name} en {data.season.name}.
       </p> : null}
+      {!matches.length ? <p className={shared.message}>Todavía no hay partidos finalizados del equipo.</p> : null}
       <ul ref={historyViewport} className={css.history} aria-label="Histórico de partidos">
         {recent.map(match => {
           const appearance = appearances.get(match.id);
@@ -86,7 +55,7 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
           const content = <HistoryRow match={match} appearance={appearance} data={data} />;
           return <li key={match.id}>{appearance ? <button type="button" className={css.historyRow} data-match-id={match.id}
             aria-pressed={active} aria-expanded={active} aria-controls={active ? "player-match-detail-panel player-inline-detail" : undefined}
-            onClick={() => selectMatch(match.id)}>
+            onClick={() => setSelectedId(match.id)}>
             {content}
           </button> : <div className={css.historyRow} data-match-id={match.id} aria-current={active || undefined}>{content}</div>}
             {active ? <section id="player-inline-detail" className={css.inlineDetail} aria-label="Detalle inline del partido">
@@ -103,39 +72,24 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
         : absent ? <AbsentDetail match={absent} data={data} />
         : <p className={shared.message}>{selectedId !== null && data.matches.length ? "Selecciona un partido del histórico." : "Sin apariciones esta temporada."}</p>}
     </section>
-    </div>
-  </>;
+  </div>;
 }
 
-/** Moves only the history and sequence viewports, never the page. */
-function revealMatch(history: HTMLElement | null, viewport: HTMLElement | null, matchId: string, inHistory: boolean) {
-  if (inHistory) {
-    const row = history && [...history.querySelectorAll<HTMLElement>("[data-match-id]")]
-      .find(element => element.dataset.matchId === matchId);
-    if (history && row && history.scrollHeight > history.clientHeight) {
-      const bounds = history.getBoundingClientRect();
-      const rowBounds = row.getBoundingClientRect();
-      const visibleTop = Math.max(bounds.top, 0);
-      const visibleBottom = Math.min(bounds.bottom, document.documentElement.clientHeight);
-      const top = visibleBottom > visibleTop ? visibleTop : bounds.top;
-      const bottom = visibleBottom > visibleTop ? visibleBottom : bounds.bottom;
-      if (rowBounds.top < top) history.scrollTop += rowBounds.top - top;
-      else if (rowBounds.bottom > bottom) history.scrollTop += rowBounds.bottom - bottom;
-    }
-  }
-  const item = viewport && [...viewport.querySelectorAll<HTMLElement>("[data-match-id]")]
+/** Moves only the history viewport, never the page. */
+function revealMatch(history: HTMLElement | null, matchId: string) {
+  const row = history && [...history.querySelectorAll<HTMLElement>("[data-match-id]")]
     .find(element => element.dataset.matchId === matchId);
-  if (!viewport || !item) return;
-  const bounds = viewport.getBoundingClientRect();
-  const itemBounds = item.getBoundingClientRect();
-  // Move only this horizontal viewport; never scroll the page or detail into view.
-  if (itemBounds.left < bounds.left) viewport.scrollLeft += itemBounds.left - bounds.left;
-  else if (itemBounds.right > bounds.right) viewport.scrollLeft += itemBounds.right - bounds.right;
+  if (!history || !row || history.scrollHeight <= history.clientHeight) return;
+  const bounds = history.getBoundingClientRect();
+  const rowBounds = row.getBoundingClientRect();
+  const visibleTop = Math.max(bounds.top, 0);
+  const visibleBottom = Math.min(bounds.bottom, document.documentElement.clientHeight);
+  const top = visibleBottom > visibleTop ? visibleTop : bounds.top;
+  const bottom = visibleBottom > visibleTop ? visibleBottom : bounds.bottom;
+  if (rowBounds.top < top) history.scrollTop += rowBounds.top - top;
+  else if (rowBounds.bottom > bottom) history.scrollTop += rowBounds.bottom - bottom;
 }
 
-function minutesLabel(stat: Stat) {
-  return stat.value === null ? "Minutos sin datos" : `${stat.value} minutos`;
-}
 function MatchValue({ stat, percent = false }: { stat: Stat; percent?: boolean }) {
   if (stat.value === null) {
     const reason = stat.reason === "not_collected" ? "Dato no recogido" : "Dato no disponible";

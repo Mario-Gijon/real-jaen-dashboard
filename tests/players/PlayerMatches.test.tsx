@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSeasonMatches } from "@/client/api";
@@ -43,22 +43,20 @@ function history() { return screen.getByRole("list", { name: "Histórico de part
 function metric(label: string) { return within(detail()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement; }
 
 describe("Player matches", () => {
-  it("loads only the team calendar and builds the chronological participation sequence from finished matches", async () => {
+  it("loads only the team calendar and lists finished matches with minutes and role, without a participation band", async () => {
     await load();
     expect(getSeasonMatches).toHaveBeenCalledWith("season", { teamId: "team" }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    const sequence = screen.getByRole("region", { name: "Secuencia de participación por partido" });
-    const items = within(sequence).getAllByRole("listitem");
-    expect(items).toHaveLength(3);
-    expect(items[0]).toHaveAccessibleName("Jornada 1 · Titular · 90 minutos");
-    expect(items[1]).toHaveAccessibleName("Jornada 2 · No participó");
-    expect(items[1]).toHaveTextContent("—");
-    expect(items[1]).not.toHaveTextContent("0");
-    expect(items[2]).toHaveAccessibleName("Jornada 3 · Suplente · 20 minutos");
-    expect(within(sequence).queryByText("J4")).toBeNull();
-    expect(within(sequence).queryByText("J5")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Participación" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Secuencia de participación por partido" })).toBeNull();
     const rows = within(history()).getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    expect(within(history()).queryByText("J4")).toBeNull();
+    expect(within(history()).queryByText("J5")).toBeNull();
     expect(rows[0]).toHaveTextContent("J3");
+    expect(rows[0]).toHaveTextContent("Suplente · 20′");
     expect(rows[2]).toHaveTextContent("J1");
+    expect(rows[2]).toHaveTextContent("Titular · 90′");
+    expect(rows[1]).not.toHaveTextContent(/\d+′/);
     expect(rows[0]).toHaveTextContent("Real Jaén CF · CD Rival");
     expect(rows[0]).toHaveTextContent("Local");
     expect(rows[1]).toHaveTextContent("No participó");
@@ -80,22 +78,17 @@ describe("Player matches", () => {
     expect(detail()).toHaveTextContent("Titular · 90′");
     expect(within(detail()).getByRole("link", { name: "Ver partido completo" })).toHaveAttribute("href", "/matches/match-1");
     expect(within(older).queryByRole("link")).toBeNull();
-    expect(screen.getByRole("button", { name: "Jornada 1 · Titular · 90 minutos" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Jornada 3 · Suplente · 20 minutos" })).toHaveAttribute("aria-pressed", "false");
     const inline = screen.getByRole("region", { name: "Detalle inline del partido" });
     expect(inline.parentElement).toBe(older.parentElement);
     expect(inline).toHaveTextContent("J1 · vs CD Rival");
     expect(older).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("selects from participation and synchronizes the historical row and both detail locations", async () => {
+  it("synchronizes the historical row with both detail locations", async () => {
     await load();
-    const first = screen.getByRole("button", { name: "Jornada 1 · Titular · 90 minutos" });
-    expect(screen.getByRole("button", { name: "Jornada 3 · Suplente · 20 minutos" })).toHaveAttribute("aria-pressed", "true");
-    first.focus();
-    await userEvent.setup().keyboard("{Enter}");
+    const first = within(history()).getByRole("button", { name: /J1/ });
+    await userEvent.setup().click(first);
     expect(first).toHaveAttribute("aria-pressed", "true");
-    expect(within(history()).getByRole("button", { name: /J1/ })).toHaveAttribute("aria-pressed", "true");
     expect(within(history()).getByRole("button", { name: /J3/ })).toHaveAttribute("aria-expanded", "false");
     expect(detail()).toHaveTextContent("J1 · vs CD Rival");
     const inline = screen.getByRole("region", { name: "Detalle inline del partido" });
@@ -108,20 +101,27 @@ describe("Player matches", () => {
     ["above", 20, 100, 1000, 120],
     ["visible", 120, 200, 1000, 200],
     ["below the visible page portion", 320, 380, 350, 230],
-  ])("reveals a historical row %s the internal viewport without scrolling the page", async (_position, top, bottom, viewportHeight, expectedScroll) => {
-    await load();
-    const list = history();
-    const row = within(list).getByRole("button", { name: /J1/ });
-    Object.defineProperties(list, { scrollHeight: { value: 1000 }, clientHeight: { value: 300 } });
-    list.scrollTop = 200;
-    vi.spyOn(list, "getBoundingClientRect").mockReturnValue({ top: 100, bottom: 400 } as DOMRect);
-    vi.spyOn(row, "getBoundingClientRect").mockReturnValue({ top, bottom } as DOMRect);
-    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(viewportHeight);
+  ])("reveals an initially requested row %s the internal viewport without scrolling the page", async (_position, top, bottom, viewportHeight, expectedScroll) => {
     const pageScroll = vi.spyOn(window, "scrollTo");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Jornada 1 · Titular · 90 minutos" }));
-    expect(list.scrollTop).toBe(expectedScroll);
-    expect(row).toHaveAttribute("aria-pressed", "true");
-    expect(detail()).toHaveTextContent("J1 · vs CD Rival");
+    const original = Element.prototype.getBoundingClientRect;
+    const isHistory = (element: Element) => element.getAttribute("aria-label") === "Histórico de partidos";
+    // The history is a scrollable 300px viewport, already scrolled by 200px.
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) { return isHistory(this) ? 1000 : 0; });
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return isHistory(this) ? 300 : this === document.documentElement ? viewportHeight : 0;
+    });
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      if (isHistory(this)) {
+        if (!this.hasAttribute("data-scrolled")) { this.setAttribute("data-scrolled", ""); this.scrollTop = 200; }
+        return { top: 100, bottom: 400 } as DOMRect;
+      }
+      if (this instanceof HTMLButtonElement && this.dataset.matchId === "match-1") return { top, bottom } as DOMRect;
+      return original.call(this);
+    });
+    await load(profile, "match-1");
+    // The reveal runs in a passive effect after the history is rendered.
+    await waitFor(() => expect(history().scrollTop).toBe(expectedScroll));
+    expect(within(history()).getByRole("button", { name: /J1/ })).toHaveAttribute("aria-pressed", "true");
     expect(pageScroll).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
@@ -163,7 +163,6 @@ describe("Player matches", () => {
     expect(within(metric("Pases")).getByLabelText(label)).toHaveTextContent("—");
     expect(metric("Pases")).not.toHaveTextContent("0");
     expect(within(history()).getByRole("button", { name: /J3.*Suplente|J3.*Titular/ })).toHaveTextContent("Titular · —");
-    expect(screen.getByRole("button", { name: "Jornada 3 · Titular · Minutos sin datos" })).toBeVisible();
   });
 
   it("shows goals and credited assists in the row and preserves action added time", async () => {
@@ -213,7 +212,6 @@ describe("Player matches", () => {
 
   it("keeps a genuine zero-minute appearance selectable", async () => {
     await load({ ...profile, matches: [appearance(3, false, 0)] });
-    expect(screen.getByRole("button", { name: "Jornada 3 · Suplente · 0 minutos" })).toHaveTextContent("0");
     expect(within(history()).getByRole("button", { name: /J3/ })).toHaveTextContent("Suplente · 0′");
     expect(detail()).toHaveTextContent("Suplente · 0′");
   });
@@ -235,13 +233,12 @@ describe("Player matches", () => {
   });
 
   describe("initial match from navigation", () => {
-    it("selects the requested appearance instead of the latest and synchronizes history, sequence and detail", async () => {
+    it("selects the requested appearance instead of the latest and synchronizes history and detail", async () => {
       await load(profile, "match-1");
       const row = within(history()).getByRole("button", { name: /J1/ });
       expect(row).toHaveAttribute("aria-pressed", "true");
       expect(row).toHaveAttribute("aria-expanded", "true");
       expect(within(history()).getByRole("button", { name: /J3/ })).toHaveAttribute("aria-pressed", "false");
-      expect(screen.getByRole("button", { name: "Jornada 1 · Titular · 90 minutos" })).toHaveAttribute("aria-pressed", "true");
       expect(detail()).toHaveTextContent("J1 · vs CD Rival");
       expect(detail()).toHaveTextContent("Titular · 90′");
       expect(screen.getByRole("region", { name: "Detalle inline del partido" })).toHaveTextContent("J1 · vs CD Rival");
@@ -257,8 +254,6 @@ describe("Player matches", () => {
       expect(row.firstElementChild).toHaveAttribute("aria-current", "true");
       expect(row).toHaveTextContent("No participó");
       expect(within(history()).getAllByRole("button").every(button => button.getAttribute("aria-pressed") === "false")).toBe(true);
-      const unit = within(screen.getByRole("listitem", { name: "Jornada 2 · No participó" })).getByText("J2").parentElement!;
-      expect(unit).toHaveAttribute("aria-current", "true");
       for (const region of [detail(), screen.getByRole("region", { name: "Detalle inline del partido" })]) {
         expect(region).toHaveTextContent("J2 · vs CD Rival");
         expect(region).toHaveTextContent("No participó");
@@ -287,26 +282,6 @@ describe("Player matches", () => {
       await userEvent.setup().click(within(history()).getByRole("button", { name: /J3/ }));
       expect(screen.queryByRole("status")).toBeNull();
       expect(detail()).toHaveTextContent("Suplente · 20′");
-    });
-
-    it("reveals the requested match inside the history viewport without scrolling the page", async () => {
-      const pageScroll = vi.spyOn(window, "scrollTo");
-      const original = Element.prototype.getBoundingClientRect;
-      const isHistory = (element: Element) => element.getAttribute("aria-label") === "Histórico de partidos";
-      // The history is a scrollable 300px viewport and row J1 lies below it.
-      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) { return isHistory(this) ? 1000 : 0; });
-      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
-        return isHistory(this) ? 300 : this === document.documentElement ? 1000 : 0;
-      });
-      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
-        if (isHistory(this)) return { top: 100, bottom: 400 } as DOMRect;
-        if (this instanceof HTMLButtonElement && this.dataset.matchId === "match-1") return { top: 600, bottom: 680 } as DOMRect;
-        return original.call(this);
-      });
-      await load(profile, "match-1");
-      expect(history().scrollTop).toBe(280);
-      expect(pageScroll).not.toHaveBeenCalled();
-      vi.restoreAllMocks();
     });
   });
 });

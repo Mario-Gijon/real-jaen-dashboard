@@ -59,7 +59,8 @@ test("Match lineups to player opens Partidos on that match and returns to Alinea
   await expect(page.getByRole("tab", { name: "Partidos" })).toHaveAttribute("aria-selected", "true");
   const row = page.getByRole("list", { name: "Histórico de partidos" }).getByRole("button", { name: /^J1\D/ });
   await expect(row).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /^Jornada 1 · / })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Participación" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Secuencia de participación por partido" })).toHaveCount(0);
   await expect(matchDetail(page, mobile)).toBeVisible();
   await expect(matchDetail(page, mobile)).toContainText("J1 · vs");
   await expect(matchDetail(page, mobile).getByRole("link", { name: "Ver partido completo" })).toHaveAttribute("href", "/matches/match-r01-01");
