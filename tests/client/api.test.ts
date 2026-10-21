@@ -3,6 +3,7 @@ import {
   ApiRequestError,
   getCompetitions,
   getMatch,
+  getObservedMatchDetail,
   getObservedPlayers,
   getPlayer,
   getPlayerObservedMatches,
@@ -40,6 +41,7 @@ describe("typed client", () => {
     await getPlayerProfile("sofascore-player-1");
     await getPlayerObservedMatches("sofascore-player-1");
     await getTeamObservedMatches("team-real-jaen");
+    await getObservedMatchDetail("sofascore-match-1");
     expect(urls(fetch)).toEqual([
       "/api/v1/source",
       "/api/v1/competitions",
@@ -53,6 +55,7 @@ describe("typed client", () => {
       "/api/v1/players/sofascore-player-1/profile",
       "/api/v1/players/sofascore-player-1/observed-matches",
       "/api/v1/teams/team-real-jaen/observed-matches",
+      "/api/v1/matches/sofascore-match-1/observed",
     ]);
   });
 

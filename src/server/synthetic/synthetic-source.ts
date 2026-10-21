@@ -81,6 +81,7 @@ export function createSyntheticSource(data: RawDataset): DataSource {
     playerProfile: async () => null,
     playerObservedMatches: async () => null,
     teamObservedMatches: async () => null,
+    matchObservedDetail: async () => null,
   };
 }
 
@@ -99,6 +100,7 @@ export const syntheticSource: DataSource = {
   playerProfile: async () => null,
   playerObservedMatches: async () => null,
   teamObservedMatches: async () => null,
+  matchObservedDetail: async () => null,
 };
 
 function lazy(): DataSource {

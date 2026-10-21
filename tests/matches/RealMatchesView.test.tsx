@@ -40,7 +40,7 @@ beforeEach(() => {
 const rows = () => within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("listitem");
 
 describe("Partidos with the real source", () => {
-  it("lists the club's real matches with provenance, coverage and no links, never touching synthetic data", async () => {
+  it("lists the club's real matches with provenance and coverage, linked only to their real detail, never touching synthetic data", async () => {
     render(<MatchesView />);
     expect(await screen.findByRole("list", { name: "Partidos reales" })).toBeVisible();
     expect(getTeamObservedMatches).toHaveBeenCalledWith("team-real-jaen", expect.anything());
@@ -58,7 +58,8 @@ describe("Partidos with the real source", () => {
     expect(rows()[4]).toHaveTextContent("Fecha por definir");
     expect(rows()[4]).toHaveTextContent("Por definirProgramado");
     expect(rows()[4]).toHaveTextContent("Equipo sin identificar");
-    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    const links = within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["m1", "m2", "m3", "m5", "m4"].map((id) => `/matches/${id}?view=observed`));
     for (const synthetic of [getCompetitions, getSeasonMatches, getSeasonTeams]) expect(synthetic).not.toHaveBeenCalled();
   });
 

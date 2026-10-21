@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ApiRequestError, getCompetitions, getMatch } from "@/client/api";
-import type { MatchDetail, Stat, TeamRef, TeamStatKey } from "@/contract";
+import type { MatchDetail, Stat, TeamMatchStats, TeamRef, TeamStatKey } from "@/contract";
 import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel, statText } from "../format";
@@ -112,21 +112,31 @@ function Summary({ match }: { match: MatchDetail }) {
 
   return <>
     <h2 className={css.summaryTitle}>Estadísticas de equipo</h2>
+    <TeamStatsComparison home={{ label: match.home.shortName, name: match.home.name, stats: match.teamStats.home }}
+      away={{ label: match.away.shortName, name: match.away.name, stats: match.teamStats.away }} />
+  </>;
+}
+
+type StatsSide = { label: string; name: string; stats: TeamMatchStats };
+
+/** Home and away team stats face to face; a missing value reads «—», a real 0 reads «0». */
+export function TeamStatsComparison({ home: homeSide, away: awaySide }: { home: StatsSide; away: StatsSide }) {
+  return <>
     <div className={css.legend} aria-hidden="true">
-      <span>{match.home.shortName} · Local</span><span>{match.away.shortName} · Visitante</span>
+      <span>{homeSide.label} · Local</span><span>{awaySide.label} · Visitante</span>
     </div>
     <dl className={css.metrics}>
       {METRICS.map(({ key, label, decimals = 0 }) => {
-        const home = match.teamStats!.home[key];
-        const away = match.teamStats!.away[key];
+        const home = homeSide.stats[key];
+        const away = awaySide.stats[key];
         const maximum = home.value !== null && away.value !== null ? Math.max(home.value, away.value) : 0;
         const comparable = home.value !== null && away.value !== null && maximum > 0;
         return <div className={css.metric} key={key}>
           <dt>{label}</dt>
           <dd className={css.homeValue}><Value stat={home} decimals={decimals}
-            team={match.home.name} percent={key === "possession"} /></dd>
+            team={homeSide.name} percent={key === "possession"} /></dd>
           <dd className={css.awayValue}><Value stat={away} decimals={decimals}
-            team={match.away.name} percent={key === "possession"} /></dd>
+            team={awaySide.name} percent={key === "possession"} /></dd>
           <dd className={css.comparison} aria-hidden="true" data-comparison={comparable || undefined}>
             <span className={css.homeHalf}>
               {comparable && home.value! > 0 ? <span data-bar="home" style={{ width: `${home.value! / maximum * 100}%` }} /> : null}

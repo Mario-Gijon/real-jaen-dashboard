@@ -3,6 +3,7 @@ import type {
   MatchDetail,
   MatchFilter,
   MatchSummary,
+  ObservedMatchDetail,
   ObservedPlayerMatches,
   ObservedPlayers,
   ObservedTeamMatches,
@@ -17,6 +18,7 @@ import {
   createLocalApiObservedMatches,
   createLocalApiObservedPlayers,
   createLocalApiPlayerProfile,
+  createLocalApiMatchDetail,
   createLocalApiTeamMatches,
 } from "./local-api/local-api-source";
 import { syntheticSource } from "./synthetic/synthetic-source";
@@ -57,6 +59,11 @@ export interface DataSource {
    * correspondence in it. Throws like `observedPlayers`.
    */
   teamObservedMatches(teamId: string): Promise<ObservedTeamMatches | null>;
+  /**
+   * A real match with its team stats; `null` for an id that is not a real
+   * match id or a match the source does not know. Throws like `observedPlayers`.
+   */
+  matchObservedDetail(matchId: string): Promise<ObservedMatchDetail | null>;
 }
 
 /** `synthetic` (default) or `local`, from the variable `name`; anything else is refused. */
@@ -100,6 +107,8 @@ export function getDataSource(): DataSource {
           playerObservedMatches: createLocalApiObservedMatches(local),
         }
       : {}),
-    ...(real.includes("matches") ? { teamObservedMatches: createLocalApiTeamMatches(local) } : {}),
+    ...(real.includes("matches")
+      ? { teamObservedMatches: createLocalApiTeamMatches(local), matchObservedDetail: createLocalApiMatchDetail(local) }
+      : {}),
   };
 }

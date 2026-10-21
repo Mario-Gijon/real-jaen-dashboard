@@ -457,6 +457,29 @@ export type ObservedTeamMatches = {
   source: DataProvenance;
 };
 
+/**
+ * A section of a real match, as the source keeps it: `stored` with content,
+ * `empty` (stored without content), `not_stored` (normal for a pending
+ * match) or `error` (the source could not be queried for it).
+ */
+export type ObservedSectionState = "stored" | "empty" | "not_stored" | "error";
+
+/**
+ * `GET /api/v1/matches/{matchId}/observed`: a real match with the team
+ * stats the source keeps. Values the source omits are missing, never 0.
+ * `fetchedAt` is when the source was read, not when its content changed.
+ * No interpreted events or narrative here.
+ */
+export type ObservedMatchDetail = {
+  match: ObservedMatch;
+  statistics:
+    | { state: "stored"; fetchedAt: string | null; home: TeamMatchStats; away: TeamMatchStats }
+    | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };
+  /** What the detail covers, for the analyst, in Spanish. */
+  scope: string;
+  source: DataProvenance;
+};
+
 export { seasonStat, type Accumulation } from "./season-stat";
 
 // ─── Application ────────────────────────────────────────────────────────────

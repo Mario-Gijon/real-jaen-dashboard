@@ -5,7 +5,9 @@ import {
   clearTeamNameCache,
   createLocalApiObservedMatches,
   createLocalApiPlayerProfile,
+  createLocalApiMatchDetail,
   createLocalApiTeamMatches,
+  sourceMatchId,
   sourcePlayerId,
   UpstreamUnavailableError,
 } from "@/server/local-api/local-api-source";
@@ -515,5 +517,107 @@ describe("local API adapter: team matches", () => {
     const recovered = teamApi([fixture()]);
     await teamSource(recovered)("team-real-jaen");
     expect(urls(recovered).filter((url) => !url.endsWith("/matches")).length).toBeGreaterThan(0);
+  });
+});
+
+/** Shapes of the real local API's /matches/{id} and /matches/{id}/statistics on 2026-10-21 (trimmed). */
+const matchBody = (overrides: Record<string, unknown> = {}) => ({
+  data: { ...fixture(), home_team_name: "CE Europa", away_team_name: "Real Jaén", ...overrides },
+  meta: { sections: { statistics: "stored", lineups: "stored", incidents: "stored" } },
+});
+const item = (key: string, homeValue: unknown, awayValue: unknown) => ({ key, name: key, home: String(homeValue), away: String(awayValue), homeValue, awayValue });
+const statsBody = (availability = "stored", groups?: unknown[]) => ({
+  data: availability === "not_stored" ? null : availability === "empty" ? { statistics: [] } : {
+    statistics: [
+      { period: "ALL", groups: groups ?? [
+        { groupName: "Match overview", statisticsItems: [item("ballPossession", 46, 54), item("expectedGoals", 1.81, 1.6),
+          item("cornerKicks", 3, 3), item("fouls", 13, 5), item("totalShotsOnGoal", 15, 13), item("yellowCards", 0, 1)] },
+        { groupName: "Shots", statisticsItems: [item("totalShotsOnGoal", 99, 99), item("shotsOnGoal", 4, 5)] },
+      ] },
+      { period: "1ST", groups: [{ groupName: "Match overview", statisticsItems: [item("ballPossession", 1, 99)] }] },
+    ],
+  },
+  meta: { match_id: 16599363, section: "statistics", source: "Sofascore", source_key: "statistics", availability,
+    fetched_at: availability === "not_stored" ? null : "2026-10-21T12:07:30+00:00", versions: availability === "not_stored" ? 0 : 1 },
+});
+
+/** Simulated local API for a match and its statistics. */
+function detailApi(match: unknown, stats: unknown | (() => Response)) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/statistics")) {
+      return typeof stats === "function" ? (stats as () => Response)() : new Response(JSON.stringify(stats));
+    }
+    return match === null ? new Response(JSON.stringify({ error: "Partido no encontrado" }), { status: 404 })
+      : new Response(JSON.stringify(match));
+  });
+}
+const detailSource = (fetch: typeof globalThis.fetch) => createLocalApiMatchDetail({ baseUrl: "http://127.0.0.1:8001", fetch });
+
+describe("local API adapter: real match detail", () => {
+  it("reads only ids derived from the source: a synthetic id is never taken as real", async () => {
+    expect(sourceMatchId("sofascore-match-16599363")).toBe(16599363);
+    for (const id of ["match-r01-01", "sofascore-match-", "sofascore-match-01", "sofascore-player-1"]) expect(sourceMatchId(id), id).toBeNull();
+    const fetch = detailApi(matchBody(), statsBody());
+    expect(await detailSource(fetch)("match-r01-01")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns the match with the source's names and the ALL-period team stats, missing ones unknown", async () => {
+    const fetch = detailApi(matchBody(), statsBody());
+    const result = await detailSource(fetch)("sofascore-match-16599363");
+    expect(fetch.mock.calls.map((call) => String((call as unknown[])[0]))).toEqual([
+      "http://127.0.0.1:8001/api/v1/matches/16599363", "http://127.0.0.1:8001/api/v1/matches/16599363/statistics",
+    ]);
+    expect(result!.match).toEqual({
+      id: "sofascore-match-16599363", kickoff: "2026-08-30T17:15:00+00:00", status: "finished",
+      competition: "Primera Federacion, Group 2", season: "26/27", round: 1,
+      home: { id: "sofascore-team-135672", name: "CE Europa" }, away: { id: "team-real-jaen", name: "Real Jaén" },
+      score: { home: 0, away: 3 },
+    });
+    expect(result!.statistics).toEqual({
+      state: "stored", fetchedAt: "2026-10-21T12:07:30+00:00",
+      home: { possession: { value: 46 }, shots: { value: 15 }, shotsOnTarget: { value: 4 }, xg: { value: 1.81 },
+        corners: { value: 3 }, fouls: { value: 13 }, yellowCards: { value: 0 }, redCards: missing },
+      away: { possession: { value: 54 }, shots: { value: 13 }, shotsOnTarget: { value: 5 }, xg: { value: 1.6 },
+        corners: { value: 3 }, fouls: { value: 5 }, yellowCards: { value: 1 }, redCards: missing },
+    });
+    expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
+  });
+
+  it("distinguishes empty and not stored statistics, and a pending match keeps no score", async () => {
+    const empty = await detailSource(detailApi(matchBody(), statsBody("empty")))("sofascore-match-16599363");
+    expect(empty!.statistics).toEqual({ state: "empty", fetchedAt: "2026-10-21T12:07:30+00:00" });
+    const pendingDetail = await detailSource(detailApi(
+      matchBody({ ...pending, home_team_name: "Sevilla Atlético", away_team_name: "Real Jaén" }), statsBody("not_stored"),
+    ))("sofascore-match-16599386");
+    expect(pendingDetail!.statistics).toEqual({ state: "not_stored", fetchedAt: null });
+    expect([pendingDetail!.match.status, pendingDetail!.match.score]).toEqual(["scheduled", null]);
+  });
+
+  it("keeps the header when the statistics cannot be read, with an error state", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const stats of [
+      () => new Response("{}", { status: 500 }),
+      () => { throw new TypeError("fetch failed"); },
+      () => new Response(JSON.stringify({ data: null, meta: { availability: "unknown" } })),
+      () => new Response(JSON.stringify(statsBody("stored", [{ statisticsItems: [item("fouls", "13", 5)] }]))),
+      () => new Response(JSON.stringify({ error: "Partido no encontrado" }), { status: 404 }),
+    ]) {
+      const result = await detailSource(detailApi(matchBody(), stats))("sofascore-match-16599363");
+      expect(result!.statistics).toEqual({ state: "error", fetchedAt: null });
+      expect(result!.match.home.name).toBe("CE Europa");
+    }
+  });
+
+  it("has nothing for a match the source does not know, and fails as unavailable when the match cannot be read", async () => {
+    expect(await detailSource(detailApi(null, statsBody()))("sofascore-match-1")).toBeNull();
+    await expect(detailSource(detailApi({ data: { match_id: 1 } }, statsBody()))("sofascore-match-1")).rejects.toBeInstanceOf(UpstreamUnavailableError);
+    await expect(detailSource(answer({}, 500))("sofascore-match-1")).rejects.toThrow("HTTP 500");
+  });
+
+  it("keeps a team name the source does not give as unknown", async () => {
+    const result = await detailSource(detailApi(matchBody({ home_team_name: null }), statsBody()))("sofascore-match-16599363");
+    expect(result!.match.home).toEqual({ id: "sofascore-team-135672", name: null });
   });
 });

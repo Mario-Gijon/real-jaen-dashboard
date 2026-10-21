@@ -34,7 +34,7 @@ async function serveReal(page: Page, { down = false } = {}) {
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-test("Partidos reales: finished and pending, filters, coverage and no links", async ({ page }, testInfo) => {
+test("Partidos reales: finished and pending, filters, coverage and links to the real detail only", async ({ page }, testInfo) => {
   await serveReal(page);
   const synthetic: string[] = [];
   page.on("request", (r) => { if (/\/api\/v1\/(competitions|seasons\/)/.test(r.url())) synthetic.push(r.url()); });
@@ -46,7 +46,8 @@ test("Partidos reales: finished and pending, filters, coverage and no links", as
   await expect(list.getByRole("listitem").nth(1)).toContainText("0 – 0");
   await expect(list.getByRole("listitem").nth(2)).toContainText("Programado");
   await expect(list.getByRole("listitem").nth(2)).not.toContainText("0 – 0");
-  await expect(list.getByRole("link")).toHaveCount(0);
+  await expect(list.getByRole("link")).toHaveCount(4);
+  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-1?view=observed");
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-matches.png"), fullPage: true });
 
@@ -73,4 +74,62 @@ test("Partidos reales: a synthetic season or rival from a link is not swapped si
   await expect(page.getByText(/La temporada seleccionada no corresponde a la fuente real de partidos/)).toBeVisible();
   await page.getByRole("link", { name: "Ver los partidos reales del Real Jaén" }).click();
   await expect(page.getByRole("list", { name: "Partidos reales" }).getByRole("listitem")).toHaveCount(4);
+});
+
+const missing = { value: null, reason: "not_available" };
+const side = (values: Record<string, number>) => Object.fromEntries(
+  ["possession", "shots", "shotsOnTarget", "xg", "corners", "fouls", "yellowCards", "redCards"].map((k) => [k, k in values ? { value: values[k] } : missing]));
+const DETAIL = {
+  match: MATCHES[0], scope: "Partido y estadísticas colectivas según la fuente. Un dato que la fuente no da se muestra como «—».",
+  source: { synthetic: false, label: "Datos reales" },
+  statistics: { state: "stored", fetchedAt: "2026-10-21T12:07:30+00:00",
+    home: side({ possession: 46, shots: 15, shotsOnTarget: 4, xg: 1.81, corners: 3, fouls: 13, yellowCards: 0 }),
+    away: side({ possession: 54, shots: 13, shotsOnTarget: 5, xg: 1.6, corners: 3, fouls: 5, yellowCards: 1 }) },
+};
+
+async function serveDetail(page: Page, statistics: Record<string, unknown> = DETAIL.statistics) {
+  await serveReal(page);
+  await page.route("**/api/v1/matches/*/observed", (route) => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
+    return id === "sofascore-match-1"
+      ? route.fulfill({ json: { ...DETAIL, statistics } })
+      : route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Partido no encontrado en la fuente real de partidos." } } });
+  });
+}
+
+test("Partido real: from the list to its detail with team stats, unknown red cards and back", async ({ page }, testInfo) => {
+  await serveDetail(page);
+  const synthetic: string[] = [];
+  page.on("request", (r) => { if (/\/api\/v1\/(competitions|matches\/[^/]+$)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
+  await page.goto("/matches");
+  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?view=observed$/);
+  await expect(page.getByText("0 – 3")).toBeVisible();
+  await expect(page.getByText("Primera Federacion, Group 2 · 26/27")).toBeVisible();
+  await expect(page.getByText("Datos reales", { exact: true })).toBeVisible();
+  const reds = page.locator("dt", { hasText: "Rojas" }).locator("..");
+  await expect(reds.locator("dd").nth(0)).toHaveText("—");
+  await expect(reds.locator("dd").nth(1)).toHaveText("—");
+  await expect(page.locator("dt", { hasText: "Amarillas" }).locator("..").locator("dd").nth(0)).toHaveText("0");
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("real-match-detail.png"), fullPage: true });
+  expect(synthetic).toEqual([]);
+  await page.getByRole("link", { name: "‹ Volver a partidos" }).click();
+  await expect(page.getByRole("list", { name: "Partidos reales" })).toBeVisible();
+});
+
+test("Partido real: statistics not stored or failing, and an id unknown to the real source", async ({ page }) => {
+  await serveDetail(page, { state: "not_stored", fetchedAt: null });
+  await page.goto("/matches/sofascore-match-1?view=observed");
+  await expect(page.getByText("La fuente no tiene estadísticas guardadas de este partido.")).toBeVisible();
+
+  await page.unroute("**/api/v1/matches/*/observed");
+  await serveDetail(page, { state: "error", fetchedAt: null });
+  await page.reload();
+  await expect(page.locator("main").getByRole("alert")).toContainText("No se pudieron cargar las estadísticas de este partido.");
+  await expect(page.getByText("0 – 3")).toBeVisible();
+
+  await page.goto("/matches/match-r01-01?view=observed");
+  await expect(page.getByRole("heading", { name: "Partido no encontrado en la fuente real" })).toBeVisible();
 });

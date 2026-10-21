@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { MatchStatus, ObservedMatch, ObservedTeam } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { CLUB_ID } from "../home/preparation";
@@ -13,9 +14,10 @@ const NEUTRAL = { primary: "#e3deea", secondary: "#5e6172" };
 
 /**
  * Real matches as the source lists them, in the order given (by kickoff).
- * Same layout as the synthetic list, but rows lead nowhere: there is no real
- * match detail yet. Only a finished match shows a score; a pending one shows
- * its time or «Por definir», never 0–0.
+ * Same layout as the synthetic list; each row opens the real match detail,
+ * explicitly marked as real (`view=observed`), never a synthetic one. Only a
+ * finished match shows a score; a pending one shows its time or «Por
+ * definir», never 0–0.
  */
 export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch[] }) {
   return (
@@ -33,7 +35,13 @@ export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch
         const seasonRound = [match.season, match.round !== null ? `J${match.round}` : null].filter(Boolean).join(" · ");
         return (
           <li key={match.id}>
-            <div className={css.match} data-static="">
+            <Link
+              className={css.match}
+              data-observed=""
+              href={`/matches/${encodeURIComponent(match.id)}?view=observed`}
+              prefetch={false}
+              aria-label={`${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.competition, match.season].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}
+            >
               <div className={css.meta}>
                 {match.competition ? <span className={css.round}>{match.competition}</span> : null}
                 {seasonRound ? <span>{seasonRound}</span> : null}
@@ -45,7 +53,7 @@ export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch
                 {state ? <span className={css.state}>{state}</span> : null}
               </div>
               <Team team={match.away} side="away" />
-            </div>
+            </Link>
           </li>
         );
       })}
@@ -53,11 +61,17 @@ export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch
   );
 }
 
+/** What TeamCrest needs for a real team: its source name and a neutral shield (the club keeps its crest). */
+export function observedCrest(team: ObservedTeam) {
+  const name = team.name ?? "Equipo sin identificar";
+  return { name, shortName: name, crestUrl: team.id === CLUB_ID ? "/real-jaen-crest.png" : null, colors: NEUTRAL };
+}
+
 function Team({ team, side }: { team: ObservedTeam; side: "home" | "away" }) {
   const name = team.name ?? "Equipo sin identificar";
   const club = team.id === CLUB_ID;
   return <span className={`${css.team} ${css[side]}`}>
-    <TeamCrest team={{ name, shortName: name, crestUrl: club ? "/real-jaen-crest.png" : null, colors: NEUTRAL }} size={40} />
+    <TeamCrest team={observedCrest(team)} size={40} />
     <span className={css.name} data-club={club || undefined}>
       <span className={css.fullName}>{name}</span>
       <span className={css.shortName}>{name}</span>

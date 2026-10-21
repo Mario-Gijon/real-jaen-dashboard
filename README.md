@@ -122,7 +122,17 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   y jornadas sintéticas no intervienen.
 - Sólo un partido finalizado muestra resultado; uno pendiente muestra su hora o «Por
   definir», nunca 0–0. Un estado desconocido se dice como tal.
-- Las filas no enlazan a ninguna ficha: todavía no hay detalle real del partido.
+- Cada fila abre el detalle real del partido, marcado explícitamente como real:
+  `/matches/{id}?view=observed`. Sin `view=observed` la ruta es siempre la ficha
+  sintética; un ID sintético nunca se consulta como real ni al revés.
+- Detalle real (`GET /api/v1/matches/{matchId}/observed`, desde `/api/v1/matches/{id}` y
+  `/api/v1/matches/{id}/statistics` de la API local): cabecera con los nombres de la fuente
+  y las ocho estadísticas colectivas de la ficha sintética, tomadas del periodo `ALL`. Una
+  estadística que la fuente no da (p. ej. `redCards`, ausente en la mayoría de partidos)
+  se muestra «—», nunca 0. La sección distingue estadísticas guardadas, guardadas sin
+  contenido, no guardadas (normal en un partido pendiente) y error de consulta, que
+  mantiene visible la cabecera con reintento. `fetched_at` se muestra como fecha de
+  obtención. Sin eventos interpretados, alineaciones ni incidencias todavía.
 - Un aviso indica que la muestra no es necesariamente un calendario completo.
 - Un enlace con `?season=` (temporada sintética) o `?team=` de un equipo sin
   correspondencia muestra un estado explícito con un enlace a los partidos reales del
@@ -146,6 +156,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 | `GET /api/v1/competitions` | Competiciones con sus temporadas |
 | `GET /api/v1/seasons/{seasonId}/matches?round=&team=` | Partidos, filtrables por jornada y equipo |
 | `GET /api/v1/matches/{matchId}` | Ficha: alineaciones, eventos, estadísticas de equipo y jugador |
+| `GET /api/v1/matches/{matchId}/observed` | Partido real con sus estadísticas colectivas y el estado de esa sección; 404 para un ID sintético o desconocido, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/seasons/{seasonId}/teams` | Equipos con su clasificación |
 | `GET /api/v1/seasons/{seasonId}/teams/{teamId}` | Temporada del equipo: partidos, acumulados y plantilla |
 | `GET /api/v1/players/{playerId}?season={seasonId}` | Temporada del jugador: ficha, acumulados y partidos |

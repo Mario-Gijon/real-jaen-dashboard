@@ -1,7 +1,9 @@
 import {
   OBSERVED_MATCH_STAT_KEYS,
+  TEAM_STAT_KEYS,
   type MatchStatus,
   type ObservedMatch,
+  type ObservedMatchDetail,
   type ObservedMatchStatKey,
   type ObservedPlayerMatch,
   type ObservedPlayerMatches,
@@ -13,6 +15,8 @@ import {
   type PlayerRef,
   type PreferredFoot,
   type Stat,
+  type TeamMatchStats,
+  type TeamStatKey,
 } from "@/contract";
 
 /**
@@ -38,7 +42,17 @@ function teamIdFromSource(sourceId: number): string {
   return mapped ? mapped[0] : `sofascore-team-${sourceId}`;
 }
 
-const matchIdFromSource = (sourceId: number) => `sofascore-match-${sourceId}`;
+const MATCH_ID_PREFIX = "sofascore-match-";
+const matchIdFromSource = (sourceId: number) => `${MATCH_ID_PREFIX}${sourceId}`;
+
+/** The provider's id behind one of our derived match ids; `null` for any other id (e.g. a synthetic one). */
+export function sourceMatchId(matchId: string): number | null {
+  if (!matchId.startsWith(MATCH_ID_PREFIX)) return null;
+  const digits = matchId.slice(MATCH_ID_PREFIX.length);
+  if (!/^[1-9]\d*$/.test(digits)) return null;
+  const id = Number(digits);
+  return Number.isSafeInteger(id) ? id : null;
+}
 
 /**
  * Public player id derived from the provider's id. Stable while this provider
@@ -77,6 +91,24 @@ const PROFILE_SCOPE = "Datos personales según la fuente. No indican equipo actu
 
 const MATCHES_SCOPE =
   "Partidos en los que la fuente registra al jugador en la convocatoria. No garantiza cobertura completa ni indica equipo actual. Sin participación confirmada no se muestran minutos ni estadísticas.";
+
+const MATCH_DETAIL_SCOPE =
+  "Partido y estadísticas colectivas según la fuente. Un dato que la fuente no da se muestra como «—».";
+
+/**
+ * The source's key (period `ALL` of `statistics`) behind each team stat. A key
+ * the source omits (e.g. `redCards` in most matches) stays missing, never 0.
+ */
+const TEAM_STAT_FIELDS: Readonly<Record<TeamStatKey, string>> = {
+  possession: "ballPossession",
+  shots: "totalShotsOnGoal",
+  shotsOnTarget: "shotsOnGoal",
+  xg: "expectedGoals",
+  corners: "cornerKicks",
+  fouls: "fouls",
+  yellowCards: "yellowCards",
+  redCards: "redCards",
+};
 
 const TEAM_MATCHES_SCOPE =
   "Partidos del equipo que registra la fuente. No es necesariamente un calendario completo.";
@@ -470,5 +502,87 @@ export function createLocalApiTeamMatches(options: Options) {
     });
     const matches = await withTeamNames(options, rows.sort(byKickoff(false)));
     return { teamId, matches, scope: TEAM_MATCHES_SCOPE, source: PROVENANCE };
+  };
+}
+
+const SECTION_STATES = new Set(["stored", "empty", "not_stored"]);
+
+/**
+ * Team stats from the period `ALL` of a stored `statistics` payload, each
+ * from its first item. A missing key or period leaves the value missing.
+ */
+function parseTeamStats(payload: unknown): { home: TeamMatchStats; away: TeamMatchStats } {
+  if (!isRecord(payload) || !Array.isArray(payload.statistics)) throw invalid("statistics");
+  const all = payload.statistics.find((period) => isRecord(period) && period.period === "ALL");
+  const items = new Map<string, Record<string, unknown>>();
+  if (isRecord(all) && Array.isArray(all.groups)) {
+    for (const group of all.groups) {
+      if (!isRecord(group) || !Array.isArray(group.statisticsItems)) continue;
+      for (const item of group.statisticsItems) {
+        if (isRecord(item) && typeof item.key === "string" && !items.has(item.key)) items.set(item.key, item);
+      }
+    }
+  }
+  const side = (field: "homeValue" | "awayValue") => {
+    const stats = {} as TeamMatchStats;
+    for (const key of TEAM_STAT_KEYS) {
+      const item = items.get(TEAM_STAT_FIELDS[key]);
+      const value = item ? optionalNumber(item[field], `statistics.${TEAM_STAT_FIELDS[key]}.${field}`) : null;
+      stats[key] = value === null ? NOT_AVAILABLE : { value };
+    }
+    return stats;
+  };
+  return { home: side("homeValue"), away: side("awayValue") };
+}
+
+/**
+ * The statistics section, kept apart from the match: if it cannot be read
+ * (the service fails, or answers something unusable) its state is `error`
+ * and the match header is still served.
+ */
+async function matchStatistics(options: Options, sourceId: number): Promise<ObservedMatchDetail["statistics"]> {
+  try {
+    const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}/statistics`);
+    // The match exists, so a 404 here is an inconsistent answer, not a missing section.
+    if (body === null) throw invalid(`estadísticas del partido ${sourceId}: 404`);
+    if (!isRecord(body) || !isRecord(body.meta)) throw invalid("se esperaba { data, meta }");
+    const state = body.meta.availability;
+    if (typeof state !== "string" || !SECTION_STATES.has(state)) throw invalid("meta.availability");
+    const fetchedAt = optionalText(body.meta.fetched_at, "meta.fetched_at");
+    if (state !== "stored") return { state: state as "empty" | "not_stored", fetchedAt };
+    return { state: "stored", fetchedAt, ...parseTeamStats(body.data) };
+  } catch (failure) {
+    if (!(failure instanceof UpstreamUnavailableError)) throw failure;
+    console.error(`[api] estadísticas del partido ${sourceId}:`, failure.message);
+    return { state: "error", fetchedAt: null };
+  }
+}
+
+/**
+ * `matchObservedDetail` against the local API: the match with the source's
+ * team names, and its team stats. `null` for an id not derived from this
+ * source (a synthetic id is never read as real) or a match the source does
+ * not know.
+ */
+export function createLocalApiMatchDetail(options: Options) {
+  return async (matchId: string): Promise<ObservedMatchDetail | null> => {
+    const sourceId = sourceMatchId(matchId);
+    if (sourceId === null) return null;
+    const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}`);
+    if (body === null) return null;
+    if (!isRecord(body) || !isRecord(body.data)) throw invalid("se esperaba { data: {} }");
+    const at = (field: string) => `data.${field}`;
+    const { homeId, awayId, ...match } = parseMatch(body.data, sourceId, at);
+    const statistics = await matchStatistics(options, sourceId);
+    return {
+      match: {
+        ...match,
+        home: { id: teamIdFromSource(homeId), name: optionalText(body.data.home_team_name, at("home_team_name")) },
+        away: { id: teamIdFromSource(awayId), name: optionalText(body.data.away_team_name, at("away_team_name")) },
+      },
+      statistics,
+      scope: MATCH_DETAIL_SCOPE,
+      source: PROVENANCE,
+    };
   };
 }

@@ -4,6 +4,7 @@ import type {
   MatchDetail,
   MatchFilter,
   MatchSummary,
+  ObservedMatchDetail,
   ObservedPlayerMatches,
   ObservedPlayers,
   ObservedTeamMatches,
@@ -95,6 +96,11 @@ export function getPlayer(playerId: string, seasonId: string, options?: RequestO
 /** Players seen with a team, in no season; `source` says where they come from. */
 export function getObservedPlayers(teamId: string, options?: RequestOptions) {
   return get<ObservedPlayers>(`/teams/${segment(teamId)}/players`, options);
+}
+
+/** A real match with its team stats (`id` from a real match list). */
+export function getObservedMatchDetail(matchId: string, options?: RequestOptions) {
+  return get<ObservedMatchDetail>(`/matches/${segment(matchId)}/observed`, options);
 }
 
 /** A team's matches as a real source lists them, by kickoff. */
