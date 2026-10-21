@@ -1,22 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { ApiRequestError, getPlayerProfile } from "@/client/api";
+import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile } from "@/client/api";
 import type { PlayerProfile } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { MISSING, birthLabel, footLabel, heightLabel, positionLabel } from "../format";
 import { useApi } from "../use-api";
+import { ObservedMatches } from "./ObservedMatches";
 import css from "./PlayerDetailView.module.css";
 
 /**
- * Profile of a player from a real source: personal data only, with where they
- * come from and what they cover. It loads nothing else (no season, team,
- * stats or matches) so no synthetic data can slip in; unknown values read «—».
+ * Profile of a player from a real source: personal data and the matches the
+ * source lists them in, with where they come from and what they cover. It
+ * loads nothing synthetic (no season, team or calendar of the app); unknown
+ * values read «—». The matches load on their own, so their failure keeps the
+ * personal data visible.
  */
 export function PlayerProfileView({ playerId, returnHref }: { playerId: string; returnHref: string }) {
   const profile = useApi(`profile|${playerId}`, (signal) => getPlayerProfile(playerId, { signal }));
+  const matches = useApi(`observed-matches|${playerId}`, (signal) => getPlayerObservedMatches(playerId, { signal }));
   const back = <Link className={css.back} href={returnHref}>← Volver</Link>;
   if (profile.error) {
     const notFound = profile.error instanceof ApiRequestError && profile.error.status === 404;
@@ -35,6 +39,7 @@ export function PlayerProfileView({ playerId, returnHref }: { playerId: string; 
   return <div className={css.page}>
     {back}
     <Identity data={profile.data} />
+    <ObservedMatches load={matches} />
   </div>;
 }
 

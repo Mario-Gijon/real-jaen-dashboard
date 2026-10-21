@@ -374,6 +374,73 @@ export type PlayerProfile = {
   source: DataProvenance;
 };
 
+// ─── Observed matches of a real player ──────────────────────────────────────
+
+/** A team as a real source names it; `name` is `null` when the source cannot name it. */
+export type ObservedTeam = { id: string; name: string | null };
+
+export const OBSERVED_MATCH_STAT_KEYS = [
+  "minutes",
+  "goals",
+  "assists",
+  "shots",
+  "xg",
+  "passesCompleted",
+  "passes",
+  "rating",
+] as const;
+export type ObservedMatchStatKey = (typeof OBSERVED_MATCH_STAT_KEYS)[number];
+
+/**
+ * One match in which a real source lists the player in a squad: a call-up,
+ * not necessarily an appearance. Ids are derived from the provider's
+ * (`sofascore-match-…`, `sofascore-team-…`) and lead to no synthetic match.
+ */
+export type ObservedPlayerMatch = {
+  match: {
+    id: string;
+    /** ISO date-time; `null` when unknown. */
+    kickoff: string | null;
+    /** `null` when the source gives a status the app does not know. */
+    status: MatchStatus | null;
+    competition: string | null;
+    /** Season as the source names it (e.g. "26/27"); never the app's selected season. */
+    season: string | null;
+    round: number | null;
+    home: ObservedTeam;
+    away: ObservedTeam;
+    /** Final score; `null` unless finished and given. */
+    score: Score | null;
+  };
+  /** Side of the player's team. */
+  side: Side;
+  /** Named as starter or substitute; `null` when unknown. */
+  role: "starter" | "substitute" | null;
+  /**
+   * `confirmed` only when the source says the player took part. `unknown`
+   * never means "did not play": the source simply does not say.
+   */
+  participation: "confirmed" | "unknown";
+  /**
+   * As given by the source; a value it omits is missing, never 0. Without
+   * confirmed participation every value is missing. `xg` keeps its decimals;
+   * `rating` is the provider's own rating (see `ratingSource`).
+   */
+  stats: Record<ObservedMatchStatKey, Stat>;
+};
+
+/** `GET /api/v1/players/{playerId}/observed-matches`. */
+export type ObservedPlayerMatches = {
+  playerId: string;
+  /** Newest first. */
+  matches: ObservedPlayerMatch[];
+  /** What the list covers, for the analyst, in Spanish. */
+  scope: string;
+  /** Who computes `stats.rating`, to label it (e.g. "SofaScore"). */
+  ratingSource: string;
+  source: DataProvenance;
+};
+
 export { seasonStat, type Accumulation } from "./season-stat";
 
 // ─── Application ────────────────────────────────────────────────────────────

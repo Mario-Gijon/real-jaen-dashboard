@@ -1,0 +1,95 @@
+.section {
+  display: grid;
+  gap: var(--rj-space-2);
+  min-width: 0;
+  margin-top: var(--rj-space-2);
+}
+.section h2 {
+  font-size: var(--rj-text-lg);
+  font-weight: 700;
+}
+.count {
+  color: var(--rj-text-secondary);
+  font-weight: 600;
+}
+.scope {
+  max-width: 640px;
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+}
+/* Deliberate: on phones the stat columns scroll sideways, the match stays fixed. */
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.table {
+  border-collapse: collapse;
+  font-size: var(--rj-text-sm);
+}
+.table th,
+.table td {
+  padding: 6px var(--rj-space-2);
+  border-bottom: 1px solid var(--rj-border-default);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.table thead th {
+  border-bottom-color: var(--rj-border-strong);
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+  font-weight: 800;
+  vertical-align: bottom;
+}
+.table abbr {
+  text-decoration: none;
+}
+.table tbody th {
+  font-weight: 400;
+}
+.match {
+  padding-left: 0 !important;
+}
+.opponent {
+  display: block;
+  font-weight: 700;
+}
+.meta {
+  display: block;
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+}
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .match {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 170px;
+    max-width: 170px;
+    background: var(--rj-bg-main);
+    white-space: normal !important;
+  }
+  .when {
+    white-space: nowrap;
+  }
+  /* Season and round on their own line, so the competition name wraps alone. */
+  .seasonRound {
+    display: block;
+  }
+  .separator {
+    display: none;
+  }
+}

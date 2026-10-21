@@ -3,6 +3,7 @@ import type {
   MatchDetail,
   MatchFilter,
   MatchSummary,
+  ObservedPlayerMatches,
   ObservedPlayers,
   PlayerProfile,
   PlayerSeason,
@@ -11,6 +12,7 @@ import type {
   TeamStanding,
 } from "@/contract";
 import {
+  createLocalApiObservedMatches,
   createLocalApiObservedPlayers,
   createLocalApiPlayerProfile,
 } from "./local-api/local-api-source";
@@ -42,13 +44,18 @@ export interface DataSource {
    * that source does not know the id. Throws like `observedPlayers`.
    */
   playerProfile(playerId: string): Promise<PlayerProfile | null>;
+  /**
+   * Matches in which a real source lists the player, newest first; `null` if
+   * that source does not know the id. Throws like `observedPlayers`.
+   */
+  playerObservedMatches(playerId: string): Promise<ObservedPlayerMatches | null>;
 }
 
 /**
  * The configured source. `DATA_SOURCE` will select real adapters later;
- * `OBSERVED_PLAYERS_SOURCE=local` takes the observed players and their
- * personal profiles from the local API at `LOCAL_DATA_API_URL`, everything
- * else staying synthetic.
+ * `OBSERVED_PLAYERS_SOURCE=local` takes the observed players, their personal
+ * profiles and observed matches from the local API at `LOCAL_DATA_API_URL`,
+ * everything else staying synthetic.
  */
 export function getDataSource(): DataSource {
   const kind = process.env.DATA_SOURCE ?? "synthetic";
@@ -69,5 +76,6 @@ export function getDataSource(): DataSource {
     info: () => ({ synthetic: true, label: "Datos sintéticos y reales" }),
     observedPlayers: createLocalApiObservedPlayers({ baseUrl }),
     playerProfile: createLocalApiPlayerProfile({ baseUrl }),
+    playerObservedMatches: createLocalApiObservedMatches({ baseUrl }),
   };
 }

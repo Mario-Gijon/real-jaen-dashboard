@@ -81,6 +81,24 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   fuente; lo desconocido se muestra «—». Sin temporada, equipo actual ni estadísticas. El
   servidor traduce el ID derivado al de la fuente; la fecha de descarga (`fetched_at`) no
   se usa como fecha de actualización. En modo sintético no hay fichas de este tipo (404).
+- La ficha real añade «Partidos observados»: las convocatorias que registra la fuente, del
+  más reciente al más antiguo, con su propia competición y temporada (la de la URL sólo
+  sirve para volver). Fecha, rival y condición, resultado, titular/suplente y, si existen,
+  minutos, goles, asistencias, tiros, xG, pases completados/intentados y valoración de
+  SofaScore. Una estadística omitida es «—», nunca 0. Si fallan los partidos, la ficha
+  personal sigue visible.
+- Participación (`played` / `minutes_played`): confirmada con `played: true` (minutos > 0
+  o ausentes) o, sin `played`, con minutos > 0. `played: false` o sin datos, con 0 minutos
+  o sin ellos, queda desconocida: no se afirma que no jugara. Si se contradicen
+  (`played: true` con 0 minutos, `played: false` con minutos > 0) no se elige ninguno:
+  participación desconocida, sin estadísticas, y un aviso en el registro del servidor. Sin
+  participación confirmada no hay estadísticas: un `statistics` con `totalShots: 0` no
+  prueba nada.
+- Los nombres de equipo se piden a la fuente (`/api/v1/teams/{id}`) de uno en uno.
+  **Pendiente:** investigar por qué el servicio local rechazó conexiones (`ECONNREFUSED`)
+  con unas diez peticiones simultáneas (seis respondieron); en serie todas responden. El
+  servicio ya usa `ThreadingHTTPServer`, así que la causa no está comprobada; hasta
+  entonces se mantiene la petición secuencial.
 
 ## Goles y tarjetas
 
@@ -105,6 +123,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 | `GET /api/v1/players/{playerId}?season={seasonId}` | Temporada del jugador: ficha, acumulados y partidos |
 | `GET /api/v1/teams/{teamId}/players` | Jugadores observados del equipo (sin temporada), con su alcance y procedencia; `503 UPSTREAM_UNAVAILABLE` si falla una fuente real |
 | `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
+| `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
 (`getSeasonMatches`, `getMatch`…) y nunca construyen URLs. Los errores tienen la forma

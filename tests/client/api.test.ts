@@ -5,6 +5,7 @@ import {
   getMatch,
   getObservedPlayers,
   getPlayer,
+  getPlayerObservedMatches,
   getPlayerProfile,
   getSeasonMatches,
   getSeasonTeams,
@@ -36,6 +37,7 @@ describe("typed client", () => {
     await getPlayer("p1", "s1");
     await getObservedPlayers("team a");
     await getPlayerProfile("sofascore-player-1");
+    await getPlayerObservedMatches("sofascore-player-1");
     expect(urls(fetch)).toEqual([
       "/api/v1/source",
       "/api/v1/competitions",
@@ -47,6 +49,7 @@ describe("typed client", () => {
       "/api/v1/players/p1?season=s1",
       "/api/v1/teams/team%20a/players",
       "/api/v1/players/sofascore-player-1/profile",
+      "/api/v1/players/sofascore-player-1/observed-matches",
     ]);
   });
 
