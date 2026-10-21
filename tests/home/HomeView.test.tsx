@@ -1,20 +1,21 @@
 ﻿import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { getCompetitions, getSeasonMatches, getTeamSeason, getSeasonTeams } from "@/client/api";
+import { getCompetitions, getSeasonMatches, getTeamSeason, getSeasonTeams, getSource } from "@/client/api";
 import { HomeView } from "@/features/home/HomeView";
 import { MatchesView } from "@/features/matches/MatchesView";
 import { NOW, season, target, second, rival, other, teamSeason, history } from "./fixtures";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
-vi.mock("@/client/api", () => ({ getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getTeamSeason: vi.fn(), getSeasonTeams: vi.fn() }));
+vi.mock("@/client/api", () => ({ getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getTeamSeason: vi.fn(), getSeasonTeams: vi.fn(), getSource: vi.fn() }));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getCompetitions).mockResolvedValue([{ id: "c1", name: "Liga", shortName: "Liga", seasons: [season] }]);
   vi.mocked(getSeasonMatches).mockResolvedValue([target, second]);
   vi.mocked(getTeamSeason).mockImplementation(async (_, id) => ({ ...teamSeason, team: id === other.id ? other : rival }));
   vi.mocked(getSeasonTeams).mockResolvedValue([{ ...teamSeason.standing, team: rival }]);
+  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
 });
 
 it("suggests the next fixture and links the rival and only its last five matches", async () => {

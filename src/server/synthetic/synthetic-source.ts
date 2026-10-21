@@ -57,7 +57,7 @@ export function loadSyntheticDataset(dir = DATA_DIR): RawDataset {
 export function createSyntheticSource(data: RawDataset): DataSource {
   const index = buildIndex(data);
   return {
-    info: () => ({ synthetic: true, label: "Datos sintéticos" }),
+    info: () => ({ synthetic: true, label: "Datos sintéticos", realSections: [] }),
     competitions: async () => index.competitions(),
     seasonMatches: async (seasonId, filter) =>
       seasonId === data.season.season.id ? index.matchList(filter) : null,
@@ -80,6 +80,7 @@ export function createSyntheticSource(data: RawDataset): DataSource {
     // Synthetic players are reached through their season (`player`), never as a real profile.
     playerProfile: async () => null,
     playerObservedMatches: async () => null,
+    teamObservedMatches: async () => null,
   };
 }
 
@@ -87,7 +88,7 @@ let loaded: DataSource | null = null;
 
 /** The development source: invented season read lazily from `data/synthetic`. */
 export const syntheticSource: DataSource = {
-  info: () => ({ synthetic: true, label: "Datos sintéticos" }),
+  info: () => ({ synthetic: true, label: "Datos sintéticos", realSections: [] }),
   competitions: () => lazy().competitions(),
   seasonMatches: (seasonId, filter) => lazy().seasonMatches(seasonId, filter),
   match: (matchId) => lazy().match(matchId),
@@ -97,6 +98,7 @@ export const syntheticSource: DataSource = {
   observedPlayers: (teamId) => lazy().observedPlayers(teamId),
   playerProfile: async () => null,
   playerObservedMatches: async () => null,
+  teamObservedMatches: async () => null,
 };
 
 function lazy(): DataSource {

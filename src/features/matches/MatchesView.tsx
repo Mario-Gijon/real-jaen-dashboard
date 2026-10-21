@@ -2,16 +2,37 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
-import { getCompetitions, getSeasonMatches, getSeasonTeams } from "@/client/api";
+import { getCompetitions, getSeasonMatches, getSeasonTeams, getSource } from "@/client/api";
 import type { Season } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
 import { useApi } from "../use-api";
 import { MatchList } from "./MatchList";
+import { RealMatchesView } from "./RealMatchesView";
 import css from "./MatchesView.module.css";
 
-export function MatchesView({ initialSeasonId, initialTeamId }: { initialSeasonId?: string; initialTeamId?: string } = {}) {
+type Props = { initialSeasonId?: string; initialTeamId?: string };
+
+/**
+ * «Partidos»: the API says whether this section comes from the real source;
+ * real and synthetic matches are never shown in the same list. If it cannot
+ * say, nothing is assumed.
+ */
+export function MatchesView(props: Props = {}) {
+  const source = useApi("source", (signal) => getSource({ signal }));
+  if (source.error) return <>
+    <PageHeader title="Partidos" />
+    <LoadError message="No se pudo determinar la fuente de los partidos." retry={source.retry} />
+  </>;
+  if (!source.data) return <>
+    <PageHeader title="Partidos" />
+    <p className={css.status} role="status">Cargando partidos…</p>
+  </>;
+  return source.data.realSections.includes("matches") ? <RealMatchesView {...props} /> : <SyntheticMatchesView {...props} />;
+}
+
+function SyntheticMatchesView({ initialSeasonId, initialTeamId }: Props) {
   const competitions = useApi("competitions", (signal) => getCompetitions({ signal }));
   const [competitionId, setCompetitionId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId ?? null);

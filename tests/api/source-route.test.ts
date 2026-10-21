@@ -8,7 +8,7 @@ describe("GET /api/v1/source", () => {
   it("says the data are synthetic without naming the source", async () => {
     const response = GET();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ synthetic: true, label: "Datos sintéticos" });
+    expect(await response.json()).toEqual({ synthetic: true, label: "Datos sintéticos", realSections: [] });
   });
 
   it("refuses a source that has no adapter", () => {

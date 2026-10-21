@@ -10,6 +10,7 @@ import {
   getSeasonMatches,
   getSeasonTeams,
   getSource,
+  getTeamObservedMatches,
   getTeamSeason,
 } from "@/client/api";
 
@@ -38,6 +39,7 @@ describe("typed client", () => {
     await getObservedPlayers("team a");
     await getPlayerProfile("sofascore-player-1");
     await getPlayerObservedMatches("sofascore-player-1");
+    await getTeamObservedMatches("team-real-jaen");
     expect(urls(fetch)).toEqual([
       "/api/v1/source",
       "/api/v1/competitions",
@@ -50,6 +52,7 @@ describe("typed client", () => {
       "/api/v1/teams/team%20a/players",
       "/api/v1/players/sofascore-player-1/profile",
       "/api/v1/players/sofascore-player-1/observed-matches",
+      "/api/v1/teams/team-real-jaen/observed-matches",
     ]);
   });
 

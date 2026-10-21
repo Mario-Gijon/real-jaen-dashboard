@@ -11,6 +11,12 @@
   border-radius: var(--rj-radius-sm);
 }
 .match:hover, .match:focus-visible { background: var(--rj-bg-hover); }
+/* Rows that lead nowhere (real matches without detail) do not look clickable. */
+.match[data-static]:hover { background: none; }
+/* Real rows carry the source's competition name: a wider context column. */
+@media (min-width: 761px) {
+  .match[data-static] { grid-template-columns: 168px minmax(0, 1fr) 96px minmax(0, 1fr); }
+}
 .meta { display: grid; gap: 2px; color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .round { font-weight: 700; }
 .team { display: flex; align-items: center; gap: var(--rj-space-3); min-width: 0; }

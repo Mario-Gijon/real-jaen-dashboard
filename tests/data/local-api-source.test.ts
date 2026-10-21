@@ -1,9 +1,11 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createLocalApiObservedPlayers,
+  clearTeamNameCache,
   createLocalApiObservedMatches,
   createLocalApiPlayerProfile,
+  createLocalApiTeamMatches,
   sourcePlayerId,
   UpstreamUnavailableError,
 } from "@/server/local-api/local-api-source";
@@ -23,6 +25,7 @@ const payload = (data: unknown[], count: unknown = data.length) => ({
 const source = (fetch: typeof globalThis.fetch, timeoutMs?: number) =>
   createLocalApiObservedPlayers({ baseUrl: "http://127.0.0.1:8001/", fetch, timeoutMs });
 
+beforeEach(() => clearTeamNameCache());
 afterEach(() => vi.restoreAllMocks());
 
 describe("local API adapter: observed players", () => {
@@ -396,5 +399,121 @@ describe("local API adapter: observed matches", () => {
       String(input).includes("/teams/") ? new Response("{}", { status: 500 }) : new Response(JSON.stringify({ data: [callUp()] })),
     );
     await expect(matchesSource(fetch)("sofascore-player-966303")).rejects.toThrow("HTTP 500");
+  });
+});
+
+/** Rows shaped like `GET /api/v1/teams/2841/matches` of the real local API on 2026-10-21. */
+const fixture = (overrides: Record<string, unknown> = {}) => ({
+  source: "Sofascore", match_id: 16599363, kickoff_utc: "2026-08-30T17:15:00+00:00", status: "finished",
+  tournament_id: 94191, competition: "Primera Federacion, Group 2", season_id: 97382, season: "26/27", round: 1,
+  home_team_id: 135672, away_team_id: 2841, home_score: 0, away_score: 3, fetched_at: "2026-10-21T12:07:26+00:00",
+  available_sections: ["event", "lineups"], ...overrides,
+});
+const pending = fixture({ match_id: 16599386, kickoff_utc: "2026-11-07T15:30:00+00:00", status: "notstarted",
+  round: 11, home_team_id: 24322, away_team_id: 2841, home_score: null, away_score: null });
+const cup = fixture({ match_id: 17259821, kickoff_utc: "2026-10-28T19:00:00+00:00", status: "notstarted",
+  competition: "Copa del Rey", season_id: 104108, tournament_id: 150, round: 1, home_team_id: 493345,
+  home_score: null, away_score: null });
+const NAMES: Record<string, string> = { "2841": "Real Jaén", "135672": "CE Europa", "24322": "Sevilla Atlético", "493345": "CD Rival Copa" };
+
+/** Simulated local API for a team's matches and the team names they need. */
+function teamApi(rows: unknown[] | null, names: Record<string, string> = NAMES) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const team = /\/api\/v1\/teams\/(\d+)$/.exec(url);
+    if (team) {
+      return names[team[1]]
+        ? new Response(JSON.stringify({ data: { source: "Sofascore", team_id: Number(team[1]), name: names[team[1]] } }))
+        : new Response(JSON.stringify({ error: "Entidad no encontrada" }), { status: 404 });
+    }
+    return rows === null
+      ? new Response(JSON.stringify({ error: "Entidad no encontrada" }), { status: 404 })
+      : new Response(JSON.stringify({ data: rows, meta: { count: rows.length } }));
+  });
+}
+const teamSource = (fetch: typeof globalThis.fetch) =>
+  createLocalApiTeamMatches({ baseUrl: "http://127.0.0.1:8001", fetch });
+const urls = (fetch: ReturnType<typeof teamApi>) => fetch.mock.calls.map((call) => String((call as unknown[])[0]));
+
+describe("local API adapter: team matches", () => {
+  it("asks for our team's source id and returns its matches by kickoff, with the source's names", async () => {
+    const fetch = teamApi([pending, fixture(), cup]);
+    const result = await teamSource(fetch)("team-real-jaen");
+    expect(urls(fetch)[0]).toBe("http://127.0.0.1:8001/api/v1/teams/2841/matches");
+    expect(result!.matches.map((row) => row.match.id)).toEqual([
+      "sofascore-match-16599363", "sofascore-match-17259821", "sofascore-match-16599386",
+    ]);
+    expect(result!.matches[0]).toEqual({
+      side: "away",
+      match: {
+        id: "sofascore-match-16599363", kickoff: "2026-08-30T17:15:00+00:00", status: "finished",
+        competition: "Primera Federacion, Group 2", season: "26/27", round: 1,
+        home: { id: "sofascore-team-135672", name: "CE Europa" }, away: { id: "team-real-jaen", name: "Real Jaén" },
+        score: { home: 0, away: 3 },
+      },
+    });
+    expect(result!.scope).toMatch(/No es necesariamente un calendario completo/);
+    expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
+  });
+
+  it("never gives a pending match a score, even if the source sends one, and keeps unknown statuses unknown", async () => {
+    const result = await teamSource(teamApi([
+      { ...pending, home_score: 0, away_score: 0 },
+      fixture({ match_id: 2, status: "inprogress", kickoff_utc: "2026-09-01T10:00:00+00:00" }),
+      fixture({ match_id: 3, home_score: null, away_score: null, kickoff_utc: "2026-09-02T10:00:00+00:00" }),
+    ]))("team-real-jaen");
+    expect(result!.matches.map(({ match }) => [match.status, match.score])).toEqual([
+      [null, null], ["finished", null], ["scheduled", null],
+    ]);
+  });
+
+  it("puts matches without a date last and keeps missing season or competition missing", async () => {
+    const result = await teamSource(teamApi([
+      fixture({ match_id: 4, kickoff_utc: null, season: null, competition: null, round: null }), fixture(),
+    ]))("team-real-jaen");
+    expect(result!.matches.map(({ match }) => [match.id, match.kickoff, match.season, match.competition, match.round])).toEqual([
+      ["sofascore-match-16599363", "2026-08-30T17:15:00+00:00", "26/27", "Primera Federacion, Group 2", 1],
+      ["sofascore-match-4", null, null, null, null],
+    ]);
+  });
+
+  it("has nothing for a team without explicit correspondence, and does not call the API", async () => {
+    const fetch = teamApi([fixture()]);
+    expect(await teamSource(fetch)("team-montealto")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes an empty list from a team the source does not know", async () => {
+    expect((await teamSource(teamApi([]))("team-real-jaen"))!.matches).toEqual([]);
+    expect(await teamSource(teamApi(null))("team-real-jaen")).toBeNull();
+  });
+
+  it.each([
+    ["no data array", { meta: {} }],
+    ["a match without our team", { data: [fixture({ away_team_id: 7 })] }],
+    ["a bad kickoff", { data: [fixture({ kickoff_utc: "pronto" })] }],
+    ["a non-numeric score", { data: [fixture({ home_score: "0" })] }],
+    ["no match id", { data: [fixture({ match_id: null })] }],
+  ])("rejects a response with %s", async (_case, body) => {
+    await expect(teamSource(answer(body))("team-real-jaen")).rejects.toBeInstanceOf(UpstreamUnavailableError);
+  });
+
+  it("reuses resolved team names across lists, one request at a time, without keeping failures", async () => {
+    const first = teamApi([fixture(), pending]);
+    await teamSource(first)("team-real-jaen");
+    expect(urls(first).filter((url) => url.includes("/teams/") && !url.endsWith("/matches"))).toHaveLength(3);
+
+    // A player's call-ups share those teams: no new name requests.
+    const again = matchesApi([callUp()], {});
+    await matchesSource(again)("sofascore-player-966303");
+    expect(urls(again as unknown as ReturnType<typeof teamApi>).filter((url) => url.includes("/teams/"))).toEqual([]);
+
+    clearTeamNameCache();
+    const failing = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/matches") ? new Response(JSON.stringify({ data: [fixture()] })) : new Response("{}", { status: 500 }));
+    await expect(teamSource(failing)("team-real-jaen")).rejects.toThrow("HTTP 500");
+    const recovered = teamApi([fixture()]);
+    await teamSource(recovered)("team-real-jaen");
+    expect(urls(recovered).filter((url) => !url.endsWith("/matches")).length).toBeGreaterThan(0);
   });
 });

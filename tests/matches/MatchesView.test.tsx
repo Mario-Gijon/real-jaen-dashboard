@@ -1,13 +1,13 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCompetitions, getSeasonMatches, getSeasonTeams } from "@/client/api";
+import { getCompetitions, getSeasonMatches, getSeasonTeams, getSource } from "@/client/api";
 import type { MatchSummary, Season, TeamRef } from "@/contract";
 import { MatchesView } from "@/features/matches/MatchesView";
 import { MatchList } from "@/features/matches/MatchList";
 
 vi.mock("@/client/api", () => ({
-  getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getSeasonTeams: vi.fn(),
+  getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getSeasonTeams: vi.fn(), getSource: vi.fn(),
 }));
 const season: Season = { id: "s1", name: "2026/27", competitionId: "c1", rounds: 38, currentRound: 14 };
 const jaen: TeamRef = {
@@ -30,6 +30,7 @@ beforeEach(() => {
     { rank: 1, team: jaen, record: { played: 13, wins: 6, draws: 3, losses: 4, goalsFor: 20, goalsAgainst: 15, points: 21 } },
   ]);
   vi.mocked(getSeasonMatches).mockResolvedValue([match]);
+  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
 });
 
 describe("Matches explorer", () => {

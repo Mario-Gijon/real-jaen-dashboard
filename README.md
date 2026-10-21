@@ -94,11 +94,39 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   participación desconocida, sin estadísticas, y un aviso en el registro del servidor. Sin
   participación confirmada no hay estadísticas: un `statistics` con `totalShots: 0` no
   prueba nada.
-- Los nombres de equipo se piden a la fuente (`/api/v1/teams/{id}`) de uno en uno.
-  **Pendiente:** investigar por qué el servicio local rechazó conexiones (`ECONNREFUSED`)
-  con unas diez peticiones simultáneas (seis respondieron); en serie todas responden. El
-  servicio ya usa `ThreadingHTTPServer`, así que la causa no está comprobada; hasta
-  entonces se mantiene la petición secuencial.
+- Los nombres de equipo se piden a la fuente (`/api/v1/teams/{id}`) de uno en uno y se
+  reutilizan durante una hora en el servidor (también los equipos que la fuente no
+  conoce; los fallos no se guardan), así que listas que comparten equipos no repiten
+  consultas. **Pendiente:** investigar por qué el servicio local rechazó conexiones
+  (`ECONNREFUSED`) con unas diez peticiones simultáneas (seis respondieron); en serie todas
+  responden. El servicio ya usa `ThreadingHTTPServer`, así que la causa no está
+  comprobada; hasta entonces se mantiene la petición secuencial.
+
+## Partidos reales desde la API local
+
+«Partidos» puede mostrar el calendario y los resultados reales del Real Jaén con un
+selector propio, independiente de `OBSERVED_PLAYERS_SOURCE` y sintético por defecto:
+
+```
+MATCHES_SOURCE=local
+LOCAL_DATA_API_URL=http://127.0.0.1:8001
+```
+
+- La pantalla sabe qué mostrar por `GET /api/v1/source` (`realSections`); partidos reales
+  y sintéticos nunca se mezclan en una lista. Si la fuente real falla, error y reintento,
+  sin volver a los sintéticos.
+- Fecha, equipos, local/visitante, competición, temporada, jornada, estado y resultado,
+  tal como los da la fuente (`/api/v1/teams/2841/matches`, sólo el Real Jaén tiene
+  correspondencia), por fecha de inicio. Filtros por las temporadas y competiciones de la
+  fuente y por estado (finalizados / pendientes: programados o aplazados). Las temporadas
+  y jornadas sintéticas no intervienen.
+- Sólo un partido finalizado muestra resultado; uno pendiente muestra su hora o «Por
+  definir», nunca 0–0. Un estado desconocido se dice como tal.
+- Las filas no enlazan a ninguna ficha: todavía no hay detalle real del partido.
+- Un aviso indica que la muestra no es necesariamente un calendario completo.
+- Un enlace con `?season=` (temporada sintética) o `?team=` de un equipo sin
+  correspondencia muestra un estado explícito con un enlace a los partidos reales del
+  Real Jaén; nunca se sustituye el equipo o la temporada sin decirlo.
 
 ## Goles y tarjetas
 
@@ -114,7 +142,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 
 | Endpoint | Devuelve |
 |---|---|
-| `GET /api/v1/source` | Si los datos son sintéticos (metainformación de la app) |
+| `GET /api/v1/source` | Si los datos son sintéticos y qué secciones sirve la fuente real (`realSections`) |
 | `GET /api/v1/competitions` | Competiciones con sus temporadas |
 | `GET /api/v1/seasons/{seasonId}/matches?round=&team=` | Partidos, filtrables por jornada y equipo |
 | `GET /api/v1/matches/{matchId}` | Ficha: alineaciones, eventos, estadísticas de equipo y jugador |
@@ -124,6 +152,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 | `GET /api/v1/teams/{teamId}/players` | Jugadores observados del equipo (sin temporada), con su alcance y procedencia; `503 UPSTREAM_UNAVAILABLE` si falla una fuente real |
 | `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
+| `GET /api/v1/teams/{teamId}/observed-matches` | Partidos del equipo en la fuente real (calendario y resultados), por fecha; lista vacía si no hay, 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
 (`getSeasonMatches`, `getMatch`…) y nunca construyen URLs. Los errores tienen la forma

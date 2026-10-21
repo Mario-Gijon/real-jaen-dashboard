@@ -392,26 +392,29 @@ export const OBSERVED_MATCH_STAT_KEYS = [
 export type ObservedMatchStatKey = (typeof OBSERVED_MATCH_STAT_KEYS)[number];
 
 /**
- * One match in which a real source lists the player in a squad: a call-up,
- * not necessarily an appearance. Ids are derived from the provider's
- * (`sofascore-match-…`, `sofascore-team-…`) and lead to no synthetic match.
+ * A match as a real source lists it. Ids are derived from the provider's
+ * (`sofascore-match-…`, `sofascore-team-…`) and lead to no synthetic match;
+ * season, competition and round are the source's, never the app's.
  */
+export type ObservedMatch = {
+  id: string;
+  /** ISO date-time; `null` when unknown. */
+  kickoff: string | null;
+  /** `null` when the source gives a status the app does not know. */
+  status: MatchStatus | null;
+  competition: string | null;
+  /** Season as the source names it (e.g. "26/27"); never the app's selected season. */
+  season: string | null;
+  round: number | null;
+  home: ObservedTeam;
+  away: ObservedTeam;
+  /** Final score; `null` unless finished and given (a pending match never reads 0–0). */
+  score: Score | null;
+};
+
+/** One match in which a real source lists the player in a squad: a call-up, not necessarily an appearance. */
 export type ObservedPlayerMatch = {
-  match: {
-    id: string;
-    /** ISO date-time; `null` when unknown. */
-    kickoff: string | null;
-    /** `null` when the source gives a status the app does not know. */
-    status: MatchStatus | null;
-    competition: string | null;
-    /** Season as the source names it (e.g. "26/27"); never the app's selected season. */
-    season: string | null;
-    round: number | null;
-    home: ObservedTeam;
-    away: ObservedTeam;
-    /** Final score; `null` unless finished and given. */
-    score: Score | null;
-  };
+  match: ObservedMatch;
   /** Side of the player's team. */
   side: Side;
   /** Named as starter or substitute; `null` when unknown. */
@@ -441,6 +444,19 @@ export type ObservedPlayerMatches = {
   source: DataProvenance;
 };
 
+/**
+ * `GET /api/v1/teams/{teamId}/observed-matches`: a team's matches as a real
+ * source lists them, by kickoff (undated last). Not necessarily a complete
+ * calendar; `scope` says so.
+ */
+export type ObservedTeamMatches = {
+  teamId: string;
+  matches: { match: ObservedMatch; side: Side }[];
+  /** What the list covers, for the analyst, in Spanish. */
+  scope: string;
+  source: DataProvenance;
+};
+
 export { seasonStat, type Accumulation } from "./season-stat";
 
 // ─── Application ────────────────────────────────────────────────────────────
@@ -451,7 +467,15 @@ export type SourceInfo = {
   synthetic: boolean;
   /** Short description for the analyst, in Spanish. */
   label: string;
+  /**
+   * Sections served by a real source instead of the synthetic data, so a
+   * screen picks its real view without guessing: `observedPlayers` (Equipos ›
+   * Jugadores and real player profiles) and `matches` (Partidos).
+   */
+  realSections: RealSection[];
 };
+
+export type RealSection = "observedPlayers" | "matches";
 
 /** Error body of every `/api/v1` endpoint. */
 export type ApiError = { error: { code: ApiErrorCode; message: string } };

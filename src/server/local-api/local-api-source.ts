@@ -1,11 +1,13 @@
 import {
   OBSERVED_MATCH_STAT_KEYS,
   type MatchStatus,
+  type ObservedMatch,
   type ObservedMatchStatKey,
   type ObservedPlayerMatch,
   type ObservedPlayerMatches,
   type ObservedPlayers,
   type ObservedTeam,
+  type ObservedTeamMatches,
   type PlayerPosition,
   type PlayerProfile,
   type PlayerRef,
@@ -75,6 +77,9 @@ const PROFILE_SCOPE = "Datos personales según la fuente. No indican equipo actu
 
 const MATCHES_SCOPE =
   "Partidos en los que la fuente registra al jugador en la convocatoria. No garantiza cobertura completa ni indica equipo actual. Sin participación confirmada no se muestran minutos ni estadísticas.";
+
+const TEAM_MATCHES_SCOPE =
+  "Partidos del equipo que registra la fuente. No es necesariamente un calendario completo.";
 
 /** The provider behind `rating`, named so the analyst knows whose rating it is. */
 const RATING_SOURCE = "SofaScore";
@@ -261,9 +266,39 @@ export function createLocalApiPlayerProfile(options: Options) {
   };
 }
 
-type RawObservedMatch = Omit<ObservedPlayerMatch, "match"> & {
-  match: Omit<ObservedPlayerMatch["match"], "home" | "away"> & { homeId: number; awayId: number };
-};
+/** A match before its team names are resolved. */
+type RawMatch = Omit<ObservedMatch, "home" | "away"> & { homeId: number; awayId: number };
+type RawObservedMatch = Omit<ObservedPlayerMatch, "match"> & { match: RawMatch };
+
+/**
+ * A source match object (in a player's call-ups or a team's matches). The
+ * score is kept only for a finished match, so a pending one never reads 0–0;
+ * an unknown status stays unknown.
+ */
+function parseMatch(match: Record<string, unknown>, id: number, at: (field: string) => string): RawMatch {
+  if (match.match_id !== undefined && match.match_id !== id) throw invalid(at("match_id"));
+  const kickoff = optionalText(match.kickoff_utc, at("kickoff_utc"));
+  if (kickoff !== null && Number.isNaN(Date.parse(kickoff))) throw invalid(at("kickoff_utc"));
+  const status = optionalText(match.status, at("status"));
+  const known = (status && STATUSES[status]) || null;
+  const round = optionalNumber(match.round, at("round"));
+  const homeScore = optionalNumber(match.home_score, at("home_score"));
+  const awayScore = optionalNumber(match.away_score, at("away_score"));
+  return {
+    id: matchIdFromSource(id),
+    kickoff,
+    status: known,
+    competition: optionalText(match.competition, at("competition")),
+    season: optionalText(match.season, at("season")),
+    round: round !== null && Number.isInteger(round) ? round : null,
+    homeId: positiveId(match.home_team_id, at("home_team_id")),
+    awayId: positiveId(match.away_team_id, at("away_team_id")),
+    score:
+      known === "finished" && homeScore !== null && awayScore !== null
+        ? { home: homeScore, away: awayScore }
+        : null,
+  };
+}
 
 /**
  * Whether the source confirms the player took part, from `played` and the
@@ -298,9 +333,7 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number): Raw
   const at = (field: string) => `data[${index}].${field}`;
   if (!isRecord(row) || !isRecord(row.match)) throw invalid(`data[${index}]`);
   if (row.player_id !== playerSourceId) throw invalid(at("player_id"));
-  const match = row.match;
   const id = positiveId(row.match_id, at("match_id"));
-  if (match.match_id !== undefined && match.match_id !== id) throw invalid(at("match.match_id"));
   if (row.side !== "home" && row.side !== "away") throw invalid(at("side"));
   for (const flag of ["substitute", "played"] as const) {
     const value = row[flag];
@@ -309,13 +342,7 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number): Raw
   const statistics = row.statistics ?? null;
   if (statistics !== null && !isRecord(statistics)) throw invalid(at("statistics"));
 
-  const kickoff = optionalText(match.kickoff_utc, at("match.kickoff_utc"));
-  if (kickoff !== null && Number.isNaN(Date.parse(kickoff))) throw invalid(at("match.kickoff_utc"));
-  const status = optionalText(match.status, at("match.status"));
-  const known = (status && STATUSES[status]) || null;
-  const round = optionalNumber(match.round, at("match.round"));
-  const homeScore = optionalNumber(match.home_score, at("match.home_score"));
-  const awayScore = optionalNumber(match.away_score, at("match.away_score"));
+  const match = parseMatch(row.match, id, (field) => at(`match.${field}`));
 
   const minutes =
     optionalNumber(row.minutes_played, at("minutes_played")) ??
@@ -331,20 +358,7 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number): Raw
   }
 
   return {
-    match: {
-      id: matchIdFromSource(id),
-      kickoff,
-      status: known,
-      competition: optionalText(match.competition, at("match.competition")),
-      season: optionalText(match.season, at("match.season")),
-      round: round !== null && Number.isInteger(round) ? round : null,
-      homeId: positiveId(match.home_team_id, at("match.home_team_id")),
-      awayId: positiveId(match.away_team_id, at("match.away_team_id")),
-      score:
-        known === "finished" && homeScore !== null && awayScore !== null
-          ? { home: homeScore, away: awayScore }
-          : null,
-    },
+    match,
     side: row.side,
     role: row.substitute === true ? "substitute" : row.substitute === false ? "starter" : null,
     participation: confirmed ? "confirmed" : "unknown",
@@ -352,33 +366,68 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number): Raw
   };
 }
 
-/** Newest first; matches without a date go last. */
-function byKickoffDesc(a: RawObservedMatch, b: RawObservedMatch): number {
-  if (a.match.kickoff === b.match.kickoff) return a.match.id.localeCompare(b.match.id);
-  if (a.match.kickoff === null) return 1;
-  if (b.match.kickoff === null) return -1;
-  return Date.parse(b.match.kickoff) - Date.parse(a.match.kickoff);
+/** By kickoff (newest first when `newest`); matches without a date always go last. */
+function byKickoff(newest: boolean) {
+  return (a: { match: RawMatch }, b: { match: RawMatch }): number => {
+    if (a.match.kickoff === b.match.kickoff) return a.match.id.localeCompare(b.match.id);
+    if (a.match.kickoff === null) return 1;
+    if (b.match.kickoff === null) return -1;
+    const order = Date.parse(a.match.kickoff) - Date.parse(b.match.kickoff);
+    return newest ? -order : order;
+  };
+}
+
+/** How long a resolved team name is reused before asking the source again. */
+const TEAM_NAME_TTL_MS = 60 * 60 * 1000;
+/** Resolved names by service URL and team id, shared by every request of this server process. */
+const teamNameCache = new Map<string, { name: string | null; expires: number }>();
+
+/** Forgets every resolved team name (tests start from a clean cache). */
+export function clearTeamNameCache() {
+  teamNameCache.clear();
 }
 
 /**
  * Team names as the source gives them (`GET /api/v1/teams/{id}`). A team the
- * source does not know keeps `name: null`; never a name from elsewhere. One
- * request at a time: the local service refused connections (ECONNREFUSED)
- * with about ten at once. The cause is still to be investigated (the service
- * already uses ThreadingHTTPServer); see README.
+ * source does not know keeps `name: null`; never a name from elsewhere.
+ * Resolved names (and unknown teams) are reused for an hour, so lists that
+ * share teams do not ask again; failures are not kept. One request at a time:
+ * the local service refused connections (ECONNREFUSED) with about ten at
+ * once. The cause is still to be investigated (the service already uses
+ * ThreadingHTTPServer); see README.
  */
 async function teamNames(options: Options, ids: readonly number[]): Promise<Map<number, string | null>> {
   const names = new Map<number, string | null>();
   for (const id of new Set(ids)) {
-    const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${id}`);
-    if (body === null) {
-      names.set(id, null);
+    const key = `${baseOf(options)}|${id}`;
+    const cached = teamNameCache.get(key);
+    if (cached && cached.expires > Date.now()) {
+      names.set(id, cached.name);
       continue;
     }
-    if (!isRecord(body) || !isRecord(body.data) || body.data.team_id !== id) throw invalid(`equipo ${id}`);
-    names.set(id, optionalText(body.data.name, `equipo ${id}.name`));
+    const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${id}`);
+    let name: string | null = null;
+    if (body !== null) {
+      if (!isRecord(body) || !isRecord(body.data) || body.data.team_id !== id) throw invalid(`equipo ${id}`);
+      name = optionalText(body.data.name, `equipo ${id}.name`);
+    }
+    teamNameCache.set(key, { name, expires: Date.now() + TEAM_NAME_TTL_MS });
+    names.set(id, name);
   }
   return names;
+}
+
+/** Contract matches with the source's team names. */
+async function withTeamNames<T extends { match: RawMatch }>(
+  options: Options,
+  rows: readonly T[],
+): Promise<(Omit<T, "match"> & { match: ObservedMatch })[]> {
+  const names = await teamNames(options, rows.flatMap((row) => [row.match.homeId, row.match.awayId]));
+  const team = (id: number): ObservedTeam => ({ id: teamIdFromSource(id), name: names.get(id) ?? null });
+  return rows.map(({ match: { homeId, awayId, ...match }, ...row }) => ({
+    ...row,
+    match: { ...match, home: team(homeId), away: team(awayId) },
+  }));
 }
 
 /**
@@ -394,12 +443,32 @@ export function createLocalApiObservedMatches(options: Options) {
     if (body === null) return null;
     if (!isRecord(body) || !Array.isArray(body.data)) throw invalid("se esperaba { data: [] }");
     const rows = body.data.map((row, index) => parseMatchRow(row, index, playerSourceId));
-    const names = await teamNames(options, rows.flatMap((row) => [row.match.homeId, row.match.awayId]));
-    const team = (id: number): ObservedTeam => ({ id: teamIdFromSource(id), name: names.get(id) ?? null });
-    const matches = rows.sort(byKickoffDesc).map(({ match: { homeId, awayId, ...match }, ...row }) => ({
-      ...row,
-      match: { ...match, home: team(homeId), away: team(awayId) },
-    }));
+    const matches = await withTeamNames(options, rows.sort(byKickoff(true)));
     return { playerId, matches, scope: MATCHES_SCOPE, ratingSource: RATING_SOURCE, source: PROVENANCE };
+  };
+}
+
+/**
+ * `teamObservedMatches` against the local API: the team's matches by kickoff
+ * (undated last). `null` when the team has no explicit correspondence in the
+ * source or the source does not know it; an empty list when it has none.
+ */
+export function createLocalApiTeamMatches(options: Options) {
+  return async (teamId: string): Promise<ObservedTeamMatches | null> => {
+    const teamSourceId = SOURCE_TEAM_IDS[teamId];
+    if (teamSourceId === undefined) return null;
+    const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${teamSourceId}/matches`);
+    if (body === null) return null;
+    if (!isRecord(body) || !Array.isArray(body.data)) throw invalid("se esperaba { data: [] }");
+    const rows = body.data.map((row, index) => {
+      const at = (field: string) => `data[${index}].${field}`;
+      if (!isRecord(row)) throw invalid(`data[${index}]`);
+      const match = parseMatch(row, positiveId(row.match_id, at("match_id")), at);
+      const side = match.homeId === teamSourceId ? "home" : match.awayId === teamSourceId ? "away" : null;
+      if (side === null) throw invalid(`${at("match_id")}: el equipo no juega este partido`);
+      return { match, side } as const;
+    });
+    const matches = await withTeamNames(options, rows.sort(byKickoff(false)));
+    return { teamId, matches, scope: TEAM_MATCHES_SCOPE, source: PROVENANCE };
   };
 }
