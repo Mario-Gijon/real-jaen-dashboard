@@ -85,14 +85,37 @@ const DETAIL = {
   statistics: { state: "stored", fetchedAt: "2026-10-21T12:07:30+00:00",
     home: side({ possession: 46, shots: 15, shotsOnTarget: 4, xg: 1.81, corners: 3, fouls: 13, yellowCards: 0 }),
     away: side({ possession: 54, shots: 13, shotsOnTarget: 5, xg: 1.6, corners: 3, fouls: 5, yellowCards: 1 }) },
+  lineups: { state: "not_stored", fetchedAt: null } as Record<string, unknown>,
+  incidents: { state: "not_stored", fetchedAt: null } as Record<string, unknown>,
+};
+const ref = (id: number, name: string) => ({ id: `sofascore-player-${id}`, name, position: null });
+const INCIDENTS = {
+  state: "stored", fetchedAt: "2026-10-21T12:07:31+00:00",
+  goals: [
+    { kind: "regular", minute: 20, addedTime: null, scorer: ref(40, "Jaén 40"), assist: ref(41, "Jaén 41") },
+    { kind: "penalty", minute: 80, addedTime: null, scorer: ref(40, "Jaén 40"), assist: null },
+  ],
+  substitutions: [{ minute: 68, addedTime: null, playerIn: ref(966303, "Moha Keita"), playerOut: ref(45, "Jaén 45") }],
+};
+const lineupPlayer = (id: number, name: string, fields: Record<string, unknown> = {}) => ({
+  player: { id: `sofascore-player-${id}`, name, position: "midfielder" }, shirtNumber: id,
+  role: "starter", participation: "confirmed", minutes: { value: 90 }, ...fields,
+});
+const LINEUPS = {
+  state: "stored", fetchedAt: "2026-10-21T12:07:31+00:00", confirmed: true,
+  home: [...Array.from({ length: 11 }, (_, i) => lineupPlayer(i + 1, `Local ${i + 1}`)),
+    lineupPlayer(30, "Suplente Sin Jugar", { role: "substitute", participation: "unknown", minutes: missing })],
+  away: [...Array.from({ length: 11 }, (_, i) => lineupPlayer(i + 40, `Jaén ${i + 40}`)),
+    lineupPlayer(966303, "Moha Keita", { role: "substitute", minutes: { value: 22 } })],
 };
 
-async function serveDetail(page: Page, statistics: Record<string, unknown> = DETAIL.statistics) {
+async function serveDetail(page: Page, statistics: Record<string, unknown> = DETAIL.statistics,
+  lineups: Record<string, unknown> = DETAIL.lineups, incidents: Record<string, unknown> = DETAIL.incidents) {
   await serveReal(page);
   await page.route("**/api/v1/matches/*/observed", (route) => {
     const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
     return id === "sofascore-match-1"
-      ? route.fulfill({ json: { ...DETAIL, statistics } })
+      ? route.fulfill({ json: { ...DETAIL, statistics, lineups, incidents } })
       : route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Partido no encontrado en la fuente real de partidos." } } });
   });
 }
@@ -111,7 +134,8 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   await expect(reds.locator("dd").nth(0)).toHaveText("—");
   await expect(reds.locator("dd").nth(1)).toHaveText("—");
   await expect(page.locator("dt", { hasText: "Amarillas" }).locator("..").locator("dd").nth(0)).toHaveText("0");
-  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveText(["Resumen", "Alineaciones"]);
+  await expect(page.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-match-detail.png"), fullPage: true });
   expect(synthetic).toEqual([]);
@@ -132,4 +156,64 @@ test("Partido real: statistics not stored or failing, and an id unknown to the r
 
   await page.goto("/matches/match-r01-01?view=observed");
   await expect(page.getByRole("heading", { name: "Partido no encontrado en la fuente real" })).toBeVisible();
+});
+
+test("Alineaciones reales: tab with once inicial and banquillo, recorded marks, real profile and back to the tab", async ({ page }, testInfo) => {
+  await serveDetail(page, DETAIL.statistics, LINEUPS, INCIDENTS);
+  // Real profiles enabled too, so names link to them; the profile itself is simulated as well.
+  await page.route("**/api/v1/source", (route) =>
+    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] } }));
+  await page.route("**/api/v1/players/*/profile", (route) => route.fulfill({ json: {
+    player: { id: "sofascore-player-966303", name: "Moha Keita", position: "midfielder", birthDate: "1999-09-18", heightCm: 165, preferredFoot: null, country: "Senegal" },
+    scope: "Datos personales según la fuente. No indican equipo actual.", source: { synthetic: false, label: "Datos reales" } } }));
+  await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: {
+    playerId: "sofascore-player-966303", matches: [], scope: "—", ratingSource: "SofaScore", source: { synthetic: false, label: "Datos reales" } } }));
+  const synthetic: string[] = [];
+  page.on("request", (r) => { if (/\/api\/v1\/(competitions|matches\/[^/]+$|players\/[^/]+$)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
+
+  await page.goto("/matches/sofascore-match-1?view=observed");
+  await page.getByRole("tab", { name: "Alineaciones" }).click();
+  const lineups = page.getByRole("tabpanel", { name: "Alineaciones" });
+  await expect(lineups.getByText("Alineaciones confirmadas por la fuente.")).toBeVisible();
+  await expect(lineups.getByRole("list", { name: "Once inicial de CE Europa" }).getByRole("listitem")).toHaveCount(11);
+  await expect(lineups.getByRole("list", { name: "Banquillo de CE Europa" })).toContainText("Participación no confirmada");
+  const jaen = lineups.getByRole("list", { name: "Once inicial de Real Jaén" });
+  await expect(jaen.getByRole("img", { name: "2 goles (1 de penalti)" })).toBeVisible();
+  await expect(jaen.getByRole("img", { name: "1 asistencia" })).toBeVisible();
+  await expect(jaen.getByRole("img", { name: "Sustituido en el minuto 68′" })).toBeVisible();
+  await expect(lineups.getByRole("list", { name: "Banquillo de Real Jaén" })).toContainText("68′Sale · Jaén 45");
+  await expect(lineups.getByText(/4-4-2|Formación/)).toHaveCount(0);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("real-lineups.png"), fullPage: true });
+
+  await lineups.getByRole("link", { name: "Moha Keita" }).click();
+  await expect(page).toHaveURL(/\/players\/sofascore-player-966303\?view=profile&from=observedMatch&origin=sofascore-match-1&originTab=lineups$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Moha Keita" })).toBeVisible();
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?view=observed&tab=lineups$/);
+  await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel", { name: "Alineaciones" })).toBeVisible();
+  expect(synthetic).toEqual([]);
+});
+
+test("Alineaciones reales: failed incidents keep line-ups and stats; failed line-ups recover on the same tab", async ({ page }) => {
+  await serveDetail(page, DETAIL.statistics, LINEUPS, { state: "error", fetchedAt: null });
+  await page.goto("/matches/sofascore-match-1?view=observed&tab=lineups");
+  const lineups = page.getByRole("tabpanel", { name: "Alineaciones" });
+  await expect(lineups.getByRole("alert")).toContainText("No se pudieron cargar las incidencias");
+  await expect(lineups.getByRole("list", { name: "Once inicial de Real Jaén" }).getByRole("img")).toHaveCount(0);
+
+  await page.unroute("**/api/v1/matches/*/observed");
+  await serveDetail(page, DETAIL.statistics, { state: "error", fetchedAt: null }, INCIDENTS);
+  await page.reload();
+  await expect(lineups.getByRole("alert")).toContainText("No se pudieron cargar las alineaciones de este partido.");
+  await expect(page.getByText("0 – 3")).toBeVisible();
+
+  await page.unroute("**/api/v1/matches/*/observed");
+  await serveDetail(page, DETAIL.statistics, { ...LINEUPS, away: LINEUPS.away.slice(0, 9) }, INCIDENTS);
+  await lineups.getByRole("button", { name: "Reintentar" }).click();
+  await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
+  await expect(lineups.getByText("Alineación incompleta en la fuente: 9 titulares.")).toBeVisible();
+  await page.getByRole("tab", { name: "Resumen" }).click();
+  await expect(page.locator("dt", { hasText: "Posesión" })).toBeVisible();
 });

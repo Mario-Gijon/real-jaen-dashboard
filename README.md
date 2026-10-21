@@ -132,7 +132,30 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   se muestra «—», nunca 0. La sección distingue estadísticas guardadas, guardadas sin
   contenido, no guardadas (normal en un partido pendiente) y error de consulta, que
   mantiene visible la cabecera con reintento. `fetched_at` se muestra como fecha de
-  obtención. Sin eventos interpretados, alineaciones ni incidencias todavía.
+  obtención. El detalle real se organiza como el sintético: cabecera, pestaña «Resumen»
+  (estadísticas) y pestaña «Alineaciones»; no hay «Cronología» todavía.
+- Alineaciones reales (desde `/api/v1/matches/{id}/lineups`), con el formato sintético:
+  por equipo (el lado del payload, no el `teamId` de cada jugador), «Once inicial» y
+  «Banquillo» según el campo explícito `substitute`, en el orden de la fuente, con dorsal
+  («—» si falta), nombre y posición. Un jugador sin rol informado se lista aparte, sin
+  adivinarlo. Sin esquema táctico, posiciones en el campo ni capitán. Se muestra si la
+  fuente da las alineaciones por confirmadas, no confirmadas o no lo indica, y se avisa de
+  un equipo sin 11 titulares o con roles sin informar.
+- Indicadores, sólo desde las incidencias (`/api/v1/matches/{id}/incidents`), nunca desde
+  estadísticas ni minutos: balón por los goles del jugador (el rótulo distingue los
+  penaltis), balón con «?» aparte por un gol de tipo no reconocido (nunca se suma a los
+  goles normales), «p.p.» por un gol en propia puerta (no cuenta como gol ni
+  da asistencia), bota por las asistencias que la fuente nombra (`assist1`), dobles flechas
+  con el minuto en el titular sustituido y la línea «↑ minuto · Sale · …» en el suplente que
+  entra. Las tandas de penaltis no son goles. Tarjetas, VAR y penaltis fallados no se marcan
+  (el formato sintético de alineaciones no los muestra). Un suplente sin entrada registrada
+  muestra sus minutos si están confirmados o «Participación no confirmada»; nunca se deduce
+  un cambio de los minutos.
+- Estadísticas, alineaciones e incidencias tienen cada una su estado (guardada, vacía, no
+  guardada, error con reintento). Si fallan las incidencias se ven igual alineaciones y
+  estadísticas, sin marcas; el reintento conserva la pestaña. Los nombres enlazan a la
+  ficha real sólo si `OBSERVED_PLAYERS_SOURCE=local`; desde ella «Volver» regresa a la
+  pestaña «Alineaciones» del partido real. No se consulta ninguna ficha por jugador.
 - Un aviso indica que la muestra no es necesariamente un calendario completo.
 - Un enlace con `?season=` (temporada sintética) o `?team=` de un equipo sin
   correspondencia muestra un estado explícito con un enlace a los partidos reales del

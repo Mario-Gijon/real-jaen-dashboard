@@ -3,11 +3,14 @@ import {
   TEAM_STAT_KEYS,
   type MatchStatus,
   type ObservedMatch,
+  type ObservedGoal,
+  type ObservedLineupPlayer,
   type ObservedMatchDetail,
   type ObservedMatchStatKey,
   type ObservedPlayerMatch,
   type ObservedPlayerMatches,
   type ObservedPlayers,
+  type ObservedSubstitution,
   type ObservedTeam,
   type ObservedTeamMatches,
   type PlayerPosition,
@@ -93,7 +96,7 @@ const MATCHES_SCOPE =
   "Partidos en los que la fuente registra al jugador en la convocatoria. No garantiza cobertura completa ni indica equipo actual. Sin participación confirmada no se muestran minutos ni estadísticas.";
 
 const MATCH_DETAIL_SCOPE =
-  "Partido y estadísticas colectivas según la fuente. Un dato que la fuente no da se muestra como «—».";
+  "Partido, estadísticas colectivas, alineaciones e incidencias según la fuente. Un dato que la fuente no da se muestra como «—».";
 
 /**
  * The source's key (period `ALL` of `statistics`) behind each team stat. A key
@@ -536,33 +539,133 @@ function parseTeamStats(payload: unknown): { home: TeamMatchStats; away: TeamMat
 }
 
 /**
- * The statistics section, kept apart from the match: if it cannot be read
- * (the service fails, or answers something unusable) its state is `error`
- * and the match header is still served.
+ * One side of a stored `lineups` payload, in the source's order. The side is
+ * the payload's (`home`/`away`), not each player's `teamId`. The role comes
+ * only from the explicit `substitute` flag. Participation follows
+ * `participationOf` with the minutes in `statistics` (there is no `played`
+ * here): an unused substitute only carries `{ totalShots: 0 }`, so it stays
+ * unknown. Formation, colours, captain and stats are left out.
  */
-async function matchStatistics(options: Options, sourceId: number): Promise<ObservedMatchDetail["statistics"]> {
+function parseLineupSide(payload: Record<string, unknown>, side: "home" | "away"): ObservedLineupPlayer[] {
+  const team = payload[side];
+  if (team === undefined || team === null) return [];
+  if (!isRecord(team)) throw invalid(`lineups.${side}`);
+  const players = team.players ?? [];
+  if (!Array.isArray(players)) throw invalid(`lineups.${side}.players`);
+  return players.map((entry, index): ObservedLineupPlayer => {
+    const at = (field: string) => `lineups.${side}.players[${index}].${field}`;
+    if (!isRecord(entry) || !isRecord(entry.player)) throw invalid(at("player"));
+    const id = positiveId(entry.player.id, at("player.id"));
+    const name = optionalText(entry.player.name, at("player.name"));
+    if (name === null) throw invalid(at("player.name"));
+    const shirt = optionalNumber(entry.shirtNumber, at("shirtNumber"));
+    if (shirt !== null && (!Number.isInteger(shirt) || shirt < 0)) throw invalid(at("shirtNumber"));
+    const substitute = entry.substitute ?? null;
+    if (substitute !== null && typeof substitute !== "boolean") throw invalid(at("substitute"));
+    const statistics = entry.statistics ?? null;
+    if (statistics !== null && !isRecord(statistics)) throw invalid(at("statistics"));
+    const minutes = statistics ? optionalNumber(statistics.minutesPlayed, at("statistics.minutesPlayed")) : null;
+    const confirmed = participationOf(undefined, minutes, `alineación, jugador ${id}`);
+    return {
+      player: { id: playerIdFromSource(id), name, position: position(entry.position ?? entry.player.position, at("position")) },
+      shirtNumber: shirt,
+      role: substitute === null ? null : substitute ? "substitute" : "starter",
+      participation: confirmed ? "confirmed" : "unknown",
+      minutes: confirmed && minutes !== null ? { value: minutes } : NOT_AVAILABLE,
+    };
+  });
+}
+
+/** The source's goal classes; any other stays `unknown`, never an ordinary goal. */
+const GOAL_KINDS: Readonly<Record<string, ObservedGoal["kind"]>> = {
+  regular: "regular",
+  penalty: "penalty",
+  ownGoal: "ownGoal",
+};
+
+/** A player named in an incident (`{ id, name }`), or `null` when the incident names none. */
+function incidentPlayer(value: unknown, field: string): PlayerRef | null {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) throw invalid(field);
+  const name = optionalText(value.name, `${field}.name`);
+  return { id: playerIdFromSource(positiveId(value.id, `${field}.id`)), name: name ?? "Jugador sin nombre", position: null };
+}
+
+/**
+ * Goals and substitutions of a stored `incidents` payload, as recorded.
+ * Other incident types (cards, VAR, periods, missed penalties, a shoot-out)
+ * are left out; nothing is recalculated or inferred.
+ */
+function parseIncidents(payload: unknown): { goals: ObservedGoal[]; substitutions: ObservedSubstitution[] } {
+  if (!isRecord(payload) || !Array.isArray(payload.incidents)) throw invalid("incidents");
+  const goals: ObservedGoal[] = [];
+  const substitutions: ObservedSubstitution[] = [];
+  payload.incidents.forEach((incident, index) => {
+    const at = (field: string) => `incidents[${index}].${field}`;
+    if (!isRecord(incident)) throw invalid(`incidents[${index}]`);
+    const when = {
+      minute: optionalNumber(incident.time, at("time")),
+      addedTime: optionalNumber(incident.addedTime, at("addedTime")),
+    };
+    if (incident.incidentType === "goal") {
+      const kind = optionalText(incident.incidentClass, at("incidentClass"));
+      goals.push({
+        kind: (kind && GOAL_KINDS[kind]) || "unknown",
+        ...when,
+        scorer: incidentPlayer(incident.player, at("player")),
+        assist: incidentPlayer(incident.assist1, at("assist1")),
+      });
+    } else if (incident.incidentType === "substitution") {
+      substitutions.push({
+        ...when,
+        playerIn: incidentPlayer(incident.playerIn, at("playerIn")),
+        playerOut: incidentPlayer(incident.playerOut, at("playerOut")),
+      });
+    }
+  });
+  return { goals, substitutions };
+}
+
+function parseLineups(payload: unknown) {
+  if (!isRecord(payload)) throw invalid("lineups");
+  const confirmed = payload.confirmed ?? null;
+  if (confirmed !== null && typeof confirmed !== "boolean") throw invalid("lineups.confirmed");
+  return { confirmed, home: parseLineupSide(payload, "home"), away: parseLineupSide(payload, "away") };
+}
+
+/**
+ * One section of a real match (`statistics`, `lineups`), kept apart from the
+ * match: if it cannot be read (the service fails, or answers something
+ * unusable) its state is `error` and the rest of the detail is still served.
+ */
+async function matchSection<T extends object>(
+  options: Options,
+  sourceId: number,
+  section: "statistics" | "lineups" | "incidents",
+  parse: (data: unknown) => T,
+): Promise<({ state: "stored"; fetchedAt: string | null } & T) | { state: "empty" | "not_stored" | "error"; fetchedAt: string | null }> {
   try {
-    const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}/statistics`);
+    const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}/${section}`);
     // The match exists, so a 404 here is an inconsistent answer, not a missing section.
-    if (body === null) throw invalid(`estadísticas del partido ${sourceId}: 404`);
+    if (body === null) throw invalid(`${section} del partido ${sourceId}: 404`);
     if (!isRecord(body) || !isRecord(body.meta)) throw invalid("se esperaba { data, meta }");
     const state = body.meta.availability;
     if (typeof state !== "string" || !SECTION_STATES.has(state)) throw invalid("meta.availability");
     const fetchedAt = optionalText(body.meta.fetched_at, "meta.fetched_at");
     if (state !== "stored") return { state: state as "empty" | "not_stored", fetchedAt };
-    return { state: "stored", fetchedAt, ...parseTeamStats(body.data) };
+    return { state: "stored", fetchedAt, ...parse(body.data) };
   } catch (failure) {
     if (!(failure instanceof UpstreamUnavailableError)) throw failure;
-    console.error(`[api] estadísticas del partido ${sourceId}:`, failure.message);
+    console.error(`[api] ${section} del partido ${sourceId}:`, failure.message);
     return { state: "error", fetchedAt: null };
   }
 }
 
 /**
  * `matchObservedDetail` against the local API: the match with the source's
- * team names, and its team stats. `null` for an id not derived from this
- * source (a synthetic id is never read as real) or a match the source does
- * not know.
+ * team names, its team stats, line-ups and incidents, one request at a time.
+ * `null` for an id not derived from this source (a synthetic id is never
+ * read as real) or a match the source does not know.
  */
 export function createLocalApiMatchDetail(options: Options) {
   return async (matchId: string): Promise<ObservedMatchDetail | null> => {
@@ -573,7 +676,9 @@ export function createLocalApiMatchDetail(options: Options) {
     if (!isRecord(body) || !isRecord(body.data)) throw invalid("se esperaba { data: {} }");
     const at = (field: string) => `data.${field}`;
     const { homeId, awayId, ...match } = parseMatch(body.data, sourceId, at);
-    const statistics = await matchStatistics(options, sourceId);
+    const statistics = await matchSection(options, sourceId, "statistics", parseTeamStats);
+    const lineups = await matchSection(options, sourceId, "lineups", parseLineups);
+    const incidents = await matchSection(options, sourceId, "incidents", parseIncidents);
     return {
       match: {
         ...match,
@@ -581,6 +686,8 @@ export function createLocalApiMatchDetail(options: Options) {
         away: { id: teamIdFromSource(awayId), name: optionalText(body.data.away_team_name, at("away_team_name")) },
       },
       statistics,
+      lineups,
+      incidents,
       scope: MATCH_DETAIL_SCOPE,
       source: PROVENANCE,
     };

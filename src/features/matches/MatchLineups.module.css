@@ -21,6 +21,13 @@
 .contribution { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .contribution > svg { color: var(--rj-purple-700); flex-shrink: 0; }
 .empty { margin: 0; font-size: var(--rj-text-sm); color: var(--rj-text-secondary); }
+/* Real line-ups: their source status, an incomplete side, confirmed minutes. */
+.status { margin: 0 0 var(--rj-space-4); font-size: var(--rj-text-xs); color: var(--rj-text-secondary); }
+.warning { margin: var(--rj-space-2) 0 0; font-size: var(--rj-text-xs); font-weight: 700; color: var(--rj-warning); }
+.identity h3 { margin: 0; font-size: var(--rj-text-md); font-weight: 700; overflow-wrap: anywhere; }
+.minutes { font-size: var(--rj-text-xs); color: var(--rj-text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.unknown { font-size: var(--rj-text-xs); color: var(--rj-text-muted); text-align: right; }
+.incidentsNote { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rj-space-3); margin: 0 0 var(--rj-space-4); font-size: var(--rj-text-xs); color: var(--rj-text-secondary); }
 @media (max-width: 640px) {
   .teams { grid-template-columns: minmax(0, 1fr); gap: var(--rj-space-8); }
   .playerIdentity { flex-wrap: wrap; column-gap: var(--rj-space-2); row-gap: 2px; }

@@ -15,7 +15,7 @@ function localApi(handler: (url: string) => Response) {
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
-const realMatch = (url: string) => url.endsWith("/statistics")
+const realMatch = (url: string) => url.endsWith("/statistics") || url.endsWith("/lineups") || url.endsWith("/incidents")
   ? new Response(JSON.stringify({ data: null, meta: { availability: "not_stored", fetched_at: null } }))
   : new Response(JSON.stringify({ data: { match_id: 16599386, kickoff_utc: "2026-11-07T15:30:00+00:00", status: "notstarted",
     competition: "Primera Federacion, Group 2", season: "26/27", round: 11, home_team_id: 24322, away_team_id: 2841,
@@ -43,6 +43,8 @@ describe("GET /api/v1/matches/{matchId}/observed", () => {
     expect(body.match.home).toEqual({ id: "sofascore-team-24322", name: "AD Alcorcón" });
     expect(body.match.score).toBeNull();
     expect(body.statistics).toEqual({ state: "not_stored", fetchedAt: null });
+    expect(body.lineups).toEqual({ state: "not_stored", fetchedAt: null });
+    expect(body.incidents).toEqual({ state: "not_stored", fetchedAt: null });
   });
 
   it("never reads a synthetic id as real, and answers 503 when the source fails", async () => {

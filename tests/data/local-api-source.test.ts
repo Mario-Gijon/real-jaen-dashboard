@@ -542,11 +542,52 @@ const statsBody = (availability = "stored", groups?: unknown[]) => ({
 });
 
 /** Simulated local API for a match and its statistics. */
-function detailApi(match: unknown, stats: unknown | (() => Response)) {
+/** Shape of the real local API's /matches/{id}/lineups (trimmed): a starter with minutes, an unused substitute. */
+const lineupEntry = (id: number, name: string, overrides: Record<string, unknown> = {}) => ({
+  player: { name, id, position: "M", shortName: name, country: { name: "Spain" } }, teamId: 135672,
+  shirtNumber: id % 30, jerseyNumber: String(id % 30), position: "M", substitute: false,
+  statistics: { minutesPlayed: 90, totalShots: 1, rating: 7 }, ...overrides,
+});
+const benchEntry = (id: number, name: string) =>
+  lineupEntry(id, name, { substitute: true, statistics: { totalShots: 0, statisticsType: { sportSlug: "football", statisticsType: "player" } } });
+const eleven = (first: number) => Array.from({ length: 11 }, (_, i) => lineupEntry(first + i, `Titular ${first + i}`));
+const lineupsBody = (availability = "stored", data?: unknown) => ({
+  data: availability === "not_stored" ? null : data ?? {
+    confirmed: true, statisticalVersion: 3,
+    home: { players: [...eleven(100), benchEntry(200, "Suplente Local")], formation: "4-4-2", supportStaff: [], playerColor: {} },
+    away: { players: [...eleven(300), lineupEntry(400, "Entra", { substitute: true, statistics: { minutesPlayed: 22 } })], formation: "4-3-3" },
+  },
+  meta: { section: "lineups", availability, fetched_at: availability === "not_stored" ? null : "2026-10-21T12:07:31+00:00" },
+});
+
+/** Shape of the real local API's /matches/{id}/incidents (trimmed): kinds seen on 2026-10-21, plus cases it may send. */
+const incidentsBody = (availability = "stored", incidents?: unknown[]) => ({
+  data: availability === "not_stored" ? null : { incidents: incidents ?? [
+    { text: "FT", homeScore: 0, awayScore: 3, time: 90, addedTime: 999, incidentType: "period" },
+    { playerIn: { id: 1594459, name: "Guillem Cardelus" }, playerOut: { id: 857907, name: "Gori Gracia" }, id: 1, time: 90,
+      addedTime: 2, injury: false, isHome: true, incidentClass: "regular", incidentType: "substitution" },
+    { homeScore: 0, awayScore: 3, player: { id: 966303, name: "Moha Keita" }, assist1: { id: 1545211, name: "David Serrano" },
+      id: 2, time: 77, isHome: false, incidentClass: "regular", incidentType: "goal" },
+    { from: "penalty", player: { id: 942663, name: "Marco Siverio Toro" }, id: 3, time: 88, isHome: false, incidentClass: "penalty", incidentType: "goal" },
+    { player: { id: 175409, name: "Javi Moyano" }, id: 4, time: 45, addedTime: 6, incidentClass: "yellowRed", incidentType: "card" },
+    { player: { id: 964890, name: "Andy Escudero" }, id: 5, time: 64, incidentClass: "missed", incidentType: "inGamePenalty" },
+    { confirmed: true, player: { id: 848589, name: "Moha Sanhaji" }, id: 6, time: 13, incidentClass: "goalAwarded", incidentType: "varDecision" },
+  ], home: {}, away: {} },
+  meta: { section: "incidents", availability, fetched_at: availability === "not_stored" ? null : "2026-10-21T12:07:31+00:00" },
+});
+
+function detailApi(match: unknown, stats: unknown | (() => Response), lineups: unknown | (() => Response) = lineupsBody("not_stored"),
+  incidents: unknown | (() => Response) = incidentsBody("not_stored")) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    if (url.endsWith("/incidents")) {
+      return typeof incidents === "function" ? (incidents as () => Response)() : new Response(JSON.stringify(incidents));
+    }
     if (url.endsWith("/statistics")) {
       return typeof stats === "function" ? (stats as () => Response)() : new Response(JSON.stringify(stats));
+    }
+    if (url.endsWith("/lineups")) {
+      return typeof lineups === "function" ? (lineups as () => Response)() : new Response(JSON.stringify(lineups));
     }
     return match === null ? new Response(JSON.stringify({ error: "Partido no encontrado" }), { status: 404 })
       : new Response(JSON.stringify(match));
@@ -568,6 +609,7 @@ describe("local API adapter: real match detail", () => {
     const result = await detailSource(fetch)("sofascore-match-16599363");
     expect(fetch.mock.calls.map((call) => String((call as unknown[])[0]))).toEqual([
       "http://127.0.0.1:8001/api/v1/matches/16599363", "http://127.0.0.1:8001/api/v1/matches/16599363/statistics",
+      "http://127.0.0.1:8001/api/v1/matches/16599363/lineups", "http://127.0.0.1:8001/api/v1/matches/16599363/incidents",
     ]);
     expect(result!.match).toEqual({
       id: "sofascore-match-16599363", kickoff: "2026-08-30T17:15:00+00:00", status: "finished",
@@ -619,5 +661,114 @@ describe("local API adapter: real match detail", () => {
   it("keeps a team name the source does not give as unknown", async () => {
     const result = await detailSource(detailApi(matchBody({ home_team_name: null }), statsBody()))("sofascore-match-16599363");
     expect(result!.match.home).toEqual({ id: "sofascore-team-135672", name: null });
+  });
+});
+
+describe("local API adapter: real line-ups", () => {
+  const detail = (lineups: unknown | (() => Response)) =>
+    detailSource(detailApi(matchBody(), statsBody(), lineups))("sofascore-match-16599363");
+
+  it("keeps each side apart, the source's order, role flag, shirt number and confirmation", async () => {
+    const { lineups } = (await detail(lineupsBody()))!;
+    if (lineups.state !== "stored") throw new Error("expected stored line-ups");
+    expect([lineups.confirmed, lineups.fetchedAt, lineups.home.length, lineups.away.length]).toEqual([true, "2026-10-21T12:07:31+00:00", 12, 12]);
+    expect(lineups.home[0]).toEqual({
+      player: { id: "sofascore-player-100", name: "Titular 100", position: "midfielder" },
+      shirtNumber: 10, role: "starter", participation: "confirmed", minutes: { value: 90 },
+    });
+    // A named substitute with only { totalShots: 0 } did not necessarily play: unknown, no minutes.
+    expect(lineups.home[11]).toEqual({
+      player: { id: "sofascore-player-200", name: "Suplente Local", position: "midfielder" },
+      shirtNumber: 20, role: "substitute", participation: "unknown", minutes: missing,
+    });
+    expect(lineups.away[11]).toMatchObject({ role: "substitute", participation: "confirmed", minutes: { value: 22 } });
+  });
+
+  it("never guesses a missing role, shirt number or confirmation", async () => {
+    const { lineups } = (await detail(lineupsBody("stored", {
+      home: { players: [lineupEntry(1, "Sin Rol", { substitute: undefined, shirtNumber: null, statistics: undefined })] },
+    })))!;
+    if (lineups.state !== "stored") throw new Error("expected stored line-ups");
+    expect(lineups.confirmed).toBeNull();
+    expect(lineups.home).toEqual([{
+      player: { id: "sofascore-player-1", name: "Sin Rol", position: "midfielder" },
+      shirtNumber: null, role: null, participation: "unknown", minutes: missing,
+    }]);
+    expect(lineups.away).toEqual([]);
+  });
+
+  it("leaves unknown a player whose minutes are 0", async () => {
+    const { lineups } = (await detail(lineupsBody("stored", { home: { players: [lineupEntry(1, "Cero", { statistics: { minutesPlayed: 0 } })] } })))!;
+    if (lineups.state !== "stored") throw new Error("expected stored line-ups");
+    expect(lineups.home[0]).toMatchObject({ participation: "unknown", minutes: missing });
+  });
+
+  it("distinguishes empty, not stored and a failed query, keeping the rest of the detail", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await detail(lineupsBody("empty", { confirmed: false, home: { players: [] }, away: { players: [] } })))!.lineups)
+      .toEqual({ state: "empty", fetchedAt: "2026-10-21T12:07:31+00:00" });
+    expect((await detail(lineupsBody("not_stored")))!.lineups).toEqual({ state: "not_stored", fetchedAt: null });
+    for (const failing of [
+      () => new Response("{}", { status: 500 }),
+      () => new Response(JSON.stringify(lineupsBody("stored", { home: { players: [{ player: { name: "Sin id" } }] } }))),
+      () => new Response(JSON.stringify(lineupsBody("stored", { confirmed: "sí", home: { players: [] } }))),
+      () => new Response(JSON.stringify(lineupsBody("stored", { home: { players: [lineupEntry(1, "X", { substitute: "no" })] } }))),
+    ]) {
+      const result = (await detail(failing))!;
+      expect(result.lineups).toEqual({ state: "error", fetchedAt: null });
+      expect(result.statistics.state).toBe("stored");
+      expect(result.match.home.name).toBe("CE Europa");
+    }
+  });
+});
+
+describe("local API adapter: real incidents", () => {
+  const detail = (incidents: unknown | (() => Response)) =>
+    detailSource(detailApi(matchBody(), statsBody(), lineupsBody(), incidents))("sofascore-match-16599363");
+
+  it("keeps only goals (with their kind and named assistant) and substitutions, as recorded", async () => {
+    const { incidents } = (await detail(incidentsBody()))!;
+    if (incidents.state !== "stored") throw new Error("expected stored incidents");
+    expect(incidents.fetchedAt).toBe("2026-10-21T12:07:31+00:00");
+    expect(incidents.goals).toEqual([
+      { kind: "regular", minute: 77, addedTime: null,
+        scorer: { id: "sofascore-player-966303", name: "Moha Keita", position: null },
+        assist: { id: "sofascore-player-1545211", name: "David Serrano", position: null } },
+      { kind: "penalty", minute: 88, addedTime: null,
+        scorer: { id: "sofascore-player-942663", name: "Marco Siverio Toro", position: null }, assist: null },
+    ]);
+    // Cards, VAR, periods and missed penalties are not goals nor substitutions.
+    expect(incidents.substitutions).toEqual([{ minute: 90, addedTime: 2,
+      playerIn: { id: "sofascore-player-1594459", name: "Guillem Cardelus", position: null },
+      playerOut: { id: "sofascore-player-857907", name: "Gori Gracia", position: null } }]);
+  });
+
+  it("tells own goals and unknown kinds apart, and leaves shoot-out kicks out", async () => {
+    const { incidents } = (await detail(incidentsBody("stored", [
+      { player: { id: 1, name: "Propia" }, assist1: { id: 2, name: "Nadie" }, time: 10, incidentClass: "ownGoal", incidentType: "goal" },
+      { player: { id: 3, name: "Rara" }, time: 20, incidentClass: "otraCosa", incidentType: "goal" },
+      { player: { id: 4, name: "Tanda" }, incidentClass: "scored", incidentType: "penaltyShootout" },
+      { player: null, time: 30, incidentClass: "regular", incidentType: "goal" },
+    ])))!;
+    if (incidents.state !== "stored") throw new Error("expected stored incidents");
+    expect(incidents.goals.map((g) => [g.kind, g.scorer?.name ?? null, g.assist?.name ?? null])).toEqual([
+      ["ownGoal", "Propia", "Nadie"], ["unknown", "Rara", null], ["regular", null, null],
+    ]);
+  });
+
+  it("distinguishes empty, not stored and a failed query, keeping line-ups and stats", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await detail(incidentsBody("empty", [])))!.incidents).toEqual({ state: "empty", fetchedAt: "2026-10-21T12:07:31+00:00" });
+    expect((await detail(incidentsBody("not_stored")))!.incidents).toEqual({ state: "not_stored", fetchedAt: null });
+    for (const failing of [
+      () => new Response("{}", { status: 500 }),
+      () => new Response(JSON.stringify(incidentsBody("stored", [{ player: { id: "x" }, incidentType: "goal" }]))),
+      () => new Response(JSON.stringify({ data: { incidents: "no" }, meta: { availability: "stored" } })),
+    ]) {
+      const result = (await detail(failing))!;
+      expect(result.incidents).toEqual({ state: "error", fetchedAt: null });
+      expect(result.lineups.state).toBe("stored");
+      expect(result.statistics.state).toBe("stored");
+    }
   });
 });

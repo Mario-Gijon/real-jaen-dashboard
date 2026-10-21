@@ -458,6 +458,45 @@ export type ObservedTeamMatches = {
 };
 
 /**
+ * A player in a real match's line-up, in the source's order. No formation,
+ * pitch slot, events or individual stats here.
+ */
+export type ObservedLineupPlayer = {
+  /** Id derived from the provider's (`sofascore-player-…`). */
+  player: PlayerRef;
+  shirtNumber: number | null;
+  /** From the source's explicit flag; `null` when it does not say, never guessed. */
+  role: "starter" | "substitute" | null;
+  /** As in {@link ObservedPlayerMatch}: a named substitute is not a player who took part. */
+  participation: "confirmed" | "unknown";
+  /** Only with confirmed participation; otherwise missing. */
+  minutes: Stat;
+};
+
+/**
+ * A goal as a real source records it. `kind` keeps what the source says:
+ * `regular`, `penalty`, `ownGoal` (`scorer` put it in their own net) or
+ * `unknown` (a class the app does not know), so they are never all counted
+ * as ordinary goals. Penalty shoot-out kicks are not goals here.
+ */
+export type ObservedGoal = {
+  kind: "regular" | "penalty" | "ownGoal" | "unknown";
+  minute: number | null;
+  addedTime: number | null;
+  scorer: PlayerRef | null;
+  /** Only when the source names the assistant; never inferred. */
+  assist: PlayerRef | null;
+};
+
+/** A substitution as a real source records it; nothing is inferred from minutes played. */
+export type ObservedSubstitution = {
+  minute: number | null;
+  addedTime: number | null;
+  playerIn: PlayerRef | null;
+  playerOut: PlayerRef | null;
+};
+
+/**
  * A section of a real match, as the source keeps it: `stored` with content,
  * `empty` (stored without content), `not_stored` (normal for a pending
  * match) or `error` (the source could not be queried for it).
@@ -466,14 +505,33 @@ export type ObservedSectionState = "stored" | "empty" | "not_stored" | "error";
 
 /**
  * `GET /api/v1/matches/{matchId}/observed`: a real match with the team
- * stats the source keeps. Values the source omits are missing, never 0.
- * `fetchedAt` is when the source was read, not when its content changed.
- * No interpreted events or narrative here.
+ * stats and line-ups the source keeps, each section with its own state.
+ * Values the source omits are missing, never 0. `fetchedAt` is when the
+ * source was read, not when its content changed. No interpreted events or
+ * narrative here.
  */
 export type ObservedMatchDetail = {
   match: ObservedMatch;
   statistics:
     | { state: "stored"; fetchedAt: string | null; home: TeamMatchStats; away: TeamMatchStats }
+    | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };
+  lineups:
+    | {
+        state: "stored";
+        fetchedAt: string | null;
+        /** Whether the source marks the line-ups as confirmed; `null` when it does not say. */
+        confirmed: boolean | null;
+        home: ObservedLineupPlayer[];
+        away: ObservedLineupPlayer[];
+      }
+    | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };
+  /**
+   * The goals and substitutions among the source's incidents, enough to mark
+   * them on the line-ups. Not a timeline: cards, VAR, periods or missed
+   * penalties are left out. An empty list does not prove nothing happened.
+   */
+  incidents:
+    | { state: "stored"; fetchedAt: string | null; goals: ObservedGoal[]; substitutions: ObservedSubstitution[] }
     | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };
   /** What the detail covers, for the analyst, in Spanish. */
   scope: string;

@@ -52,4 +52,16 @@ describe("Player navigation context", () => {
     expect(playerReturnHref(query.season, query)).toBe("/teams?season=season-2&team=team-3&tab=players");
     expect(playerProfileHref("p", null, { kind: "team", id: "t" })).toBe("/players/p?view=profile&from=team&origin=t");
   });
+
+  it("returns from a real profile opened in a real match to that real match, never the synthetic detail", () => {
+    const href = playerProfileHref("sofascore-player-7", null, { kind: "observedMatch", id: "sofascore-match-3" });
+    expect(href).toBe("/players/sofascore-player-7?view=profile&from=observedMatch&origin=sofascore-match-3");
+    expect(playerReturnHref(null, queryOf(href))).toBe("/matches/sofascore-match-3?view=observed");
+  });
+
+  it("returns to the line-ups tab of a real match when the profile was opened there", () => {
+    const href = playerProfileHref("sofascore-player-7", null, { kind: "observedMatch", id: "sofascore-match-3", tab: "lineups" });
+    expect(href).toBe("/players/sofascore-player-7?view=profile&from=observedMatch&origin=sofascore-match-3&originTab=lineups");
+    expect(playerReturnHref(null, queryOf(href))).toBe("/matches/sofascore-match-3?view=observed&tab=lineups");
+  });
 });
