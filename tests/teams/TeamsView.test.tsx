@@ -370,7 +370,7 @@ describe("Jugadores observados (fuente real)", () => {
     return user;
   }
 
-  it("lists name and position with provenance, scope and no season, without stats or links", async () => {
+  it("lists name and position with provenance, scope and no season, without stats", async () => {
     observedReply = () => new Response(JSON.stringify(real));
     await openPlayers();
     const table = await screen.findByRole("table", { name: /Jugadores observados/ });
@@ -388,8 +388,18 @@ describe("Jugadores observados (fuente real)", () => {
     expect(screen.getByText(real.scope)).toBeVisible();
     expect(screen.getByText(/No depende de la temporada seleccionada \(Liga Prueba · 2026\/27\)/)).toBeVisible();
     expect(screen.queryByRole("table", { name: "Jugadores de la plantilla" })).toBeNull();
-    expect(within(screen.getByRole("tabpanel")).queryAllByRole("link")).toHaveLength(0);
     expect(requested(fetch).filter((url) => url.startsWith("/api/v1/players/"))).toEqual([]);
+  });
+
+  it("links each real player to their season-less profile, keeping the team view for the return", async () => {
+    observedReply = () => new Response(JSON.stringify(real));
+    await openPlayers();
+    const link = await screen.findByRole("link", { name: "Ver ficha de Moha Keita" });
+    expect(link).toHaveAttribute(
+      "href",
+      `/players/sofascore-player-1?view=profile&season=${SEASON_ID}&from=team&origin=team-real-jaen`,
+    );
+    expect(within(screen.getByRole("tabpanel")).getAllByRole("link")).toHaveLength(3);
   });
 
   it("shows the failure of the real source, never the synthetic squad, and retries", async () => {

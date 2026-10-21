@@ -77,6 +77,8 @@ export function createSyntheticSource(data: RawDataset): DataSource {
         : null,
     observedPlayers: async (teamId) =>
       index.teams.has(teamId) ? index.observedPlayers(teamId) : null,
+    // Synthetic players are reached through their season (`player`), never as a real profile.
+    playerProfile: async () => null,
   };
 }
 
@@ -92,6 +94,7 @@ export const syntheticSource: DataSource = {
   teamSeason: (seasonId, teamId) => lazy().teamSeason(seasonId, teamId),
   player: (playerId, seasonId) => lazy().player(playerId, seasonId),
   observedPlayers: (teamId) => lazy().observedPlayers(teamId),
+  playerProfile: async () => null,
 };
 
 function lazy(): DataSource {

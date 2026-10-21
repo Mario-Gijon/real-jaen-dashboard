@@ -358,6 +358,22 @@ export type ObservedPlayers = {
   source: DataProvenance;
 };
 
+/**
+ * `GET /api/v1/players/{playerId}/profile`: a player's personal data only, as
+ * a real source gives them. It belongs to no season and claims no current
+ * team: there are no stats, shirt number or team here. Unknown attributes are
+ * `null`, never filled in. `scope` says what the profile covers.
+ */
+export type PlayerProfile = {
+  player: Player & {
+    /** Country the source associates with the player, as the source names it. */
+    country: string | null;
+  };
+  /** What the profile covers, for the analyst, in Spanish. */
+  scope: string;
+  source: DataProvenance;
+};
+
 export { seasonStat, type Accumulation } from "./season-stat";
 
 // ─── Application ────────────────────────────────────────────────────────────

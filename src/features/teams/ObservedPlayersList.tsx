@@ -1,6 +1,10 @@
+import Link from "next/link";
 import type { ObservedPlayers, PlayerRef } from "@/contract";
+import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
+import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT, positionLabel } from "../format";
+import { playerProfileHref } from "../players/navigation";
 import css from "./ObservedPlayersList.module.css";
 
 const lineIndex = ({ position }: PlayerRef) =>
@@ -9,14 +13,16 @@ const lineIndex = ({ position }: PlayerRef) =>
 /**
  * Players of a team as a real source saw them: name and position only, with
  * where they come from and what the list covers. It belongs to no season, so
- * it says so next to the selected one. No stats, no detail link: the source
- * offers neither here, and nothing synthetic fills the gap.
+ * it says so next to the selected one. No stats: the source offers none here,
+ * and nothing synthetic fills the gap. Each player opens their real profile.
  */
 export function ObservedPlayersList({
   observed,
+  seasonId,
   seasonLabel,
 }: {
   observed: ObservedPlayers;
+  seasonId: string | null;
   seasonLabel: string;
 }) {
   const players = [...observed.players].sort(
@@ -24,14 +30,13 @@ export function ObservedPlayersList({
   );
   return (
     <div className={css.observed}>
-      <div className={css.notice}>
-        <p className={css.source}>{observed.source.label}</p>
+      <ProvenanceNotice source={observed.source}>
         <p>{observed.scope}</p>
         <p>
           No depende de la temporada seleccionada
           {seasonLabel ? ` (${seasonLabel})` : ""}: no es la plantilla de esa temporada.
         </p>
-      </div>
+      </ProvenanceNotice>
       {players.length === 0 ? (
         <p className={css.empty}>La fuente no tiene jugadores observados de este equipo.</p>
       ) : (
@@ -47,12 +52,17 @@ export function ObservedPlayersList({
           </thead>
           <tbody>
             {players.map((player) => (
-              <tr key={player.id}>
+              <LinkedTableRow key={player.id}>
                 <th scope="row">
-                  <span className={css.name}>
+                  <Link
+                    aria-label={`Ver ficha de ${player.name}`}
+                    className={css.open}
+                    href={playerProfileHref(player.id, seasonId, { kind: "team", id: observed.teamId })}
+                    prefetch={false}
+                  >
                     <PlayerAvatar name={player.name} />
                     {player.name}
-                  </span>
+                  </Link>
                 </th>
                 <td>
                   <span className={css.positionLong}>{positionLabel(player.position)}</span>
@@ -63,7 +73,7 @@ export function ObservedPlayersList({
                     {player.position ? POSITION_SHORT[player.position] : "—"}
                   </abbr>
                 </td>
-              </tr>
+              </LinkedTableRow>
             ))}
           </tbody>
         </table>

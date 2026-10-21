@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playerHref, playerInitialView, playerReturnHref } from "@/features/players/navigation";
+import { playerHref, playerInitialView, playerProfileHref, playerReturnHref } from "@/features/players/navigation";
 
 function queryOf(href: string) {
   return Object.fromEntries(new URL(href, "http://localhost").searchParams);
@@ -43,5 +43,13 @@ describe("Player navigation context", () => {
     { from: "team", origin: "//example.com" }, { from: "match", origin: "../teams" },
     { from: "match", origin: "https://example.com", originTab: "lineups" }])("uses a deterministic internal fallback for %j", query => {
     expect(playerReturnHref("season-2", query)).toBe("/teams?season=season-2&tab=players");
+  });
+
+  it("opens a real profile without tying it to the season, which only restores the return", () => {
+    const href = playerProfileHref("sofascore-player-7", "season-2", { kind: "team", id: "team-3" });
+    expect(href).toBe("/players/sofascore-player-7?view=profile&season=season-2&from=team&origin=team-3");
+    const query = queryOf(href);
+    expect(playerReturnHref(query.season, query)).toBe("/teams?season=season-2&team=team-3&tab=players");
+    expect(playerProfileHref("p", null, { kind: "team", id: "t" })).toBe("/players/p?view=profile&from=team&origin=t");
   });
 });

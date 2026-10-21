@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createLocalApiObservedPlayers,
+  createLocalApiPlayerProfile,
+  sourcePlayerId,
   UpstreamUnavailableError,
 } from "@/server/local-api/local-api-source";
 
@@ -116,5 +118,97 @@ describe("local API adapter: observed players", () => {
     );
     expect(result!.players).toHaveLength(1);
     expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+/** Shape of `GET /api/v1/players/966303` as the real local API answered it on 2026-10-21. */
+const moha = {
+  source: "Sofascore",
+  player_id: 966303,
+  name: "Moha Keita",
+  usual_position: "M",
+  country: "Senegal",
+  birth_date: "1999-09-18",
+  height_cm: 165,
+  preferred_foot: null,
+  fetched_at: "2026-10-21T12:07:39+00:00",
+};
+const profileSource = (fetch: typeof globalThis.fetch) =>
+  createLocalApiPlayerProfile({ baseUrl: "http://127.0.0.1:8001", fetch });
+
+describe("local API adapter: player profile", () => {
+  it("resolves our derived id to the provider id only here", async () => {
+    expect(sourcePlayerId("sofascore-player-966303")).toBe(966303);
+    for (const id of ["player-0001", "sofascore-player-", "sofascore-player-01", "sofascore-player-1x", "sofascore-player-99999999999999999999"]) {
+      expect(sourcePlayerId(id), id).toBeNull();
+    }
+  });
+
+  it("returns personal data only, ignoring the provider name and the download time", async () => {
+    const fetch = answer({ data: moha });
+    expect(await profileSource(fetch)("sofascore-player-966303")).toEqual({
+      player: {
+        id: "sofascore-player-966303",
+        name: "Moha Keita",
+        position: "midfielder",
+        birthDate: "1999-09-18",
+        heightCm: 165,
+        preferredFoot: null,
+        country: "Senegal",
+      },
+      scope: "Datos personales según la fuente. No indican equipo actual, temporada ni estadísticas.",
+      source: { synthetic: false, label: "Datos reales" },
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:8001/api/v1/players/966303",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("keeps absent, null, empty or unknown values as unknown", async () => {
+    const fetch = answer({
+      data: { player_id: 1, name: "Sin Datos", usual_position: "X", country: "", height_cm: null, birth_date: null, preferred_foot: "Ambidiestro" },
+    });
+    const result = await profileSource(fetch)("sofascore-player-1");
+    expect(result!.player).toEqual({
+      id: "sofascore-player-1", name: "Sin Datos", position: null,
+      birthDate: null, heightCm: null, preferredFoot: null, country: null,
+    });
+  });
+
+  it("maps the foot whatever its case", async () => {
+    const result = await profileSource(answer({ data: { ...moha, preferred_foot: "Left" } }))("sofascore-player-966303");
+    expect(result!.player.preferredFoot).toBe("left");
+  });
+
+  it("does not call the API for ids that are not derived from it", async () => {
+    const fetch = answer({ data: moha });
+    expect(await profileSource(fetch)("player-0001")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("has nothing for a player the source does not know (404)", async () => {
+    expect(await profileSource(answer({ error: "Entidad no encontrada" }, 404))("sofascore-player-1")).toBeNull();
+  });
+
+  it.each([
+    ["no data object", { player_id: 966303 }],
+    ["another player", { data: { ...moha, player_id: 1 } }],
+    ["no name", { data: { ...moha, name: "" } }],
+    ["a malformed birth date", { data: { ...moha, birth_date: "18/09/1999" } }],
+    ["a non-integer height", { data: { ...moha, height_cm: "165" } }],
+    ["a non-text country", { data: { ...moha, country: 7 } }],
+  ])("rejects a response with %s", async (_case, body) => {
+    await expect(profileSource(answer(body))("sofascore-player-966303")).rejects.toBeInstanceOf(
+      UpstreamUnavailableError,
+    );
+  });
+
+  it("turns HTTP errors and refused connections into an unavailable source", async () => {
+    await expect(profileSource(answer({}, 500))("sofascore-player-966303")).rejects.toThrow("HTTP 500");
+    const refused = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(profileSource(refused)("sofascore-player-966303")).rejects.toThrow("Sin conexión");
   });
 });

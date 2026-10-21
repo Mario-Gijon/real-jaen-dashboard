@@ -5,6 +5,7 @@ import type {
   MatchFilter,
   MatchSummary,
   ObservedPlayers,
+  PlayerProfile,
   PlayerSeason,
   SourceInfo,
   TeamSeason,
@@ -92,4 +93,9 @@ export function getPlayer(playerId: string, seasonId: string, options?: RequestO
 /** Players seen with a team, in no season; `source` says where they come from. */
 export function getObservedPlayers(teamId: string, options?: RequestOptions) {
   return get<ObservedPlayers>(`/teams/${segment(teamId)}/players`, options);
+}
+
+/** A real player's personal data, in no season; `source` says where they come from. */
+export function getPlayerProfile(playerId: string, options?: RequestOptions) {
+  return get<PlayerProfile>(`/players/${segment(playerId)}/profile`, options);
 }

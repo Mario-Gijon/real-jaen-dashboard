@@ -18,6 +18,18 @@ export function playerHref(playerId: string, seasonId: string, origin?: PlayerOr
   return `/players/${encodeURIComponent(playerId)}?${query}`;
 }
 
+/**
+ * Season-less personal profile of a player from a real source. `season` only
+ * restores the team view on return; the profile itself does not depend on it.
+ */
+export function playerProfileHref(playerId: string, seasonId: string | null, origin: { kind: "team"; id: string }) {
+  const query = new URLSearchParams({ view: "profile" });
+  if (seasonId) query.set("season", seasonId);
+  query.set("from", origin.kind);
+  query.set("origin", origin.id);
+  return `/players/${encodeURIComponent(playerId)}?${query}`;
+}
+
 /** Initial player tab and match from the URL; unknown values fall back to Temporada without a match. */
 export function playerInitialView(query: { tab?: string | string[]; match?: string | string[] }): { tab: PlayerTab; matchId: string | null } {
   if (query.tab !== "matches") return { tab: "season", matchId: null };

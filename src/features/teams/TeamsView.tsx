@@ -225,7 +225,7 @@ export function TeamsView({ initialTeamId, initialSeasonId, initialTab = "perfor
                   </div>
                 )
               ) : tab === "players" && observed.data && !observed.data.source.synthetic ? (
-                <ObservedPlayersList observed={observed.data} seasonLabel={seasonLabel} />
+                <ObservedPlayersList observed={observed.data} seasonId={season?.id ?? null} seasonLabel={seasonLabel} />
               ) : tab === "players" && !observed.data ? (
                 <p className={css.status} role="status">
                   Cargando jugadores…

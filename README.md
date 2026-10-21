@@ -57,8 +57,8 @@ equipo: `own` (lo que hizo) y `opponent` (lo que hizo el rival, es decir, lo que
 
 ## Jugadores observados desde la API local
 
-«Equipos › Jugadores» puede leer, sólo para esa pestaña, los jugadores observados en
-convocatorias desde una API local de datos (servicio independiente). Por defecto todo es
+«Equipos › Jugadores» puede leer los jugadores observados en convocatorias, y sus fichas
+personales, desde una API local de datos (servicio independiente). Por defecto todo es
 sintético. Para activarla, en `.env.local` (ver `.env.example`) y reiniciando el servidor:
 
 ```
@@ -76,6 +76,11 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   estables mientras se use esa fuente, pero no son una identidad independiente de ella.
 - Si la API falla, no responde en 5 s o devuelve algo no válido, la pestaña muestra el
   error: nunca jugadores sintéticos en su lugar.
+- Cada jugador abre su ficha real (`/players/{id}?view=profile`), sólo con datos
+  personales: posición, nacimiento, estatura, pierna dominante y país, tal como los da la
+  fuente; lo desconocido se muestra «—». Sin temporada, equipo actual ni estadísticas. El
+  servidor traduce el ID derivado al de la fuente; la fecha de descarga (`fetched_at`) no
+  se usa como fecha de actualización. En modo sintético no hay fichas de este tipo (404).
 
 ## Goles y tarjetas
 
@@ -99,6 +104,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 | `GET /api/v1/seasons/{seasonId}/teams/{teamId}` | Temporada del equipo: partidos, acumulados y plantilla |
 | `GET /api/v1/players/{playerId}?season={seasonId}` | Temporada del jugador: ficha, acumulados y partidos |
 | `GET /api/v1/teams/{teamId}/players` | Jugadores observados del equipo (sin temporada), con su alcance y procedencia; `503 UPSTREAM_UNAVAILABLE` si falla una fuente real |
+| `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
 (`getSeasonMatches`, `getMatch`…) y nunca construyen URLs. Los errores tienen la forma
