@@ -330,6 +330,34 @@ export type PlayerSeason = {
   matches: PlayerMatch[];
 };
 
+// ─── Observed players ───────────────────────────────────────────────────────
+
+/** Who supplied one response, when a section may not use the app's main source. */
+export type DataProvenance = {
+  /** Invented data. */
+  synthetic: boolean;
+  /** Short description for the analyst, in Spanish. */
+  label: string;
+};
+
+/**
+ * `GET /api/v1/teams/{teamId}/players`: players seen with a team. It is not a
+ * full nor necessarily current squad and it belongs to no season; `scope`
+ * says what the list covers. A real source offers no stats nor personal data
+ * here, so none appear.
+ *
+ * Player ids from a real source are derived from the provider's own ids
+ * (e.g. `sofascore-player-966303`): stable while that provider is used, but
+ * not an identity independent of it. Screens treat them as opaque.
+ */
+export type ObservedPlayers = {
+  teamId: string;
+  players: PlayerRef[];
+  /** What the list covers, for the analyst, in Spanish. */
+  scope: string;
+  source: DataProvenance;
+};
+
 export { seasonStat, type Accumulation } from "./season-stat";
 
 // ─── Application ────────────────────────────────────────────────────────────
@@ -344,7 +372,8 @@ export type SourceInfo = {
 
 /** Error body of every `/api/v1` endpoint. */
 export type ApiError = { error: { code: ApiErrorCode; message: string } };
-export type ApiErrorCode = "NOT_FOUND" | "BAD_REQUEST";
+/** `UPSTREAM_UNAVAILABLE` (503): a real source did not answer, or answered something unusable. */
+export type ApiErrorCode = "NOT_FOUND" | "BAD_REQUEST" | "UPSTREAM_UNAVAILABLE";
 
 /** Filters of `GET /api/v1/seasons/{seasonId}/matches` (`?round=&team=`). */
 export type MatchFilter = { round?: number; teamId?: string };

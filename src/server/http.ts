@@ -12,6 +12,8 @@ function error(status: number, code: ApiErrorCode, message: string): NextRespons
 
 export const notFound = (message: string) => error(404, "NOT_FOUND", message);
 export const badRequest = (message: string) => error(400, "BAD_REQUEST", message);
+export const upstreamUnavailable = (message: string) =>
+  error(503, "UPSTREAM_UNAVAILABLE", message);
 
 /** `json(body)` or a 404 when the source found nothing. */
 export function jsonOrNotFound<T>(body: T | null, message: string): NextResponse<T | ApiError> {

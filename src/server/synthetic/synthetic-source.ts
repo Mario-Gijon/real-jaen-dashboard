@@ -11,6 +11,7 @@ import {
   type MatchEvent,
   type MatchFilter,
   type MatchSummary,
+  type ObservedPlayers,
   type PlayerMatch,
   type PlayerMatchStats,
   type PlayerRef,
@@ -74,6 +75,8 @@ export function createSyntheticSource(data: RawDataset): DataSource {
       seasonId === data.season.season.id && index.squadOf.has(playerId)
         ? index.playerSeason(playerId)
         : null,
+    observedPlayers: async (teamId) =>
+      index.teams.has(teamId) ? index.observedPlayers(teamId) : null,
   };
 }
 
@@ -88,6 +91,7 @@ export const syntheticSource: DataSource = {
   seasonTeams: (seasonId) => lazy().seasonTeams(seasonId),
   teamSeason: (seasonId, teamId) => lazy().teamSeason(seasonId, teamId),
   player: (playerId, seasonId) => lazy().player(playerId, seasonId),
+  observedPlayers: (teamId) => lazy().observedPlayers(teamId),
 };
 
 function lazy(): DataSource {
@@ -389,6 +393,16 @@ function buildIndex(data: RawDataset) {
 
   const competitions = (): Competition[] => [{ ...competition, seasons: [season()] }];
 
+  /** The synthetic squad, the only players the invented season knows about a team. */
+  const observedPlayers = (teamId: string): ObservedPlayers => ({
+    teamId,
+    players: (data.season.squads.find((s) => s.teamId === teamId)?.players ?? []).map(
+      ({ playerId }) => playerRef(playerId),
+    ),
+    scope: "Plantilla de la temporada sintética.",
+    source: { synthetic: true, label: "Datos sintéticos" },
+  });
+
   return {
     teams,
     squadOf,
@@ -399,5 +413,6 @@ function buildIndex(data: RawDataset) {
     standings,
     teamSeason,
     playerSeason,
+    observedPlayers,
   };
 }

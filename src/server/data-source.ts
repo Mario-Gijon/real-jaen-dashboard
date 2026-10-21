@@ -3,11 +3,13 @@ import type {
   MatchDetail,
   MatchFilter,
   MatchSummary,
+  ObservedPlayers,
   PlayerSeason,
   SourceInfo,
   TeamSeason,
   TeamStanding,
 } from "@/contract";
+import { createLocalApiObservedPlayers } from "./local-api/local-api-source";
 import { syntheticSource } from "./synthetic/synthetic-source";
 
 /**
@@ -26,13 +28,35 @@ export interface DataSource {
   teamSeason(seasonId: string, teamId: string): Promise<TeamSeason | null>;
   /** `null` if the player is not in a squad of that season. */
   player(playerId: string, seasonId: string): Promise<PlayerSeason | null>;
+  /**
+   * Players seen with a team, in no season; `null` if the source has nothing
+   * for that team. A real source that fails throws `UpstreamUnavailableError`.
+   */
+  observedPlayers(teamId: string): Promise<ObservedPlayers | null>;
 }
 
-/** The configured source. `DATA_SOURCE` will select real adapters later. */
+/**
+ * The configured source. `DATA_SOURCE` will select real adapters later;
+ * `OBSERVED_PLAYERS_SOURCE=local` takes only the observed players from the
+ * local API at `LOCAL_DATA_API_URL`, everything else staying synthetic.
+ */
 export function getDataSource(): DataSource {
   const kind = process.env.DATA_SOURCE ?? "synthetic";
   if (kind !== "synthetic") {
     throw new Error(`Fuente de datos no disponible: ${kind}`);
   }
-  return syntheticSource;
+  const observed = process.env.OBSERVED_PLAYERS_SOURCE ?? "synthetic";
+  if (observed === "synthetic") return syntheticSource;
+  if (observed !== "local") {
+    throw new Error(`Fuente de jugadores observados no disponible: ${observed}`);
+  }
+  const baseUrl = process.env.LOCAL_DATA_API_URL;
+  if (!baseUrl) {
+    throw new Error("OBSERVED_PLAYERS_SOURCE=local requiere LOCAL_DATA_API_URL.");
+  }
+  return {
+    ...syntheticSource,
+    info: () => ({ synthetic: true, label: "Datos sintéticos y reales" }),
+    observedPlayers: createLocalApiObservedPlayers({ baseUrl }),
+  };
 }

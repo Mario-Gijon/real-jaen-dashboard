@@ -2,7 +2,7 @@
 
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { getCompetitions, getSeasonTeams, getTeamSeason } from "@/client/api";
+import { ApiRequestError, getCompetitions, getObservedPlayers, getSeasonTeams, getTeamSeason } from "@/client/api";
 import type { TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
@@ -10,6 +10,7 @@ import { Select } from "@/ui/Select";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { tabId, tabPanelId, Tabs } from "@/ui/Tabs";
 import { useApi } from "../use-api";
+import { ObservedPlayersList } from "./ObservedPlayersList";
 import { TeamCrestGrid } from "./TeamCrestGrid";
 import { TeamPerformance } from "./TeamPerformance";
 import { TeamPlayersTable } from "./TeamPlayersTable";
@@ -71,6 +72,10 @@ export function TeamsView({ initialTeamId, initialSeasonId, initialTab = "perfor
     getTeamSeason(season!.id, team!.id, { signal }),
   );
   const [tab, setTab] = useState<Tab>(initialTab);
+  // Who the players are comes from its own source; only real ones replace the squad table.
+  const observed = useApi(tab === "players" && team ? `observed|${team.id}` : null, (signal) =>
+    getObservedPlayers(team!.id, { signal }),
+  );
 
   // Phones fold the grid while a club is shown; desktop always shows it (CSS).
   const [gridOpen, setGridOpen] = useState(false);
@@ -195,14 +200,37 @@ export function TeamsView({ initialTeamId, initialSeasonId, initialTab = "perfor
               selected={tab}
             />
             <div
-              aria-busy={detail.loading || undefined}
+              aria-busy={(tab === "players" ? observed.loading : detail.loading) || undefined}
               aria-labelledby={tabId(TABS_PREFIX, tab)}
               className={css.panel}
               id={tabPanelId(TABS_PREFIX)}
               role="tabpanel"
               tabIndex={0}
             >
-              {detail.error ? (
+              {tab === "players" && observed.error ? (
+                observed.error instanceof ApiRequestError && observed.error.code === "NOT_FOUND" ? (
+                  <p className={css.status} role="status">
+                    La fuente de datos real no tiene jugadores observados de este equipo.
+                  </p>
+                ) : (
+                  <div className={css.error} role="alert">
+                    <p>
+                      {observed.error instanceof ApiRequestError
+                        ? observed.error.message
+                        : "No se pudieron cargar los jugadores."}
+                    </p>
+                    <Button onClick={observed.retry} size="sm">
+                      Reintentar
+                    </Button>
+                  </div>
+                )
+              ) : tab === "players" && observed.data && !observed.data.source.synthetic ? (
+                <ObservedPlayersList observed={observed.data} seasonLabel={seasonLabel} />
+              ) : tab === "players" && !observed.data ? (
+                <p className={css.status} role="status">
+                  Cargando jugadores…
+                </p>
+              ) : detail.error ? (
                 <div className={css.error} role="alert">
                   <p>No se pudo cargar la temporada del equipo.</p>
                   <Button onClick={detail.retry} size="sm">

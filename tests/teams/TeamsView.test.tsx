@@ -12,11 +12,25 @@ import {
 } from "./fixtures.test-data";
 import { TeamsView } from "@/features/teams/TeamsView";
 
+/** `/teams/{teamId}/players` from the synthetic source unless a test says otherwise. */
+const syntheticObserved = (teamId: string) =>
+  new Response(
+    JSON.stringify({
+      teamId,
+      players: squad.map((row) => row.player),
+      scope: "Plantilla de la temporada sintética.",
+      source: { synthetic: true, label: "Datos sintéticos" },
+    }),
+  );
+let observedReply: (teamId: string) => Response = syntheticObserved;
+
 /** Answers the typed client's GETs from the fixtures, like `/api/v1` would. */
 function serveApi() {
   const fetch = vi.fn(async (input: string) => {
     const url = new URL(input, "http://localhost");
     const path = url.pathname.replace("/api/v1", "");
+    const observed = /^\/teams\/([^/]+)\/players$/.exec(path);
+    if (observed) return observedReply(decodeURIComponent(observed[1]));
     const body =
       path === "/competitions"
         ? competitions
@@ -44,6 +58,7 @@ const requested = (fetch: ReturnType<typeof serveApi>) =>
 
 let fetch: ReturnType<typeof serveApi>;
 beforeEach(() => {
+  observedReply = syntheticObserved;
   fetch = serveApi();
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query }));
 });
@@ -115,7 +130,7 @@ describe("Equipos", () => {
     expect(tabs.map((t) => t.textContent)).toEqual(["Rendimiento del equipo", "Jugadores"]);
     await user.click(screen.getByRole("tab", { name: "Jugadores" }));
     expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Jugadores");
-    expect(screen.getByRole("table", { name: "Jugadores de la plantilla" })).toBeVisible();
+    expect(await screen.findByRole("table", { name: "Jugadores de la plantilla" })).toBeVisible();
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: "Rendimiento del equipo" })).toHaveFocus();
     expect(screen.getByRole("heading", { level: 3, name: "Temporada" })).toBeVisible();
@@ -259,6 +274,7 @@ describe("Jugadores", () => {
     const user = userEvent.setup();
     await openTeams();
     await user.click(screen.getByRole("tab", { name: "Jugadores" }));
+    await screen.findByRole("table", { name: "Jugadores de la plantilla" });
     return user;
   }
   const names = () =>
@@ -332,5 +348,76 @@ describe("Jugadores", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "CD Montealto" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
     expect(requested(fetch)).toContain(`/api/v1/seasons/${SEASON_ID}/teams/team-alto`);
+  });
+});
+
+describe("Jugadores observados (fuente real)", () => {
+  const real = {
+    teamId: "team-real-jaen",
+    players: [
+      { id: "sofascore-player-2", name: "Zeta Delantero", position: "forward" },
+      { id: "sofascore-player-1", name: "Moha Keita", position: "midfielder" },
+      { id: "sofascore-player-3", name: "Sin Posición", position: null },
+    ],
+    scope: "Jugadores observados en convocatorias; no es una plantilla completa ni necesariamente actual.",
+    source: { synthetic: false, label: "Datos reales" },
+  };
+
+  async function openPlayers() {
+    const user = userEvent.setup();
+    await openTeams();
+    await user.click(screen.getByRole("tab", { name: "Jugadores" }));
+    return user;
+  }
+
+  it("lists name and position with provenance, scope and no season, without stats or links", async () => {
+    observedReply = () => new Response(JSON.stringify(real));
+    await openPlayers();
+    const table = await screen.findByRole("table", { name: /Jugadores observados/ });
+    expect(
+      within(table)
+        .getAllByRole("rowheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["MKMoha Keita", "ZDZeta Delantero", "SPSin Posición"]);
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Jugador",
+      "Posición",
+    ]);
+    expect(within(table).getAllByRole("row")[3]).toHaveTextContent("—");
+    expect(screen.getByText("Datos reales")).toBeVisible();
+    expect(screen.getByText(real.scope)).toBeVisible();
+    expect(screen.getByText(/No depende de la temporada seleccionada \(Liga Prueba · 2026\/27\)/)).toBeVisible();
+    expect(screen.queryByRole("table", { name: "Jugadores de la plantilla" })).toBeNull();
+    expect(within(screen.getByRole("tabpanel")).queryAllByRole("link")).toHaveLength(0);
+    expect(requested(fetch).filter((url) => url.startsWith("/api/v1/players/"))).toEqual([]);
+  });
+
+  it("shows the failure of the real source, never the synthetic squad, and retries", async () => {
+    observedReply = () =>
+      new Response(
+        JSON.stringify({
+          error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." },
+        }),
+        { status: 503 },
+      );
+    const user = await openPlayers();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La fuente de datos real no está disponible.",
+    );
+    expect(screen.queryByRole("table")).toBeNull();
+
+    observedReply = () => new Response(JSON.stringify(real));
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("table", { name: /Jugadores observados/ })).toBeVisible();
+  });
+
+  it("says when the real source has nothing for a team", async () => {
+    observedReply = () =>
+      new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "No" } }), { status: 404 });
+    await openPlayers();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "La fuente de datos real no tiene jugadores observados de este equipo.",
+    );
+    expect(screen.queryByRole("table")).toBeNull();
   });
 });

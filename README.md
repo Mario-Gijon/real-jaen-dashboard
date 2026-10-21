@@ -55,6 +55,28 @@ comparten el servidor y las pantallas para cualquier conjunto de partidos.
 Cada partido de un equipo (`TeamMatch`) incluye sus estadísticas de equipo vistas desde ese
 equipo: `own` (lo que hizo) y `opponent` (lo que hizo el rival, es decir, lo que concedió).
 
+## Jugadores observados desde la API local
+
+«Equipos › Jugadores» puede leer, sólo para esa pestaña, los jugadores observados en
+convocatorias desde una API local de datos (servicio independiente). Por defecto todo es
+sintético. Para activarla, en `.env.local` (ver `.env.example`) y reiniciando el servidor:
+
+```
+OBSERVED_PLAYERS_SOURCE=local
+LOCAL_DATA_API_URL=http://127.0.0.1:8001
+```
+
+- La llamada la hace el servidor Next (`src/server/local-api`), nunca el navegador:
+  `127.0.0.1` debe ser la máquina donde corre `next dev`/`next start`.
+- Sólo se muestran nombre y posición, con su procedencia («Datos reales») y su alcance. El
+  listado no depende de la temporada seleccionada. Sin estadísticas ni enlace a la ficha.
+- Sólo hay correspondencia explícita para el Real Jaén (`team-real-jaen` ↔ equipo `2841`
+  de la fuente); el resto de equipos responde 404. Nunca se relacionan jugadores por nombre.
+- Los IDs de jugador (`sofascore-player-966303`) se derivan del ID del proveedor: son
+  estables mientras se use esa fuente, pero no son una identidad independiente de ella.
+- Si la API falla, no responde en 5 s o devuelve algo no válido, la pestaña muestra el
+  error: nunca jugadores sintéticos en su lugar.
+
 ## Goles y tarjetas
 
 - Un evento `goal` lleva el jugador que lo realiza y su equipo (`teamId`). Si `ownGoal` es
@@ -76,6 +98,7 @@ equipo: `own` (lo que hizo) y `opponent` (lo que hizo el rival, es decir, lo que
 | `GET /api/v1/seasons/{seasonId}/teams` | Equipos con su clasificación |
 | `GET /api/v1/seasons/{seasonId}/teams/{teamId}` | Temporada del equipo: partidos, acumulados y plantilla |
 | `GET /api/v1/players/{playerId}?season={seasonId}` | Temporada del jugador: ficha, acumulados y partidos |
+| `GET /api/v1/teams/{teamId}/players` | Jugadores observados del equipo (sin temporada), con su alcance y procedencia; `503 UPSTREAM_UNAVAILABLE` si falla una fuente real |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
 (`getSeasonMatches`, `getMatch`…) y nunca construyen URLs. Los errores tienen la forma
