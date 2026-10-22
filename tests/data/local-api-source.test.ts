@@ -279,15 +279,38 @@ describe("local API adapter: observed matches", () => {
       },
       side: "away",
       role: "starter",
+      position: "forward",
       participation: "confirmed",
       stats: {
         minutes: { value: 83 }, goals: { value: 1 }, assists: { value: 0 }, shots: { value: 4 },
         xg: { value: 0.454 }, passesCompleted: { value: 19 }, passes: { value: 24 }, rating: { value: 7.4 },
+        // Keys this row omits stay missing, never 0, although other stats are given.
+        shotsOnTarget: missing, dribbles: missing, dribblesWon: missing, recoveries: missing, possessionLost: missing,
+        duelsWon: missing, duelsLost: missing, fouls: missing, saves: missing,
       },
     });
     expect(result!.ratingSource).toBe("SofaScore");
     expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
     expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:8001/api/v1/players/966303/matches", expect.anything());
+  });
+
+  it("maps each individual metric from its own source key, keeping real zeros", async () => {
+    const statistics = { minutesPlayed: 90, totalShots: 3, onTargetScoringAttempt: 0, shotOffTarget: 2, blockedScoringAttempt: 1,
+      totalContest: 4, wonContest: 1, ballRecovery: 6, possessionLostCtrl: 9, duelWon: 7, duelLost: 0, fouls: 2, saves: 3,
+      wasFouled: 5, touches: 40 };
+    const result = await matchesSource(matchesApi([callUp({ statistics, match_position: "G" })]))("sofascore-player-966303");
+    const [row] = result!.matches;
+    expect(row.position).toBe("goalkeeper");
+    expect(row.stats).toMatchObject({
+      shots: { value: 3 }, shotsOnTarget: { value: 0 }, dribbles: { value: 4 }, dribblesWon: { value: 1 },
+      recoveries: { value: 6 }, possessionLost: { value: 9 }, duelsWon: { value: 7 }, duelsLost: { value: 0 },
+      fouls: { value: 2 }, saves: { value: 3 }, goals: missing, passes: missing,
+    });
+  });
+
+  it.each([[null], ["X"], [undefined]])("leaves an unknown match position (%s) unknown", async (position) => {
+    const result = await matchesSource(matchesApi([callUp({ match_position: position })]))("sofascore-player-966303");
+    expect(result!.matches[0].position).toBeNull();
   });
 
   it("never treats a statistics object with totalShots 0 as participation or real stats", async () => {

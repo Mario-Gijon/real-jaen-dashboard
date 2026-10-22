@@ -1,8 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError, getMatch, getPlayer, getPlayerObservedMatches, getPlayerProfile, getSeasonMatches, getSource } from "@/client/api";
-import type { ObservedPlayerMatch, ObservedPlayerMatches, PlayerProfile } from "@/contract";
+import { OBSERVED_MATCH_STAT_KEYS, type ObservedPlayerMatch, type ObservedPlayerMatches, type PlayerProfile } from "@/contract";
 import { PlayerProfileView } from "@/features/players/PlayerProfileView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
@@ -87,52 +87,123 @@ describe("Real player profile", () => {
 });
 
 const missing = { value: null, reason: "not_available" } as const;
+const noStats = Object.fromEntries(OBSERVED_MATCH_STAT_KEYS.map((key) => [key, missing])) as ObservedPlayerMatch["stats"];
 const played: ObservedPlayerMatch = {
   match: { id: "sofascore-match-1", kickoff: "2026-10-18T16:15:00Z", status: "finished",
     competition: "Primera Federacion, Group 2", season: "26/27", round: 10,
     home: { id: "team-real-jaen", name: "Real Jaén" }, away: { id: "sofascore-team-9", name: "Rayo Majadahonda" },
     score: { home: 1, away: 0 } },
-  side: "home", role: "starter", participation: "confirmed",
-  stats: { minutes: { value: 90 }, goals: missing, assists: { value: 0 }, shots: { value: 2 },
-    xg: { value: 0.454 }, passesCompleted: missing, passes: { value: 29 }, rating: { value: 7 } },
+  side: "home", role: "starter", position: "forward", participation: "confirmed",
+  stats: { ...noStats, minutes: { value: 90 }, goals: { value: 2 }, assists: { value: 0 }, shots: { value: 4 },
+    shotsOnTarget: { value: 0 }, xg: { value: 0.454 }, passes: { value: 29 }, passesCompleted: { value: 23 },
+    duelsWon: { value: 5 }, rating: { value: 7 } },
 };
 const benched: ObservedPlayerMatch = {
   match: { ...played.match, id: "sofascore-match-2", kickoff: "2026-09-06T09:30:00Z", season: "25/26", round: 2,
-    home: { id: "sofascore-team-7", name: null }, away: { id: "team-real-jaen", name: "Real Jaén" },
+    competition: "Copa del Rey", home: { id: "sofascore-team-7", name: null }, away: { id: "team-real-jaen", name: "Real Jaén" },
     score: { home: 2, away: 2 } },
-  side: "away", role: "substitute", participation: "unknown",
-  stats: { minutes: missing, goals: missing, assists: missing, shots: missing, xg: missing,
-    passesCompleted: missing, passes: missing, rating: missing },
+  side: "away", role: "substitute", position: "midfielder", participation: "unknown", stats: noStats,
 };
-const rows = () => within(screen.getByRole("table", { name: "Partidos observados del jugador" })).getAllByRole("row").slice(1);
-const cells = (row: HTMLElement) => [...row.querySelectorAll("th, td")].map((cell) => cell.textContent);
+const keeper: ObservedPlayerMatch = {
+  ...played, match: { ...played.match, id: "sofascore-match-3", kickoff: "2026-08-30T17:15:00Z", round: 1 },
+  position: "goalkeeper", stats: { ...noStats, minutes: { value: 90 }, passes: { value: 0 }, saves: { value: 4 } },
+};
+const history = () => screen.getByRole("list", { name: "Histórico de partidos" });
+const rowButtons = () => within(history()).getAllByRole("button");
+const detail = () => screen.getByRole("region", { name: "Detalle del partido" });
+const metric = (label: string) => within(detail()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
 
-describe("Partidos observados", () => {
-  it("shows each call-up with its own season, venue, result, role and the available stats", async () => {
-    vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches: [played, benched] });
-    await load();
-    const section = await screen.findByRole("region", { name: /Partidos observados/ });
-    expect(within(section).getByRole("columnheader", { name: /Val\. SofaScore/ })).toBeVisible();
-    expect(within(section).getByTitle("Valoración de SofaScore")).toBeVisible();
-    const [first, second] = rows();
-    expect(cells(first)).toEqual([
-      "vs Rayo Majadahonda18 oct 2026 · LocalPrimera Federacion, Group 2 · 26/27 · J10",
-      "1–0", "Titular", "90", "—", "0", "2", "0,45", "—/29", "7,0",
-    ]);
-    // Its own season, unknown opponent name and no claimed participation.
-    expect(cells(second)).toEqual([
-      "vs Rival sin identificar6 sept 2026 · VisitantePrimera Federacion, Group 2 · 25/26 · J2",
-      "2–2", "SuplenteParticipación no confirmada", "—", "—", "—", "—", "—", "—/—", "—",
-    ]);
+async function loadMatches(matches: ObservedPlayerMatch[], props: Partial<Parameters<typeof PlayerProfileView>[0]> = {}) {
+  vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches });
+  vi.mocked(getPlayerProfile).mockResolvedValue(moha);
+  render(<PlayerProfileView playerId={moha.player.id} returnHref={RETURN} {...props} />);
+  await screen.findByRole("list", { name: "Histórico de partidos" });
+}
+
+describe("Partidos (real)", () => {
+  it("lists every call-up with its own competition and season, and details the newest appearance", async () => {
+    await loadMatches([benched, played]);
+    const [first, second] = rowButtons();
+    expect(first).toHaveTextContent(
+      "J2Equipo sin identificar · Real JaénVisitante · 6 sept 2026Copa del Rey · 25/262–2Suplente · Participación no confirmada");
+    expect(second).toHaveTextContent(/J10Real Jaén · Rayo MajadahondaLocal · 18 oct 2026Primera Federacion, Group 2 · 26\/271–0Titular · 90′/);
+    expect(within(second).getByLabelText("2 goles")).toBeVisible();
+    // Zero assists: no icon; an unconfirmed call-up never reads «No participó».
+    expect(within(second).queryByLabelText(/asistencia/)).toBeNull();
     expect(screen.queryByText(/No participó/)).toBeNull();
-    expect(within(section).queryAllByRole("link")).toHaveLength(0);
+    // Without a selection, the newest confirmed appearance, not the newest call-up.
+    expect(second).toHaveAttribute("aria-pressed", "true");
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(within(detail()).getByText(/Posición en el partido: Delantero · Valoración de SofaScore: 7,0/)).toBeVisible();
     expect(getSeasonMatches).not.toHaveBeenCalled();
+    expect(getPlayer).not.toHaveBeenCalled();
+  });
+
+  it("shows real values, real zeros and missing values apart; accuracy only from both pass counts", async () => {
+    await loadMatches([played]);
+    expect(metric("Goles")).toHaveTextContent(/^2$/);
+    expect(metric("Tiros a puerta")).toHaveTextContent(/^0$/);
+    expect(metric("xG")).toHaveTextContent(/^0,45$/);
+    expect(metric("Pases")).toHaveTextContent(/^29$/);
+    expect(metric("Precisión de pase")).toHaveTextContent(/^79,3 %$/);
+    expect(metric("Duelos ganados")).toHaveTextContent(/^5$/);
+    // Keys the source omitted stay unknown although other stats are given.
+    for (const label of ["Regates", "Recuperaciones", "Duelos perdidos", "Faltas"]) {
+      expect(metric(label), label).toHaveTextContent(/^—$/);
+      expect(within(metric(label)).getByLabelText("Dato no disponible")).toBeVisible();
+    }
+    // No synthetic-only metric is invented for a real player.
+    expect(within(detail()).queryByText(/Amarillas|Rojas|Goles encajados/)).toBeNull();
+  });
+
+  it("never divides by zero or by an unknown count", async () => {
+    await loadMatches([{ ...played, stats: { ...played.stats, passes: { value: 0 }, passesCompleted: { value: 0 } } }]);
+    expect(metric("Precisión de pase")).toHaveTextContent(/^—$/);
+    cleanup();
+    await loadMatches([{ ...played, stats: { ...played.stats, passesCompleted: missing } }]);
+    expect(metric("Precisión de pase")).toHaveTextContent(/^—$/);
+  });
+
+  it("uses the match position, not the usual one, to choose the goalkeeper metrics", async () => {
+    await loadMatches([keeper]);
+    expect(within(detail()).getByText(/Posición en el partido: Portero/)).toBeVisible();
+    expect(metric("Paradas")).toHaveTextContent(/^4$/);
+    expect(within(detail()).queryByText("Tiros")).toBeNull();
+  });
+
+  it("tells a call-up without confirmed participation from an appearance", async () => {
+    await loadMatches([benched], { initialMatchId: "sofascore-match-2" });
+    expect(within(detail()).getByText(/La fuente no confirma su participación: sin minutos ni estadísticas/)).toBeVisible();
+    expect(within(detail()).getByText(/Suplente · Participación no confirmada/)).toBeVisible();
+    expect(within(detail()).queryByText(/Valoración/)).toBeNull();
+    expect(within(detail()).queryByRole("term")).toBeNull();
+  });
+
+  it("changes the selected match in place and keeps it in the URL without navigating", async () => {
+    const replace = vi.spyOn(window.history, "replaceState");
+    await loadMatches([played, benched]);
+    const second = rowButtons()[1];
+    await userEvent.setup().click(second);
+    expect(second).toHaveAttribute("aria-pressed", "true");
+    expect(within(detail()).getByText(/vs Equipo sin identificar/)).toBeVisible();
+    expect(replace).toHaveBeenLastCalledWith(window.history.state, "", expect.stringContaining("match=sofascore-match-2"));
+    replace.mockRestore();
+  });
+
+  it("selects the requested match, and says when it is not among the call-ups", async () => {
+    await loadMatches([played, benched], { initialMatchId: "sofascore-match-2" });
+    expect(rowButtons()[1]).toHaveAttribute("aria-pressed", "true");
+    cleanup();
+    await loadMatches([played], { initialMatchId: "sofascore-match-404" });
+    expect(screen.getByRole("status")).toHaveTextContent("El partido indicado no figura entre los partidos observados de este jugador.");
+    expect(rowButtons()[0]).toHaveAttribute("aria-pressed", "false");
+    expect(within(detail()).getByText("Selecciona un partido del histórico.")).toBeVisible();
   });
 
   it("says when the source has no matches for the player", async () => {
     await load();
     expect(await screen.findByText("La fuente no tiene partidos observados de este jugador.")).toBeVisible();
-    expect(screen.queryByRole("table")).toBeNull();
+    expect(within(detail()).getByText("Sin partidos observados.")).toBeVisible();
   });
 
   it("keeps the personal data when the matches fail, and retries only the matches", async () => {
@@ -140,42 +211,31 @@ describe("Partidos observados", () => {
       new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "La fuente de datos real no está disponible."),
     );
     await load();
-    const section = screen.getByRole("region", { name: /Partidos observados/ });
-    expect(await within(section).findByRole("alert")).toHaveTextContent("No se pudieron cargar los partidos observados.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudieron cargar los partidos observados.");
     expect(field("País")).toHaveTextContent("Senegal");
     vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches: [played] });
-    await userEvent.setup().click(within(section).getByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByRole("table", { name: "Partidos observados del jugador" })).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("list", { name: "Histórico de partidos" })).toBeVisible();
     expect(getPlayerProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("links each match to its real detail when real matches are enabled, carrying this profile's return", async () => {
+  it("links «Ver partido completo» to the real detail when real matches are enabled, carrying this profile's return", async () => {
     vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
-    vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches: [played, benched] });
-    vi.mocked(getPlayerProfile).mockResolvedValue(moha);
-    render(<PlayerProfileView playerId={moha.player.id} returnHref={RETURN}
-      context={{ seasonId: "s", origin: { kind: "team", id: "team-real-jaen" } }} />);
-    const section = await screen.findByRole("region", { name: /Partidos observados/ });
-    const links = await within(section).findAllByRole("link");
-    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
-      ["vs Rayo Majadahonda", "/matches/sofascore-match-1?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen"],
-      ["vs Rival sin identificar", "/matches/sofascore-match-2?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen"],
-    ]);
-    expect(links[0]).not.toHaveAttribute("target");
+    await loadMatches([played, benched], { context: { seasonId: "s", origin: { kind: "team", id: "team-real-jaen" } } });
+    const link = await within(detail()).findByRole("link", { name: "Ver partido completo" });
+    expect(link).toHaveAttribute("href",
+      "/matches/sofascore-match-1?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen");
     expect(getMatch).not.toHaveBeenCalled();
   });
 
   it.each([
     ["real matches are not enabled", () => vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] })],
     ["the source cannot be determined", () => vi.mocked(getSource).mockRejectedValue(new ApiRequestError(503, "X", "No"))],
-  ])("shows the matches without links when %s, never a synthetic detail", async (_, setSource) => {
+  ])("offers no match link when %s, never a synthetic detail", async (_, setSource) => {
     setSource();
-    vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches: [played] });
-    await load();
-    const section = await screen.findByRole("region", { name: /Partidos observados/ });
-    await within(section).findByText("vs Rayo Majadahonda");
+    await loadMatches([played]);
     await vi.waitFor(() => expect(getSource).toHaveBeenCalled());
-    expect(within(section).queryAllByRole("link")).toHaveLength(0);
+    expect(screen.queryByRole("link", { name: "Ver partido completo" })).toBeNull();
     expect(getMatch).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
   // Real matches are linked explicitly (`view=observed`); any other id is a synthetic match.
   if (query.view === "observed") {
     return <RealMatchDetailView matchId={matchId} initialSection={query.tab === "lineups" ? "lineups" : "summary"}
-      playerReturnHref={observedMatchReturnHref(query)} />;
+      playerReturnHref={observedMatchReturnHref(matchId, query)} />;
   }
   return <MatchDetailView matchId={matchId} initialSection={query.tab === "timeline" || query.tab === "lineups" ? query.tab : "summary"} />;
 }

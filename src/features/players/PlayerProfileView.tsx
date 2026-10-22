@@ -17,12 +17,14 @@ import css from "./PlayerDetailView.module.css";
  * source lists them in, with where they come from and what they cover. It
  * loads nothing synthetic (no season, team or calendar of the app); unknown
  * values read «—». The matches load on their own, so their failure keeps the
- * personal data visible. Each match opens its real detail only when the real
- * match source is active, carrying this profile's context so the detail can
- * return here and, from here, to where the profile was opened.
+ * personal data visible. The selected match is kept in the URL (`match`),
+ * so a reload or a return from the match detail shows it again. Each match
+ * links its real detail only when the real match source is active, carrying
+ * this profile's context so the detail can return here and, from here, to
+ * where the profile was opened.
  */
-export function PlayerProfileView({ playerId, returnHref, context = { seasonId: null, origin: null } }: {
-  playerId: string; returnHref: string; context?: { seasonId: string | null; origin: ProfileOrigin | null };
+export function PlayerProfileView({ playerId, returnHref, context = { seasonId: null, origin: null }, initialMatchId = null }: {
+  playerId: string; returnHref: string; context?: { seasonId: string | null; origin: ProfileOrigin | null }; initialMatchId?: string | null;
 }) {
   const profile = useApi(`profile|${playerId}`, (signal) => getPlayerProfile(playerId, { signal }));
   const matches = useApi(`observed-matches|${playerId}`, (signal) => getPlayerObservedMatches(playerId, { signal }));
@@ -30,6 +32,12 @@ export function PlayerProfileView({ playerId, returnHref, context = { seasonId: 
   const matchHref = source.data?.realSections.includes("matches")
     ? (matchId: string) => observedMatchHref(matchId, { playerId, ...context })
     : null;
+  function rememberMatch(matchId: string) {
+    // Same URL with the new selection: no navigation, no history entry.
+    const query = new URLSearchParams(window.location.search);
+    query.set("match", matchId);
+    window.history.replaceState(window.history.state, "", `?${query}`);
+  }
   const back = <Link className={css.back} href={returnHref}>← Volver</Link>;
   if (profile.error) {
     const notFound = profile.error instanceof ApiRequestError && profile.error.status === 404;
@@ -48,7 +56,10 @@ export function PlayerProfileView({ playerId, returnHref, context = { seasonId: 
   return <div className={css.page}>
     {back}
     <Identity data={profile.data} />
-    <ObservedMatches load={matches} matchHref={matchHref} />
+    <div className={`${css.season} ${css.matches}`}>
+      <ObservedMatches load={matches} usualPosition={profile.data.player.position} initialMatchId={initialMatchId}
+        matchHref={matchHref} onSelect={rememberMatch} />
+    </div>
   </div>;
 }
 

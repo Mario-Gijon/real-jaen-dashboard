@@ -384,9 +384,18 @@ export const OBSERVED_MATCH_STAT_KEYS = [
   "goals",
   "assists",
   "shots",
+  "shotsOnTarget",
   "xg",
   "passesCompleted",
   "passes",
+  "dribbles",
+  "dribblesWon",
+  "recoveries",
+  "possessionLost",
+  "duelsWon",
+  "duelsLost",
+  "fouls",
+  "saves",
   "rating",
 ] as const;
 export type ObservedMatchStatKey = (typeof OBSERVED_MATCH_STAT_KEYS)[number];
@@ -419,6 +428,8 @@ export type ObservedPlayerMatch = {
   side: Side;
   /** Named as starter or substitute; `null` when unknown. */
   role: "starter" | "substitute" | null;
+  /** Position in this match's line-up, as the source gives it; not the player's usual position. */
+  position: PlayerPosition | null;
   /**
    * `confirmed` only when the source says the player took part. `unknown`
    * never means "did not play": the source simply does not say.
@@ -427,7 +438,10 @@ export type ObservedPlayerMatch = {
   /**
    * As given by the source; a value it omits is missing, never 0. Without
    * confirmed participation every value is missing. `xg` keeps its decimals;
-   * `rating` is the provider's own rating (see `ratingSource`).
+   * `rating` is the provider's own rating (see `ratingSource`). `fouls` are
+   * committed; `duelsWon`/`duelsLost` include aerial duels; `dribbles` are
+   * attempted and `dribblesWon` successful. No pass accuracy is stored: it is
+   * derived from `passesCompleted` and `passes` only when both are known.
    */
   stats: Record<ObservedMatchStatKey, Stat>;
 };

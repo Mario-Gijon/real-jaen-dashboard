@@ -24,8 +24,9 @@ export type ProfileOrigin = { kind: "team"; id: string } | { kind: "observedMatc
 /**
  * Season-less personal profile of a player from a real source. `season` only
  * restores the team view on return; the profile itself does not depend on it.
+ * `matchId` selects one of the player's real matches.
  */
-export function playerProfileHref(playerId: string, seasonId: string | null, origin: ProfileOrigin | null) {
+export function playerProfileHref(playerId: string, seasonId: string | null, origin: ProfileOrigin | null, matchId: string | null = null) {
   const query = new URLSearchParams({ view: "profile" });
   if (seasonId) query.set("season", seasonId);
   if (origin) {
@@ -33,7 +34,18 @@ export function playerProfileHref(playerId: string, seasonId: string | null, ori
     query.set("origin", origin.id);
     if (origin.kind === "observedMatch" && origin.tab) query.set("originTab", origin.tab);
   }
+  if (matchId) query.set("match", matchId);
   return `/players/${encodeURIComponent(playerId)}?${query}`;
+}
+
+/**
+ * Real match selected in a real profile: the one in the URL, else the real
+ * match whose line-ups opened the profile, else none (the profile picks).
+ */
+export function profileInitialMatch(query: { match?: unknown; from?: unknown; origin?: unknown }): string | null {
+  if (typeof query.match === "string" && SAFE_ID.test(query.match)) return query.match;
+  if (query.from === "observedMatch" && typeof query.origin === "string" && SAFE_ID.test(query.origin)) return query.origin;
+  return null;
 }
 
 /** The origin of a real profile from its URL; anything not built by `playerProfileHref` is dropped. */
@@ -69,14 +81,15 @@ export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin) {
   return `/matches/${encodeURIComponent(matchId)}?${query}`;
 }
 
-/** The real profile to return to from a real match, or null for the match list. */
-export function observedMatchReturnHref(query: {
+/** The real profile to return to from a real match, with that match selected, or null for the match list. */
+export function observedMatchReturnHref(matchId: string, query: {
   from?: unknown; player?: unknown; season?: unknown; playerFrom?: unknown; playerOrigin?: unknown; playerOriginTab?: unknown;
 }) {
   if (query.from !== "player" || typeof query.player !== "string" || !SAFE_ID.test(query.player)) return null;
   const seasonId = typeof query.season === "string" && SAFE_ID.test(query.season) ? query.season : null;
   return playerProfileHref(query.player, seasonId,
-    profileOrigin({ from: query.playerFrom, origin: query.playerOrigin, originTab: query.playerOriginTab }));
+    profileOrigin({ from: query.playerFrom, origin: query.playerOrigin, originTab: query.playerOriginTab }),
+    SAFE_ID.test(matchId) ? matchId : null);
 }
 
 /** Initial player tab and match from the URL; unknown values fall back to Temporada without a match. */

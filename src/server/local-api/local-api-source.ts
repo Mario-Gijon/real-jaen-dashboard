@@ -131,9 +131,19 @@ const STAT_FIELDS: Readonly<Record<Exclude<ObservedMatchStatKey, "minutes">, str
   goals: "goals",
   assists: "goalAssist",
   shots: "totalShots",
+  // totalShots = onTargetScoringAttempt + shotOffTarget + blockedScoringAttempt in the stored data.
+  shotsOnTarget: "onTargetScoringAttempt",
   xg: "expectedGoals",
   passesCompleted: "accuratePass",
   passes: "totalPass",
+  dribbles: "totalContest",
+  dribblesWon: "wonContest",
+  recoveries: "ballRecovery",
+  possessionLost: "possessionLostCtrl",
+  duelsWon: "duelWon",
+  duelsLost: "duelLost",
+  fouls: "fouls",
+  saves: "saves",
   rating: "rating",
 };
 
@@ -396,6 +406,7 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number): Raw
     match,
     side: row.side,
     role: row.substitute === true ? "substitute" : row.substitute === false ? "starter" : null,
+    position: position(row.match_position, at("match_position")),
     participation: confirmed ? "confirmed" : "unknown",
     stats,
   };

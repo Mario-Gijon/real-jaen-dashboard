@@ -81,17 +81,47 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   fuente; lo desconocido se muestra «—». Sin temporada, equipo actual ni estadísticas. El
   servidor traduce el ID derivado al de la fuente; la fecha de descarga (`fetched_at`) no
   se usa como fecha de actualización. En modo sintético no hay fichas de este tipo (404).
-- La ficha real añade «Partidos observados»: las convocatorias que registra la fuente, del
-  más reciente al más antiguo, con su propia competición y temporada (la de la URL sólo
-  sirve para volver). Fecha, rival y condición, resultado, titular/suplente y, si existen,
-  minutos, goles, asistencias, tiros, xG, pases completados/intentados y valoración de
-  SofaScore. Una estadística omitida es «—», nunca 0. Si fallan los partidos, la ficha
-  personal sigue visible. Con `MATCHES_SOURCE=local` cada partido enlaza a su detalle real
-  (`/matches/{id}?view=observed&from=player&player=…`), cuyo «Volver al jugador» regresa a la
-  ficha con su propio origen (equipo o alineaciones de un partido real); sin partidos reales
-  se muestra sin enlace, nunca una ficha sintética. El contexto tiene un solo nivel: un
-  jugador abierto desde las alineaciones de ese partido vuelve a ellas, y de ahí a la lista
-  de partidos. Un retorno manipulado se descarta y se usa un destino interno.
+- La ficha real añade «Partidos», con la presentación de la ficha sintética: a la izquierda
+  las convocatorias que registra la fuente (`GET /api/v1/players/{id}/matches` de la API
+  local), de la más reciente a la más antigua, con su propia competición y temporada (la
+  `season` de la URL sólo sirve para volver a Equipos); a la derecha la actuación en el
+  partido seleccionado. En móvil (≤ 900 px) el detalle se abre bajo la fila, como en la
+  ficha sintética. Seleccionar otro partido no sale de la ficha y lo guarda en la URL
+  (`&match=…`, sin nueva entrada de historial), así que se conserva al recargar. Sin `match`
+  se selecciona el partido cuyas alineaciones abrieron la ficha o, si no, la actuación más
+  reciente; un `match` que no está entre las convocatorias no selecciona nada y lo dice.
+  Si fallan los partidos, la ficha personal sigue visible.
+- Detalle: rival, resultado, condición, fecha, competición, rol y minutos; posición en el
+  partido (`match_position`, distinta de la habitual de la cabecera) y valoración de
+  SofaScore. Sin participación confirmada sólo dice que fue convocado, sin minutos ni
+  estadísticas (nunca «No participó»). Con ella, los grupos de la ficha sintética con lo
+  que la fuente da; la posición en el partido decide si son los de portero. Una clave que
+  la fuente omite es «—», nunca 0, aunque haya otras: la fuente suele omitir los ceros,
+  pero no se supone. Sin tarjetas, goles encajados ni «Acciones» (no están en estas
+  estadísticas). Correspondencia (`statistics` de cada convocatoria):
+
+  | Interfaz | Clave de la fuente |
+  |---|---|
+  | Minutos | `minutes_played` (o `statistics.minutesPlayed`) |
+  | Goles / Asistencias | `goals` / `goalAssist` |
+  | Tiros / Tiros a puerta | `totalShots` / `onTargetScoringAttempt` (`totalShots` = a puerta + fuera + bloqueados en las 125 actuaciones de jugadores por partido con estadísticas revisadas el 22/10/2026) |
+  | xG | `expectedGoals` |
+  | Pases / Pases completados | `totalPass` / `accuratePass` |
+  | Precisión de pase | derivada: `accuratePass / totalPass`, sólo con ambos y `totalPass` > 0 |
+  | Regates / Regates ganados | `totalContest` / `wonContest` |
+  | Recuperaciones / Pérdidas | `ballRecovery` / `possessionLostCtrl` |
+  | Duelos ganados / perdidos | `duelWon` / `duelLost` |
+  | Faltas (cometidas) | `fouls` |
+  | Paradas (portero) | `saves` |
+  | Valoración de SofaScore | `rating` |
+
+- Con `MATCHES_SOURCE=local` el detalle ofrece «Ver partido completo», que abre el detalle
+  real (`/matches/{id}?view=observed&from=player&player=…`); su «Volver al jugador» regresa
+  a la ficha con ese partido seleccionado y su propio origen (equipo o alineaciones de un
+  partido real). Sin partidos reales no hay enlace, nunca una ficha sintética. El contexto
+  tiene un solo nivel: un jugador abierto desde las alineaciones de ese partido vuelve a
+  ellas, y de ahí a la lista de partidos. Un retorno o una selección manipulados se
+  descartan y se usa un destino interno.
 - Participación (`played` / `minutes_played`): confirmada con `played: true` (minutos > 0
   o ausentes) o, sin `played`, con minutos > 0. `played: false` o sin datos, con 0 minutos
   o sin ellos, queda desconocida: no se afirma que no jugara. Si se contradicen
@@ -190,7 +220,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 | `GET /api/v1/players/{playerId}?season={seasonId}` | Temporada del jugador: ficha, acumulados y partidos |
 | `GET /api/v1/teams/{teamId}/players` | Jugadores observados del equipo (sin temporada), con su alcance y procedencia; `503 UPSTREAM_UNAVAILABLE` si falla una fuente real |
 | `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
-| `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
+| `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo, con su posición en el partido y sus estadísticas individuales; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/teams/{teamId}/observed-matches` | Partidos del equipo en la fuente real (calendario y resultados), por fecha; lista vacía si no hay, 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`

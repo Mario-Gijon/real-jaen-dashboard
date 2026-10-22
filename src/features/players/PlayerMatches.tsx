@@ -76,7 +76,7 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
 }
 
 /** Moves only the history viewport, never the page. */
-function revealMatch(history: HTMLElement | null, matchId: string) {
+export function revealMatch(history: HTMLElement | null, matchId: string) {
   const row = history && [...history.querySelectorAll<HTMLElement>("[data-match-id]")]
     .find(element => element.dataset.matchId === matchId);
   if (!history || !row || history.scrollHeight <= history.clientHeight) return;
