@@ -15,12 +15,14 @@ const match = (id: string, fields: Record<string, unknown>) => ({
 const MATCHES = [
   match("sofascore-match-1", {}),
   match("sofascore-match-2", { kickoff: "2026-10-03T11:00:00+00:00", round: 6, home: { id: "sofascore-team-2", name: "Hércules CF" }, score: { home: 0, away: 0 } }),
-  match("sofascore-match-3", { kickoff: "2026-10-28T19:00:00+00:00", status: "scheduled", competition: "Copa del Rey", home: { id: "sofascore-team-3", name: "CD Rival Copa" }, score: null }),
+  match("sofascore-match-3", { kickoff: "2026-10-28T19:00:00+00:00", status: "scheduled", round: 9, home: { id: "sofascore-team-3", name: "Antequera CF" }, score: null }),
   match("sofascore-match-4", { kickoff: "2026-11-02T17:15:00+00:00", status: "scheduled", round: 10, home: jaen, away: { id: "sofascore-team-4", name: "Atlético Sanluqueño" }, score: null }),
 ];
 const body = {
   teamId: "team-real-jaen", source: { synthetic: false, label: "Datos reales" },
   scope: "Partidos del equipo que registra la fuente. No es necesariamente un calendario completo.",
+  // This version's real source serves a single competition.
+  competitions: [{ name: "Primera Federación, Grupo 2", season: "26/27" }],
   matches: MATCHES.map((m) => ({ match: m, side: m.home.id === jaen.id ? "home" : "away" })),
 };
 
@@ -51,10 +53,13 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-matches.png"), fullPage: true });
 
+  // A single competition: named, not offered; the seasons stay the source's.
+  await expect(page.getByRole("combobox", { name: "Competición" })).toHaveCount(0);
+  await expect(page.locator("header").getByText("Primera Federación, Grupo 2")).toBeVisible();
+  await expect(page.getByText(/Copa del Rey/)).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Temporada" }).locator("option")).toHaveText(["Todas", "26/27"]);
   await page.getByRole("combobox", { name: "Estado" }).selectOption("pending");
   await expect(list.getByRole("listitem")).toHaveCount(2);
-  await page.getByRole("combobox", { name: "Competición" }).selectOption("Copa del Rey");
-  await expect(list.getByRole("listitem")).toHaveCount(1);
   expect(synthetic).toEqual([]);
 });
 
@@ -141,6 +146,16 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   expect(synthetic).toEqual([]);
   await page.getByRole("link", { name: "‹ Volver a partidos" }).click();
   await expect(page.getByRole("list", { name: "Partidos reales" })).toBeVisible();
+});
+
+test("Partido real: an excluded match (Copa del Rey) cannot be opened by its id, nor its sections", async ({ page }) => {
+  await serveDetail(page);
+  for (const url of ["/matches/sofascore-match-17259821?view=observed", "/matches/sofascore-match-17259821?view=observed&tab=lineups"]) {
+    await page.goto(url);
+    await expect(page.getByRole("heading", { name: "Partido no encontrado en la fuente real" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "‹ Volver a partidos" })).toBeVisible();
+  }
 });
 
 test("Partido real: statistics not stored or failing, and an id unknown to the real source", async ({ page }) => {

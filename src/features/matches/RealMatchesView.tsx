@@ -26,7 +26,9 @@ function options(values: (string | null)[], descending = false) {
  * «Partidos» from the real source: the club's matches as the source lists
  * them, filtered by the source's own seasons, competitions and status. The
  * app's synthetic seasons and rounds play no part. A season or team from the
- * URL that has no correspondence is said so, never swapped for another.
+ * URL that has no correspondence is said so, never swapped for another. When
+ * the source serves a single competition (its declared scope) there is
+ * nothing to choose: the competition is named instead of offered.
  */
 export function RealMatchesView({ initialSeasonId, initialTeamId }: { initialSeasonId?: string; initialTeamId?: string }) {
   const teamId = initialTeamId ?? CLUB_ID;
@@ -39,6 +41,7 @@ export function RealMatchesView({ initialSeasonId, initialTeamId }: { initialSea
   const all = useMemo(() => load.data?.matches.map((row) => row.match) ?? [], [load.data]);
   const seasons = useMemo(() => options(all.map((m) => m.season), true), [all]);
   const competitions = useMemo(() => options(all.map((m) => m.competition)), [all]);
+  const served = load.data?.competitions ?? null;
   const shown = all.filter((m) =>
     (season === "all" || m.season === season)
     && (competition === "all" || m.competition === competition)
@@ -54,13 +57,17 @@ export function RealMatchesView({ initialSeasonId, initialTeamId }: { initialSea
         title="Partidos"
         actions={
           <div className={css.scope}>
-            <label className={`${css.field} ${css.competition}`}>
-              <span>Competición</span>
-              <Select disabled={!competitions.length} value={competition} onChange={(e) => setCompetition(e.target.value)}>
-                <option value="all">Todas las competiciones</option>
-                {competitions.map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            </label>
+            {served && served.length === 1 ? (
+              <p className={`${css.fixedTeam} ${css.competition}`}><span>Competición</span>{served[0].name}</p>
+            ) : (
+              <label className={`${css.field} ${css.competition}`}>
+                <span>Competición</span>
+                <Select disabled={!competitions.length} value={competition} onChange={(e) => setCompetition(e.target.value)}>
+                  <option value="all">Todas las competiciones</option>
+                  {competitions.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              </label>
+            )}
             <label className={`${css.field} ${css.season}`}>
               <span>Temporada</span>
               <Select disabled={!seasons.length} value={season} onChange={(e) => setSeason(e.target.value)}>

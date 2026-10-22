@@ -12,18 +12,24 @@ const call = (teamId: string) =>
   });
 const sourceInfo = async () => (await source().json()) as SourceInfo;
 
+/** `GET /api/v1/scope` of the local API: Primera Federación, Group 2 (94191) in 26/27 (97382). */
+const scope = () => new Response(JSON.stringify({ data: { competitions: [
+  { name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382 },
+] } }));
+
 /** Simulated local API: the real service is not reached by these tests. */
 function localApi(handler: (url: string) => Response, env: Record<string, string> = { MATCHES_SOURCE: "local" }) {
   for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
-  const fetch = vi.fn(async (input: RequestInfo | URL) => handler(String(input)));
+  const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope() : handler(String(input)));
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
 const realMatches = (url: string) =>
   url.endsWith("/teams/2841/matches")
     ? new Response(JSON.stringify({ data: [{ match_id: 1, kickoff_utc: "2026-08-30T17:15:00+00:00", status: "finished",
-      competition: "Primera Federacion, Group 2", season: "26/27", round: 1, home_team_id: 135672, away_team_id: 2841,
+      tournament_id: 94191, competition: "Primera Federacion, Group 2", season_id: 97382, season: "26/27", round: 1,
+      home_team_id: 135672, away_team_id: 2841,
       home_score: 0, away_score: 3 }] }))
     : new Response(JSON.stringify({ data: { team_id: Number(url.split("/").at(-1)), name: "Equipo" } }));
 

@@ -8,11 +8,16 @@ const call = (playerId: string) =>
     params: Promise.resolve({ playerId }),
   });
 
+/** `GET /api/v1/scope` of the local API: Primera Federación, Group 2 (94191) in 26/27 (97382). */
+const scope = () => new Response(JSON.stringify({ data: { competitions: [
+  { name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382 },
+] } }));
+
 /** Simulated local API: the real service is not reached by these tests. */
 function localApi(handler: (url: string) => Response) {
   vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "local");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
-  const fetch = vi.fn(async (url: string) => handler(url));
+  const fetch = vi.fn(async (url: string) => url.endsWith("/api/v1/scope") ? scope() : handler(url));
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }

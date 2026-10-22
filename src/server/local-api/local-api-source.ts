@@ -11,6 +11,7 @@ import {
   type ObservedPlayerMatches,
   type ObservedPlayers,
   type ObservedSubstitution,
+  type ObservedCompetition,
   type ObservedTeam,
   type ObservedTeamMatches,
   type PlayerPosition,
@@ -311,6 +312,37 @@ export function createLocalApiPlayerProfile(options: Options) {
   };
 }
 
+/** A competition the local API serves, with the source ids that identify its matches. */
+type SourceCompetition = ObservedCompetition & { tournamentId: number; seasonId: number };
+
+/**
+ * The competitions the local API serves (`GET /api/v1/scope`): one group of a
+ * competition in one season each. The service filters by them; a service that
+ * does not declare its scope is unusable, never assumed to serve everything.
+ */
+async function sourceScope(options: Options): Promise<SourceCompetition[]> {
+  const body = await getJson(options, `${baseOf(options)}/api/v1/scope`);
+  if (body === null) throw new UpstreamUnavailableError("La API local no declara su ámbito (/api/v1/scope).");
+  if (!isRecord(body) || !isRecord(body.data) || !Array.isArray(body.data.competitions) || !body.data.competitions.length) {
+    throw invalid("se esperaba { data: { competitions: [...] } }");
+  }
+  return body.data.competitions.map((entry, index) => {
+    const at = (field: string) => `data.competitions[${index}].${field}`;
+    if (!isRecord(entry)) throw invalid(`data.competitions[${index}]`);
+    const name = optionalText(entry.name, at("name"));
+    if (name === null) throw invalid(at("name"));
+    return { name, season: optionalText(entry.season, at("season")),
+      tournamentId: positiveId(entry.tournament_id, at("tournament_id")), seasonId: positiveId(entry.season_id, at("season_id")) };
+  });
+}
+
+/** A match the service returned outside its own scope makes the whole answer invalid: it is never shown. */
+function assertInScope(match: Record<string, unknown>, scope: readonly SourceCompetition[], at: (field: string) => string) {
+  if (!scope.some((c) => c.tournamentId === match.tournament_id && c.seasonId === match.season_id)) {
+    throw invalid(`${at("tournament_id")}: partido fuera del ámbito declarado`);
+  }
+}
+
 /** A match before its team names are resolved. */
 type RawMatch = Omit<ObservedMatch, "home" | "away"> & { homeId: number; awayId: number };
 type RawObservedMatch = Omit<ObservedPlayerMatch, "match"> & { match: RawMatch };
@@ -374,7 +406,7 @@ function participationOf(played: unknown, minutes: number | null, where: string)
  * One call-up row. Without confirmed participation (see `participationOf`)
  * every stat stays missing. Omitted stats are missing, never 0.
  */
-function parseMatchRow(row: unknown, index: number, playerSourceId: number): RawObservedMatch {
+function parseMatchRow(row: unknown, index: number, playerSourceId: number, scope: readonly SourceCompetition[]): RawObservedMatch {
   const at = (field: string) => `data[${index}].${field}`;
   if (!isRecord(row) || !isRecord(row.match)) throw invalid(`data[${index}]`);
   if (row.player_id !== playerSourceId) throw invalid(at("player_id"));
@@ -387,6 +419,7 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number): Raw
   const statistics = row.statistics ?? null;
   if (statistics !== null && !isRecord(statistics)) throw invalid(at("statistics"));
 
+  assertInScope(row.match, scope, (field) => at(`match.${field}`));
   const match = parseMatch(row.match, id, (field) => at(`match.${field}`));
 
   const minutes =
@@ -485,10 +518,11 @@ export function createLocalApiObservedMatches(options: Options) {
   return async (playerId: string): Promise<ObservedPlayerMatches | null> => {
     const playerSourceId = sourcePlayerId(playerId);
     if (playerSourceId === null) return null;
+    const scope = await sourceScope(options);
     const body = await getJson(options, `${baseOf(options)}/api/v1/players/${playerSourceId}/matches`);
     if (body === null) return null;
     if (!isRecord(body) || !Array.isArray(body.data)) throw invalid("se esperaba { data: [] }");
-    const rows = body.data.map((row, index) => parseMatchRow(row, index, playerSourceId));
+    const rows = body.data.map((row, index) => parseMatchRow(row, index, playerSourceId, scope));
     const matches = await withTeamNames(options, rows.sort(byKickoff(true)));
     return { playerId, matches, scope: MATCHES_SCOPE, ratingSource: RATING_SOURCE, source: PROVENANCE };
   };
@@ -503,19 +537,22 @@ export function createLocalApiTeamMatches(options: Options) {
   return async (teamId: string): Promise<ObservedTeamMatches | null> => {
     const teamSourceId = SOURCE_TEAM_IDS[teamId];
     if (teamSourceId === undefined) return null;
+    const scope = await sourceScope(options);
     const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${teamSourceId}/matches`);
     if (body === null) return null;
     if (!isRecord(body) || !Array.isArray(body.data)) throw invalid("se esperaba { data: [] }");
     const rows = body.data.map((row, index) => {
       const at = (field: string) => `data[${index}].${field}`;
       if (!isRecord(row)) throw invalid(`data[${index}]`);
+      assertInScope(row, scope, at);
       const match = parseMatch(row, positiveId(row.match_id, at("match_id")), at);
       const side = match.homeId === teamSourceId ? "home" : match.awayId === teamSourceId ? "away" : null;
       if (side === null) throw invalid(`${at("match_id")}: el equipo no juega este partido`);
       return { match, side } as const;
     });
     const matches = await withTeamNames(options, rows.sort(byKickoff(false)));
-    return { teamId, matches, scope: TEAM_MATCHES_SCOPE, source: PROVENANCE };
+    const competitions = scope.map(({ name, season }) => ({ name, season }));
+    return { teamId, matches, competitions, scope: TEAM_MATCHES_SCOPE, source: PROVENANCE };
   };
 }
 
@@ -682,10 +719,12 @@ export function createLocalApiMatchDetail(options: Options) {
   return async (matchId: string): Promise<ObservedMatchDetail | null> => {
     const sourceId = sourceMatchId(matchId);
     if (sourceId === null) return null;
+    const scope = await sourceScope(options);
     const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}`);
     if (body === null) return null;
     if (!isRecord(body) || !isRecord(body.data)) throw invalid("se esperaba { data: {} }");
     const at = (field: string) => `data.${field}`;
+    assertInScope(body.data, scope, at);
     const { homeId, awayId, ...match } = parseMatch(body.data, sourceId, at);
     const statistics = await matchSection(options, sourceId, "statistics", parseTeamStats);
     const lineups = await matchSection(options, sourceId, "lineups", parseLineups);

@@ -12,10 +12,21 @@ import {
   UpstreamUnavailableError,
 } from "@/server/local-api/local-api-source";
 
+/**
+ * `GET /api/v1/scope` of the local API: this version serves Primera Federación,
+ * Group 2 (tournament 94191) in season 26/27 (97382), as declared on 2026-10-22.
+ */
+const SCOPE_BODY = { data: { competitions: [
+  { name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382 },
+] } };
+const SCOPE_URL = "http://127.0.0.1:8001/api/v1/scope";
+/** The scope's answer for its URL, `null` for any other. */
+const scoped = (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? new Response(JSON.stringify(SCOPE_BODY)) : null;
+
 /** Simulated local API: these tests never reach the real service. */
 function answer(body: unknown, status = 200) {
-  return vi.fn(async () =>
-    new Response(typeof body === "string" ? body : JSON.stringify(body), { status }),
+  return vi.fn(async (input: RequestInfo | URL) =>
+    scoped(input) ?? new Response(typeof body === "string" ? body : JSON.stringify(body), { status }),
   );
 }
 
@@ -248,6 +259,8 @@ const TEAM_NAMES: Record<string, string> = { "2841": "Real Jaén", "135672": "CE
 function matchesApi(rows: unknown[] | null, teams: Record<string, string> = TEAM_NAMES) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    const scope = scoped(url);
+    if (scope) return scope;
     const team = /\/api\/v1\/teams\/(\d+)$/.exec(url);
     if (team) {
       const name = teams[team[1]];
@@ -388,7 +401,7 @@ describe("local API adapter: observed matches", () => {
       return names(input);
     });
     await matchesSource(fetch)("sofascore-player-966303");
-    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(fetch).toHaveBeenCalledTimes(5);
     expect(most).toBe(1);
   });
 
@@ -421,7 +434,7 @@ describe("local API adapter: observed matches", () => {
 
   it("fails as unavailable when a team name lookup fails", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) =>
-      String(input).includes("/teams/") ? new Response("{}", { status: 500 }) : new Response(JSON.stringify({ data: [callUp()] })),
+      scoped(input) ?? (String(input).includes("/teams/") ? new Response("{}", { status: 500 }) : new Response(JSON.stringify({ data: [callUp()] }))),
     );
     await expect(matchesSource(fetch)("sofascore-player-966303")).rejects.toThrow("HTTP 500");
   });
@@ -445,6 +458,8 @@ const NAMES: Record<string, string> = { "2841": "Real Jaén", "135672": "CE Euro
 function teamApi(rows: unknown[] | null, names: Record<string, string> = NAMES) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    const scope = scoped(url);
+    if (scope) return scope;
     const team = /\/api\/v1\/teams\/(\d+)$/.exec(url);
     if (team) {
       return names[team[1]]
@@ -462,12 +477,11 @@ const urls = (fetch: ReturnType<typeof teamApi>) => fetch.mock.calls.map((call) 
 
 describe("local API adapter: team matches", () => {
   it("asks for our team's source id and returns its matches by kickoff, with the source's names", async () => {
-    const fetch = teamApi([pending, fixture(), cup]);
+    const fetch = teamApi([pending, fixture()]);
     const result = await teamSource(fetch)("team-real-jaen");
-    expect(urls(fetch)[0]).toBe("http://127.0.0.1:8001/api/v1/teams/2841/matches");
-    expect(result!.matches.map((row) => row.match.id)).toEqual([
-      "sofascore-match-16599363", "sofascore-match-17259821", "sofascore-match-16599386",
-    ]);
+    expect(urls(fetch).slice(0, 2)).toEqual([SCOPE_URL, "http://127.0.0.1:8001/api/v1/teams/2841/matches"]);
+    expect(result!.matches.map((row) => row.match.id)).toEqual(["sofascore-match-16599363", "sofascore-match-16599386"]);
+    expect(result!.competitions).toEqual([{ name: "Primera Federación, Grupo 2", season: "26/27" }]);
     expect(result!.matches[0]).toEqual({
       side: "away",
       match: {
@@ -508,6 +522,29 @@ describe("local API adapter: team matches", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["Copa del Rey", cup],
+    ["another group of the same league and season", fixture({ tournament_id: 94190 })],
+    ["the same group in an undeclared season", fixture({ season_id: 12345 })],
+  ])("never shows a match outside the declared scope (%s): the answer is invalid", async (_case, row) => {
+    await expect(teamSource(teamApi([fixture(), row]))("team-real-jaen")).rejects.toThrow("fuera del ámbito declarado");
+    await expect(matchesSource(matchesApi([callUp({ match_id: row.match_id }, row)]))("sofascore-player-966303"))
+      .rejects.toThrow("fuera del ámbito declarado");
+    await expect(detailSource(detailApi(matchBody(row), statsBody()))(`sofascore-match-${row.match_id}`))
+      .rejects.toThrow("fuera del ámbito declarado");
+  });
+
+  it.each([
+    ["no scope route (an older service)", () => new Response(JSON.stringify({ error: "Ruta inexistente" }), { status: 404 })],
+    ["an empty scope", () => new Response(JSON.stringify({ data: { competitions: [] } }))],
+    ["a scope without ids", () => new Response(JSON.stringify({ data: { competitions: [{ name: "Grupo 2" }] } }))],
+  ])("fails as unavailable with %s, never serving everything", async (_case, scopeAnswer) => {
+    const rows = teamApi([fixture()]);
+    const fetch = vi.fn(async (input: RequestInfo | URL) => String(input) === SCOPE_URL ? scopeAnswer() : rows(input));
+    await expect(teamSource(fetch)("team-real-jaen")).rejects.toBeInstanceOf(UpstreamUnavailableError);
+    expect(urls(fetch as unknown as ReturnType<typeof teamApi>)).toEqual([SCOPE_URL]);
+  });
+
   it("distinguishes an empty list from a team the source does not know", async () => {
     expect((await teamSource(teamApi([]))("team-real-jaen"))!.matches).toEqual([]);
     expect(await teamSource(teamApi(null))("team-real-jaen")).toBeNull();
@@ -535,7 +572,7 @@ describe("local API adapter: team matches", () => {
 
     clearTeamNameCache();
     const failing = vi.fn(async (input: RequestInfo | URL) =>
-      String(input).endsWith("/matches") ? new Response(JSON.stringify({ data: [fixture()] })) : new Response("{}", { status: 500 }));
+      scoped(input) ?? (String(input).endsWith("/matches") ? new Response(JSON.stringify({ data: [fixture()] })) : new Response("{}", { status: 500 })));
     await expect(teamSource(failing)("team-real-jaen")).rejects.toThrow("HTTP 500");
     const recovered = teamApi([fixture()]);
     await teamSource(recovered)("team-real-jaen");
@@ -603,6 +640,8 @@ function detailApi(match: unknown, stats: unknown | (() => Response), lineups: u
   incidents: unknown | (() => Response) = incidentsBody("not_stored")) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    const scope = scoped(url);
+    if (scope) return scope;
     if (url.endsWith("/incidents")) {
       return typeof incidents === "function" ? (incidents as () => Response)() : new Response(JSON.stringify(incidents));
     }
@@ -631,7 +670,7 @@ describe("local API adapter: real match detail", () => {
     const fetch = detailApi(matchBody(), statsBody());
     const result = await detailSource(fetch)("sofascore-match-16599363");
     expect(fetch.mock.calls.map((call) => String((call as unknown[])[0]))).toEqual([
-      "http://127.0.0.1:8001/api/v1/matches/16599363", "http://127.0.0.1:8001/api/v1/matches/16599363/statistics",
+      SCOPE_URL, "http://127.0.0.1:8001/api/v1/matches/16599363", "http://127.0.0.1:8001/api/v1/matches/16599363/statistics",
       "http://127.0.0.1:8001/api/v1/matches/16599363/lineups", "http://127.0.0.1:8001/api/v1/matches/16599363/incidents",
     ]);
     expect(result!.match).toEqual({

@@ -20,8 +20,10 @@ const match = (id: string, fields: Partial<ObservedMatch>): ObservedMatch => ({
   score: { home: 0, away: 3 }, ...fields,
 });
 const SCOPE = "Partidos del equipo que registra la fuente. No es necesariamente un calendario completo.";
-const real = (matches: ObservedMatch[]): ObservedTeamMatches => ({
-  teamId: "team-real-jaen", scope: SCOPE, source: { synthetic: false, label: "Datos reales" },
+const GROUP_2 = { name: "Primera Federación, Grupo 2", season: "26/27" };
+/** By default a source serving two competitions (the selector's case); this version's serves only Group 2. */
+const real = (matches: ObservedMatch[], competitions = [GROUP_2, { name: "Copa del Rey", season: "26/27" }]): ObservedTeamMatches => ({
+  teamId: "team-real-jaen", scope: SCOPE, source: { synthetic: false, label: "Datos reales" }, competitions,
   matches: matches.map((m) => ({ match: m, side: m.home.id === jaen.id ? "home" : "away" })),
 });
 const finished = match("m1", {});
@@ -61,6 +63,20 @@ describe("Partidos with the real source", () => {
     const links = within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["m1", "m2", "m3", "m5", "m4"].map((id) => `/matches/${id}?view=observed`));
     for (const synthetic of [getCompetitions, getSeasonMatches, getSeasonTeams]) expect(synthetic).not.toHaveBeenCalled();
+  });
+
+  it("names the only competition the source serves instead of offering a choice, keeping the real seasons", async () => {
+    vi.mocked(getTeamObservedMatches).mockResolvedValue(real([finished, goalless, strange], [GROUP_2]));
+    const user = userEvent.setup();
+    render(<MatchesView />);
+    await screen.findByRole("list", { name: "Partidos reales" });
+    expect(screen.queryByRole("combobox", { name: "Competición" })).toBeNull();
+    expect(screen.getByText("Competición").parentElement).toHaveTextContent("CompeticiónPrimera Federación, Grupo 2");
+    const season = screen.getByRole("combobox", { name: "Temporada" });
+    expect([...season.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Todas", "27/28", "26/27"]);
+    await user.selectOptions(season, "26/27");
+    expect(rows()).toHaveLength(2);
+    expect(screen.queryByText(/Copa del Rey/)).toBeNull();
   });
 
   it("filters by the source's seasons, competitions and status", async () => {

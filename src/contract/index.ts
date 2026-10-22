@@ -463,9 +463,18 @@ export type ObservedPlayerMatches = {
  * source lists them, by kickoff (undated last). Not necessarily a complete
  * calendar; `scope` says so.
  */
+/**
+ * A competition a real source serves in this version (its declared scope),
+ * as the source names it: e.g. one group of a league in one season. Nothing
+ * outside the scope is ever returned.
+ */
+export type ObservedCompetition = { name: string; season: string | null };
+
 export type ObservedTeamMatches = {
   teamId: string;
   matches: { match: ObservedMatch; side: Side }[];
+  /** The competitions the source serves, whether or not they have matches here. */
+  competitions: ObservedCompetition[];
   /** What the list covers, for the analyst, in Spanish. */
   scope: string;
   source: DataProvenance;

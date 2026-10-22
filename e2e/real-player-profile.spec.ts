@@ -47,8 +47,8 @@ const MOHA_MATCHES = observedMatches("sofascore-player-966303", [
     side: "home", role: "starter", position: "midfielder", participation: "confirmed",
     stats: stats({ minutes: 90, assists: 0, shots: 2, shotsOnTarget: 0, xg: 0.31, passesCompleted: 23, passes: 29, rating: 7 }) },
   { match: { id: "sofascore-match-16599500", kickoff: "2026-09-20T16:00:00+00:00", status: "finished",
-    competition: "Copa del Rey", season: "26/27", round: null,
-    home: { id: "sofascore-team-3", name: "CD Rival Copa" }, away: { id: "team-real-jaen", name: "Real Jaén" },
+    competition: "Primera Federacion, Group 2", season: "26/27", round: 5,
+    home: { id: "sofascore-team-3", name: "Antequera CF" }, away: { id: "team-real-jaen", name: "Real Jaén" },
     score: { home: 0, away: 2 } },
     side: "away", role: "substitute", position: "forward", participation: "confirmed",
     stats: stats({ minutes: 22, goals: 1, assists: 1, shots: 1, shotsOnTarget: 1, passes: 8, passesCompleted: 6, duelsWon: 3, rating: 7.6 }) },
@@ -155,7 +155,7 @@ test("Real players: failing matches keep the personal data and retry on their ow
 });
 
 const RAYO = (MOHA_MATCHES.matches[0] as { match: { id: string } }).match;
-const COPA = (MOHA_MATCHES.matches[1] as { match: { id: string } }).match;
+const ANTEQUERA = (MOHA_MATCHES.matches[1] as { match: { id: string } }).match;
 const lineupPlayer = (id: number, name: string, role = "starter") => ({
   player: { id: `sofascore-player-${id}`, name, position: "midfielder" }, shirtNumber: id % 100,
   role, participation: "confirmed", minutes: { value: 90 },
@@ -177,8 +177,8 @@ async function serveRealWithMatches(page: Page) {
     route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] } }));
   await page.route("**/api/v1/matches/*/observed", (route) => {
     const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
-    return id === RAYO.id || id === COPA.id
-      ? route.fulfill({ json: { ...RAYO_DETAIL, match: id === RAYO.id ? RAYO : COPA } })
+    return id === RAYO.id || id === ANTEQUERA.id
+      ? route.fulfill({ json: { ...RAYO_DETAIL, match: id === RAYO.id ? RAYO : ANTEQUERA } })
       : route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Partido no encontrado en la fuente real de partidos." } } });
   });
 }
@@ -240,7 +240,7 @@ test("Real players: Partidos master-detail, selection in place, kept on reload a
   await other.close();
   await full.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 1, name: "CD Rival Copa contra Real Jaén" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Antequera CF contra Real Jaén" })).toBeVisible();
   await page.getByRole("link", { name: "‹ Volver al jugador" }).click();
   await expect(page).toHaveURL(profileUrl);
   await expect(page.getByRole("list", { name: "Histórico de partidos" }).getByRole("button").nth(1)).toHaveAttribute("aria-pressed", "true");
