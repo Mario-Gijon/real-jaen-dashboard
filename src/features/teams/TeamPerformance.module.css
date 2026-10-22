@@ -81,7 +81,9 @@
 }
 .balance {
   display: grid;
-  grid-template-columns: repeat(6, minmax(44px, 1fr));
+  /* One column per item: six, or seven with the goal difference. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(44px, 1fr);
   width: min(100%, 400px);
   border: 1px solid var(--rj-border-default);
   border-radius: var(--rj-radius-sm);
@@ -312,6 +314,9 @@
   background: var(--rj-bg-hover);
 }
 .table tbody tr { cursor: pointer; }
+/* A match without a detail to open (real matches not enabled) is not interactive. */
+.table tbody tr[data-linked="false"] { cursor: default; }
+.table tbody tr[data-linked="false"]:hover { background: none; }
 .opponent { color: inherit; text-decoration: none; }
 .opponent:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .table tbody tr[data-in-period] {

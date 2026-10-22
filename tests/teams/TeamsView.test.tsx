@@ -32,7 +32,9 @@ function serveApi() {
     const observed = /^\/teams\/([^/]+)\/players$/.exec(path);
     if (observed) return observedReply(decodeURIComponent(observed[1]));
     const body =
-      path === "/competitions"
+      path === "/source"
+        ? { synthetic: true, label: "Datos sintéticos", realSections: [] }
+        : path === "/competitions"
         ? competitions
         : path === `/seasons/${SEASON_ID}/teams`
           ? standings

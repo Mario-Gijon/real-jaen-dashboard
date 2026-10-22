@@ -8,6 +8,7 @@ import type {
   ObservedPlayerMatches,
   ObservedPlayers,
   ObservedTeamMatches,
+  ObservedTeamPerformance,
   PlayerProfile,
   PlayerSeason,
   SourceInfo,
@@ -106,6 +107,11 @@ export function getObservedMatchDetail(matchId: string, options?: RequestOptions
 /** A team's matches as a real source lists them, by kickoff. */
 export function getTeamObservedMatches(teamId: string, options?: RequestOptions) {
   return get<ObservedTeamMatches>(`/teams/${segment(teamId)}/observed-matches`, options);
+}
+
+/** A team's results in each competition of the real source's scope. */
+export function getTeamObservedPerformance(teamId: string, options?: RequestOptions) {
+  return get<ObservedTeamPerformance>(`/teams/${segment(teamId)}/observed-performance`, options);
 }
 
 /** Matches in which a real source lists the player, newest first. */

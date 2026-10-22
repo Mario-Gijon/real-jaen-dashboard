@@ -3,10 +3,11 @@ import Link from "next/link";
 import { LinkedTableRow } from "@/ui/LinkedTableRow";
 
 import { useEffect, useRef, useState } from "react";
-import type { MatchResult, TeamMatch, TeamSeason } from "@/contract";
+import type { MatchResult, ObservedCompetitionPerformance, Side, TeamMatch, TeamRef, TeamSeason } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel, formatNumber } from "../format";
-import { finishedMatches, periodMatches, venueRecord, type Period } from "./performance";
+import { observedCrest } from "../matches/ObservedMatchList";
+import { finishedMatches, goalsAgainst, goalsFor, periodMatches, venueRecord, type Period, type VenueRecord } from "./performance";
 import { TeamOutput } from "./TeamOutput";
 import css from "./TeamPerformance.module.css";
 
@@ -21,16 +22,31 @@ const PERIODS: readonly (readonly [Period, string])[] = [
   ["last3", "Últimos 3"],
 ];
 
-/** Goals of the team first, as the result reads from its side. */
-function teamScore({ match, side }: TeamMatch): string {
-  const { home, away } = match.score!;
-  return side === "home" ? `${home}-${away}` : `${away}-${home}`;
-}
+/** A played match as the zones show it, whatever its source. */
+type Played = {
+  id: string;
+  /** `null` when the source does not give the round. */
+  round: number | null;
+  kickoff: string | null;
+  side: Side;
+  opponent: TeamRef;
+  result: MatchResult;
+  goalsFor: number;
+  goalsAgainst: number;
+  /** Detail of the match, or `null` when there is none to open. */
+  href: string | null;
+};
+/** Short label, long label and value of one balance item. */
+type BalanceItem = [string, string, string | number];
 
-function resultLabel(played: TeamMatch): string {
-  const { label } = RESULT[played.result!];
+/** Goals of the team first, as the result reads from its side. */
+const teamScore = (m: Played) => `${m.goalsFor}-${m.goalsAgainst}`;
+
+function resultLabel(played: Played): string {
+  const { label } = RESULT[played.result];
   const venue = played.side === "home" ? "en casa contra" : "fuera contra";
-  return `Jornada ${played.match.round}: ${label} ${teamScore(played)} ${venue} ${played.opponent.name}`;
+  const round = played.round !== null ? `Jornada ${played.round}: ` : "";
+  return `${round}${label} ${teamScore(played)} ${venue} ${played.opponent.name}`;
 }
 
 /** Date with the year hidden on phones, where the season makes it obvious. */
@@ -46,6 +62,13 @@ function DateCell({ kickoff }: { kickoff: string | null }) {
   );
 }
 
+function syntheticPlayed(m: TeamMatch): Played {
+  return {
+    id: m.match.id, round: m.match.round, kickoff: m.match.kickoff, side: m.side, opponent: m.opponent,
+    result: m.result!, goalsFor: goalsFor(m), goalsAgainst: goalsAgainst(m), href: `/matches/${encodeURIComponent(m.match.id)}`,
+  };
+}
+
 /**
  * «Rendimiento del equipo» in three zones that answer three questions:
  * TEMPORADA (how is the team doing), RENDIMIENTO (what it produces and
@@ -53,14 +76,24 @@ function DateCell({ kickoff }: { kickoff: string | null }) {
  * matches explain it). Only `status: finished` counts as played.
  */
 export function TeamPerformance({ season }: { season: TeamSeason }) {
-  const played = finishedMatches(season.matches);
+  const finished = finishedMatches(season.matches);
+  const played = finished.map(syntheticPlayed);
   const [period, setPeriod] = useState<Period>("season");
   const inPeriod = periodMatches(season.matches, period);
   const highlighted = new Set(period === "last3" ? inPeriod.map((m) => m.match.id) : []);
+  const { record, rank } = season.standing;
+  const balance: BalanceItem[] = [
+    ["PJ", "Partidos jugados", record.played],
+    ["V", "Victorias", record.wins],
+    ["E", "Empates", record.draws],
+    ["D", "Derrotas", record.losses],
+    ["GF", "Goles a favor", record.goalsFor],
+    ["GC", "Goles en contra", record.goalsAgainst],
+  ];
 
   return (
     <div className={css.performance}>
-      <SeasonZone played={played} season={season} />
+      <SeasonZone balance={balance} lead={{ rank, points: record.points }} played={played} venues={venueRecord(season.matches)} />
 
       <section aria-labelledby="zone-output" className={css.zone}>
         <header className={css.zoneHeader}>
@@ -80,107 +113,158 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
             ))}
           </div>
         </header>
-        {played.length ? (
-          <TeamOutput period={period} periodMatches={inPeriod} seasonMatches={played} />
+        {finished.length ? (
+          <TeamOutput period={period} periodMatches={inPeriod} seasonMatches={finished} />
         ) : (
           <p className={css.empty}>Sin partidos disputados.</p>
         )}
       </section>
 
-      <section aria-labelledby="zone-matches" className={css.zone}>
-        <header className={css.zoneHeader}>
-          <h3 className={css.zoneTitle} id="zone-matches">
-            Partidos
-          </h3>
-        </header>
-        {played.length ? (
-          <div className={css.scroll}>
-            <table aria-label="Partidos disputados" className={css.table}>
-              <thead>
-                <tr>
-                  <th scope="col">
-                    <abbr title="Jornada">J</abbr>
-                  </th>
-                  <th scope="col">Fecha</th>
-                  <th className={css.venue} scope="col">
-                    Condición
-                  </th>
-                  <th scope="col">Rival</th>
-                  <th className={css.end} scope="col">
-                    Resultado
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...played].reverse().map((m) => {
-                  const marked = highlighted.has(m.match.id);
-                  return (
-                    <LinkedTableRow
-                      data-in-period={marked || undefined}
-                      data-match-id={m.match.id}
-                      key={m.match.id}
-                    >
-                      <td className={css.num}>
-                        {m.match.round}
-                        {marked ? <span className={css.sr}> (en «Últimos 3»)</span> : null}
-                      </td>
-                      <td className={css.date}>
-                        <DateCell kickoff={m.match.kickoff} />
-                      </td>
-                      <td className={css.venue}>{m.side === "home" ? "Local" : "Visitante"}</td>
-                      <td className={css.rival}>
-                        <Link href={`/matches/${encodeURIComponent(m.match.id)}`} className={css.opponent} prefetch={false}>
-                          <span aria-hidden="true" className={css.venueShort}>
-                            {m.side === "home" ? "vs" : "en"}
-                          </span>
-                          <TeamCrest size={22} team={m.opponent} />
-                          <span className={css.opponentName}>{m.opponent.name}</span>
-                        </Link>
-                      </td>
-                      <td className={css.end}>
-                        <span
-                          aria-label={`${RESULT[m.result!].label} ${teamScore(m)}`}
-                          className={css.score}
-                          data-result={m.result}
-                        >
-                          {RESULT[m.result!].letter} {teamScore(m)}
-                        </span>
-                      </td>
-                    </LinkedTableRow>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className={css.empty}>Sin partidos disputados.</p>
-        )}
-      </section>
+      <PlayedZone highlighted={highlighted} played={played} />
     </div>
   );
 }
 
-/** TEMPORADA: table position and record, home/away split and the result sequence. */
-function SeasonZone({ season, played }: { season: TeamSeason; played: readonly TeamMatch[] }) {
-  const [activeId, setActiveId] = useState<string | null>(null);
-  // When the sequence overflows, start at its end: the latest results.
-  const sequence = useRef<HTMLOListElement>(null);
-  const lastId = played.at(-1)?.match.id;
-  useEffect(() => {
-    const list = sequence.current;
-    if (list) list.scrollLeft = list.scrollWidth;
-  }, [lastId]);
-  const active = played.find((m) => m.match.id === activeId) ?? played[played.length - 1];
-  const { record, rank } = season.standing;
-  const venues = venueRecord(season.matches);
-  const balance: [string, string, number][] = [
+/** «+4», «−1» or «0»: a plain difference, never good or bad. */
+function signed(value: number): string {
+  return value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : "0";
+}
+
+/**
+ * The same zones with a real source's results: balance (with goal
+ * difference), home and away, the result sequence and the played matches.
+ * No table position nor points (there are no standings), and the advanced
+ * metrics zone is left out until those aggregates exist. `matchHref` opens
+ * the real match detail when real matches are enabled.
+ */
+export function RealTeamPerformance({ competition, matchHref }: {
+  competition: ObservedCompetitionPerformance; matchHref: ((matchId: string) => string) | null;
+}) {
+  const { record } = competition;
+  const played: Played[] = competition.results.map(({ match, side, result, goalsFor, goalsAgainst }) => ({
+    id: match.id, round: match.round, kickoff: match.kickoff, side, result, goalsFor, goalsAgainst,
+    opponent: { id: (side === "home" ? match.away : match.home).id, ...observedCrest(side === "home" ? match.away : match.home) },
+    href: matchHref ? matchHref(match.id) : null,
+  }));
+  const balance: BalanceItem[] = [
     ["PJ", "Partidos jugados", record.played],
     ["V", "Victorias", record.wins],
     ["E", "Empates", record.draws],
     ["D", "Derrotas", record.losses],
     ["GF", "Goles a favor", record.goalsFor],
     ["GC", "Goles en contra", record.goalsAgainst],
+    ["DG", "Diferencia de goles", signed(record.goalDifference)],
   ];
+  if (!record.played) {
+    return <div className={css.performance}>
+      <p className={css.empty} role="status">Sin partidos finalizados observados en esta competición.</p>
+    </div>;
+  }
+  return (
+    <div className={css.performance}>
+      <SeasonZone balance={balance} lead={null} played={played} venues={competition.venues} />
+      <PlayedZone highlighted={new Set()} played={played} />
+    </div>
+  );
+}
+
+/** PARTIDOS: the played matches, newest first, each opening its detail when there is one. */
+function PlayedZone({ played, highlighted }: { played: readonly Played[]; highlighted: ReadonlySet<string> }) {
+  return (
+    <section aria-labelledby="zone-matches" className={css.zone}>
+      <header className={css.zoneHeader}>
+        <h3 className={css.zoneTitle} id="zone-matches">
+          Partidos
+        </h3>
+      </header>
+      {played.length ? (
+        <div className={css.scroll}>
+          <table aria-label="Partidos disputados" className={css.table}>
+            <thead>
+              <tr>
+                <th scope="col">
+                  <abbr title="Jornada">J</abbr>
+                </th>
+                <th scope="col">Fecha</th>
+                <th className={css.venue} scope="col">
+                  Condición
+                </th>
+                <th scope="col">Rival</th>
+                <th className={css.end} scope="col">
+                  Resultado
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...played].reverse().map((m) => {
+                const marked = highlighted.has(m.id);
+                const opponent = (
+                  <>
+                    <span aria-hidden="true" className={css.venueShort}>
+                      {m.side === "home" ? "vs" : "en"}
+                    </span>
+                    <TeamCrest size={22} team={m.opponent} />
+                    <span className={css.opponentName}>{m.opponent.name}</span>
+                  </>
+                );
+                const Row = m.href ? LinkedTableRow : "tr";
+                return (
+                  <Row
+                    data-in-period={marked || undefined}
+                    data-linked={m.href ? undefined : "false"}
+                    data-match-id={m.id}
+                    key={m.id}
+                  >
+                    <td className={css.num}>
+                      {m.round ?? "—"}
+                      {marked ? <span className={css.sr}> (en «Últimos 3»)</span> : null}
+                    </td>
+                    <td className={css.date}>
+                      <DateCell kickoff={m.kickoff} />
+                    </td>
+                    <td className={css.venue}>{m.side === "home" ? "Local" : "Visitante"}</td>
+                    <td className={css.rival}>
+                      {m.href ? (
+                        <Link href={m.href} className={css.opponent} prefetch={false}>{opponent}</Link>
+                      ) : (
+                        <span className={css.opponent}>{opponent}</span>
+                      )}
+                    </td>
+                    <td className={css.end}>
+                      <span
+                        aria-label={`${RESULT[m.result].label} ${teamScore(m)}`}
+                        className={css.score}
+                        data-result={m.result}
+                      >
+                        {RESULT[m.result].letter} {teamScore(m)}
+                      </span>
+                    </td>
+                  </Row>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={css.empty}>Sin partidos disputados.</p>
+      )}
+    </section>
+  );
+}
+
+/** TEMPORADA: table position and points (when there are standings), record, home/away split and the result sequence. */
+function SeasonZone({ balance, lead, venues, played }: {
+  balance: readonly BalanceItem[]; lead: { rank: number; points: number } | null; venues: VenueRecord; played: readonly Played[];
+}) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  // When the sequence overflows, start at its end: the latest results.
+  const sequence = useRef<HTMLOListElement>(null);
+  const lastId = played.at(-1)?.id;
+  useEffect(() => {
+    const list = sequence.current;
+    if (list) list.scrollLeft = list.scrollWidth;
+  }, [lastId]);
+  const active = played.find((m) => m.id === activeId) ?? played[played.length - 1];
 
   return (
     <section aria-labelledby="zone-season" className={css.zone}>
@@ -190,16 +274,18 @@ function SeasonZone({ season, played }: { season: TeamSeason; played: readonly T
         </h3>
       </header>
       <div className={css.standing}>
-        <dl className={css.lead}>
-          <div>
-            <dt>Clasificación</dt>
-            <dd>{formatNumber(rank)}.º</dd>
-          </div>
-          <div>
-            <dt>Puntos</dt>
-            <dd>{record.points}</dd>
-          </div>
-        </dl>
+        {lead ? (
+          <dl className={css.lead}>
+            <div>
+              <dt>Clasificación</dt>
+              <dd>{formatNumber(lead.rank)}.º</dd>
+            </div>
+            <div>
+              <dt>Puntos</dt>
+              <dd>{lead.points}</dd>
+            </div>
+          </dl>
+        ) : null}
         <dl aria-label="Balance" className={css.balance}>
           {balance.map(([short, long, value]) => (
             <div data-kind={short} key={short}>
@@ -231,31 +317,31 @@ function SeasonZone({ season, played }: { season: TeamSeason; played: readonly T
         <div className={css.form}>
           <ol aria-label="Resultados por jornada" className={css.chips} ref={sequence}>
             {played.map((m) => (
-              <li key={m.match.id}>
+              <li key={m.id}>
                 <button
                   aria-label={resultLabel(m)}
                   aria-pressed={m === active}
                   className={css.chip}
                   data-result={m.result}
-                  onClick={() => setActiveId(m.match.id)}
-                  onFocus={() => setActiveId(m.match.id)}
-                  onMouseEnter={() => setActiveId(m.match.id)}
+                  onClick={() => setActiveId(m.id)}
+                  onFocus={() => setActiveId(m.id)}
+                  onMouseEnter={() => setActiveId(m.id)}
                   title={resultLabel(m)}
                   type="button"
                 >
-                  <span className={css.letter}>{RESULT[m.result!].letter}</span>
+                  <span className={css.letter}>{RESULT[m.result].letter}</span>
                 </button>
               </li>
             ))}
           </ol>
           {active ? (
             <p aria-live="polite" className={css.detail}>
-              <span className={css.detailRound}>J{active.match.round}</span>
+              {active.round !== null ? <span className={css.detailRound}>J{active.round}</span> : null}
               <span>{active.side === "home" ? "Local" : "Visitante"}</span>
               <TeamCrest size={20} team={active.opponent} />
               <strong>{active.opponent.name}</strong>
               <span className={css.score} data-result={active.result}>
-                {RESULT[active.result!].letter} {teamScore(active)}
+                {RESULT[active.result].letter} {teamScore(active)}
               </span>
             </p>
           ) : null}

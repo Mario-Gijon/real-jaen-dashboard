@@ -481,6 +481,44 @@ export type ObservedTeamMatches = {
 };
 
 /**
+ * Results of a team in one competition of a real source's scope, from its
+ * finished matches with a valid score only: the observed sample, not
+ * necessarily the whole season. There is no table position nor points.
+ */
+export type ObservedCompetitionPerformance = {
+  /**
+   * Our id for one competition group in one season, derived from the
+   * provider's ids: `sofascore-scope-{tournamentId}-{seasonId}`. Stable while
+   * that source is used; never related to a synthetic season.
+   */
+  id: string;
+  name: string;
+  season: string | null;
+  /**
+   * The team's matches in this competition by state. Only `counted` ones
+   * (finished with a valid score) make the record; a finished match without
+   * one is reported here, never read as 0–0.
+   */
+  matches: { inScope: number; finished: number; pending: number; counted: number; finishedWithoutValidScore: number; unknownStatus: number };
+  record: { played: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number; goalDifference: number };
+  venues: Record<Side, Record<MatchResult, number>>;
+  /** The counted matches, oldest first, seen from the team. */
+  results: { match: ObservedMatch; side: Side; result: MatchResult; goalsFor: number; goalsAgainst: number }[];
+};
+
+/** `GET /api/v1/teams/{teamId}/observed-performance`. */
+export type ObservedTeamPerformance = {
+  teamId: string;
+  /** One per competition of the source's scope, in the source's order. */
+  competitions: ObservedCompetitionPerformance[];
+  /** Teams with an explicit correspondence in this source: the ones that can be analysed. */
+  teams: ObservedTeam[];
+  /** What the figures cover, for the analyst, in Spanish. */
+  scope: string;
+  source: DataProvenance;
+};
+
+/**
  * A player in a real match's line-up, in the source's order. No formation,
  * pitch slot, events or individual stats here.
  */
@@ -579,7 +617,7 @@ export type SourceInfo = {
   realSections: RealSection[];
 };
 
-export type RealSection = "observedPlayers" | "matches";
+export type RealSection = "observedPlayers" | "matches" | "teams";
 
 /** Error body of every `/api/v1` endpoint. */
 export type ApiError = { error: { code: ApiErrorCode; message: string } };

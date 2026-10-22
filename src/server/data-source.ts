@@ -7,6 +7,7 @@ import type {
   ObservedPlayerMatches,
   ObservedPlayers,
   ObservedTeamMatches,
+  ObservedTeamPerformance,
   PlayerProfile,
   RealSection,
   PlayerSeason,
@@ -17,6 +18,7 @@ import type {
 import {
   createLocalApiObservedMatches,
   createLocalApiObservedPlayers,
+  createLocalApiTeamPerformance,
   createLocalApiPlayerProfile,
   createLocalApiMatchDetail,
   createLocalApiTeamMatches,
@@ -60,6 +62,11 @@ export interface DataSource {
    */
   teamObservedMatches(teamId: string): Promise<ObservedTeamMatches | null>;
   /**
+   * A team's results in each competition of a real source's scope; `null` if
+   * that team has no correspondence in it. Throws like `observedPlayers`.
+   */
+  teamObservedPerformance(teamId: string): Promise<ObservedTeamPerformance | null>;
+  /**
    * A real match with its team stats; `null` for an id that is not a real
    * match id or a match the source does not know. Throws like `observedPlayers`.
    */
@@ -67,7 +74,7 @@ export interface DataSource {
 }
 
 /** `synthetic` (default) or `local`, from the variable `name`; anything else is refused. */
-function sectionSource(name: "OBSERVED_PLAYERS_SOURCE" | "MATCHES_SOURCE"): "synthetic" | "local" {
+function sectionSource(name: "OBSERVED_PLAYERS_SOURCE" | "MATCHES_SOURCE" | "TEAMS_SOURCE"): "synthetic" | "local" {
   const value = process.env[name] || "synthetic";
   if (value !== "synthetic" && value !== "local") {
     throw new Error(`${name}: fuente no disponible: ${value}`);
@@ -80,7 +87,8 @@ function sectionSource(name: "OBSERVED_PLAYERS_SOURCE" | "MATCHES_SOURCE"): "syn
  * independent switches take one section each from the local API at
  * `LOCAL_DATA_API_URL`, everything else staying synthetic:
  * `OBSERVED_PLAYERS_SOURCE=local` (observed players, their profiles and
- * matches) and `MATCHES_SOURCE=local` (Partidos: the team's real matches).
+ * matches), `MATCHES_SOURCE=local` (Partidos: the team's real matches) and
+ * `TEAMS_SOURCE=local` (Equipos: real teams and their results).
  */
 export function getDataSource(): DataSource {
   const kind = process.env.DATA_SOURCE ?? "synthetic";
@@ -90,11 +98,12 @@ export function getDataSource(): DataSource {
   const real: RealSection[] = [];
   if (sectionSource("OBSERVED_PLAYERS_SOURCE") === "local") real.push("observedPlayers");
   if (sectionSource("MATCHES_SOURCE") === "local") real.push("matches");
+  if (sectionSource("TEAMS_SOURCE") === "local") real.push("teams");
   if (real.length === 0) return syntheticSource;
 
   const baseUrl = process.env.LOCAL_DATA_API_URL;
   if (!baseUrl) {
-    throw new Error("OBSERVED_PLAYERS_SOURCE=local o MATCHES_SOURCE=local requieren LOCAL_DATA_API_URL.");
+    throw new Error("OBSERVED_PLAYERS_SOURCE=local, MATCHES_SOURCE=local o TEAMS_SOURCE=local requieren LOCAL_DATA_API_URL.");
   }
   const local = { baseUrl };
   return {
@@ -110,5 +119,6 @@ export function getDataSource(): DataSource {
     ...(real.includes("matches")
       ? { teamObservedMatches: createLocalApiTeamMatches(local), matchObservedDetail: createLocalApiMatchDetail(local) }
       : {}),
+    ...(real.includes("teams") ? { teamObservedPerformance: createLocalApiTeamPerformance(local) } : {}),
   };
 }

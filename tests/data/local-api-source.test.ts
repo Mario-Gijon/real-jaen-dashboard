@@ -7,6 +7,7 @@ import {
   createLocalApiPlayerProfile,
   createLocalApiMatchDetail,
   createLocalApiTeamMatches,
+  createLocalApiTeamPerformance,
   sourceMatchId,
   sourcePlayerId,
   UpstreamUnavailableError,
@@ -832,5 +833,107 @@ describe("local API adapter: real incidents", () => {
       expect(result.lineups.state).toBe("stored");
       expect(result.statistics.state).toBe("stored");
     }
+  });
+});
+
+/**
+ * `GET /api/v1/teams/2841/performance` of the local API (trimmed): two finished
+ * matches of Group 2 seen from Real Jaén, aggregated by the service.
+ */
+const perfMatch = (id: number, home: number, away: number, homeScore: number | boolean | null, awayScore: number | null, round: number) =>
+  fixture({ match_id: id, home_team_id: home, away_team_id: away, home_score: homeScore, away_score: awayScore, round,
+    kickoff_utc: `2026-09-0${round}T17:00:00+00:00` });
+const performanceBody = (overrides: Record<string, unknown> = {}, results?: unknown[]) => ({
+  data: { team_id: 2841, competitions: [{
+    name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382,
+    matches: { in_scope: 4, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, unknown_status: 0 },
+    record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: 3, goals_against: 2, goal_difference: 1 },
+    venues: { home: { wins: 0, draws: 0, losses: 1 }, away: { wins: 1, draws: 0, losses: 0 } },
+    results: results ?? [
+      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", opponent_team_id: 135672, goals_for: 3, goals_against: 0, result: "win" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", opponent_team_id: 24322, goals_for: 0, goals_against: 2, result: "loss" },
+    ],
+    ...overrides,
+  }] },
+  meta: { note: "Resultados de los partidos finalizados observados…" },
+});
+const performanceSource = (fetch: typeof globalThis.fetch) =>
+  createLocalApiTeamPerformance({ baseUrl: "http://127.0.0.1:8001", fetch });
+
+describe("local API adapter: team performance", () => {
+  it("adapts the service's aggregate per scope competition, with our scope id, rival names and the analysable teams", async () => {
+    const fetch = teamApi(null);
+    const api = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/teams/2841/performance") ? new Response(JSON.stringify(performanceBody())) : fetch(input));
+    const result = await performanceSource(api)("team-real-jaen");
+    expect(urls(api as unknown as ReturnType<typeof teamApi>).slice(0, 2)).toEqual([SCOPE_URL, "http://127.0.0.1:8001/api/v1/teams/2841/performance"]);
+    const [competition] = result!.competitions;
+    expect(competition.id).toBe("sofascore-scope-94191-97382");
+    expect([competition.name, competition.season]).toEqual(["Primera Federación, Grupo 2", "26/27"]);
+    expect(competition.matches).toEqual({ inScope: 4, finished: 3, pending: 1, counted: 2, finishedWithoutValidScore: 1, unknownStatus: 0 });
+    expect(competition.record).toEqual({ played: 2, wins: 1, draws: 0, losses: 1, goalsFor: 3, goalsAgainst: 2, goalDifference: 1 });
+    expect(competition.venues).toEqual({ home: { win: 0, draw: 0, loss: 1 }, away: { win: 1, draw: 0, loss: 0 } });
+    expect(competition.results.map((r) => [r.match.id, r.side, r.result, r.goalsFor, r.goalsAgainst, r.match.home.name])).toEqual([
+      ["sofascore-match-1", "away", "win", 3, 0, "CE Europa"],
+      ["sofascore-match-2", "home", "loss", 0, 2, "Real Jaén"],
+    ]);
+    expect(result!.teams).toEqual([{ id: "team-real-jaen", name: "Real Jaén" }]);
+    expect(result!.scope).toMatch(/No es necesariamente la temporada completa/);
+    expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
+  });
+
+  it("has nothing for a team without correspondence (no call) or one the service does not know", async () => {
+    const fetch = answer({ error: "Entidad no encontrada" }, 404);
+    expect(await performanceSource(fetch)("team-montealto")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await performanceSource(fetch)("team-real-jaen")).toBeNull();
+  });
+
+  it.each([
+    ["a competition outside the declared scope", performanceBody({ tournament_id: 150, season_id: 104108 })],
+    ["another group of the same league", performanceBody({ tournament_id: 94190 })],
+    ["a boolean count", performanceBody({ matches: { in_scope: 4, finished: 3, pending: 1, counted: true, finished_without_valid_score: 1, unknown_status: 0 } })],
+    ["a negative goal count", performanceBody({ record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: -3, goals_against: 2, goal_difference: -5 } })],
+    ["a wrong goal difference", performanceBody({ record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: 3, goals_against: 2, goal_difference: 4 } })],
+    ["states that do not add up", performanceBody({ matches: { in_scope: 9, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, unknown_status: 0 } })],
+    ["a record that does not match its results", performanceBody({ record: { played: 2, wins: 2, draws: 0, losses: 0, goals_for: 3, goals_against: 2, goal_difference: 1 } })],
+    ["venues that do not match the results", performanceBody({ venues: { home: { wins: 1, draws: 0, losses: 0 }, away: { wins: 0, draws: 0, losses: 1 } } })],
+    ["a result from another competition", performanceBody({}, [
+      { match: { ...perfMatch(1, 135672, 2841, 0, 3, 1), tournament_id: 150 }, side: "away", goals_for: 3, goals_against: 0, result: "win" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", goals_for: 0, goals_against: 2, result: "loss" }])],
+    ["a boolean score", performanceBody({}, [
+      { match: perfMatch(1, 135672, 2841, true, 3, 1), side: "away", goals_for: 3, goals_against: 1, result: "win" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", goals_for: 0, goals_against: 2, result: "loss" }])],
+    ["goals that do not match the score", performanceBody({}, [
+      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", goals_for: 0, goals_against: 3, result: "win" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", goals_for: 0, goals_against: 2, result: "loss" }])],
+    ["a result that does not match the goals", performanceBody({}, [
+      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", goals_for: 3, goals_against: 0, result: "draw" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", goals_for: 0, goals_against: 2, result: "loss" }])],
+    ["a pending match among the results", performanceBody({}, [
+      { match: { ...perfMatch(1, 135672, 2841, null, null, 1), status: "notstarted" }, side: "away", goals_for: 0, goals_against: 0, result: "draw" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", goals_for: 0, goals_against: 2, result: "loss" }])],
+    ["a side the team does not play", performanceBody({}, [
+      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "home", goals_for: 0, goals_against: 3, result: "loss" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", goals_for: 0, goals_against: 2, result: "loss" }])],
+    ["another team's aggregate", { data: { team_id: 7, competitions: [] } }],
+  ])("rejects %s: the whole answer is invalid, never shown", async (_case, body) => {
+    const names = teamApi(null);
+    const fetch = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/performance") ? new Response(JSON.stringify(body)) : names(input));
+    await expect(performanceSource(fetch)("team-real-jaen")).rejects.toBeInstanceOf(UpstreamUnavailableError);
+  });
+
+  it("keeps zero matches apart from a failure: an empty record is an answer, a failing service is not", async () => {
+    const names = teamApi(null);
+    const empty = performanceBody({
+      matches: { in_scope: 0, finished: 0, pending: 0, counted: 0, finished_without_valid_score: 0, unknown_status: 0 },
+      record: { played: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0, goal_difference: 0 },
+      venues: { home: { wins: 0, draws: 0, losses: 0 }, away: { wins: 0, draws: 0, losses: 0 } },
+    }, []);
+    const fetch = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/performance") ? new Response(JSON.stringify(empty)) : names(input));
+    expect((await performanceSource(fetch)("team-real-jaen"))!.competitions[0].record.played).toBe(0);
+    await expect(performanceSource(answer({}, 500))("team-real-jaen")).rejects.toThrow("HTTP 500");
   });
 });

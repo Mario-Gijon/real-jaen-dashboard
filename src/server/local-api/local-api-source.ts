@@ -11,13 +11,17 @@ import {
   type ObservedPlayerMatches,
   type ObservedPlayers,
   type ObservedSubstitution,
+  type MatchResult,
   type ObservedCompetition,
+  type ObservedCompetitionPerformance,
   type ObservedTeam,
   type ObservedTeamMatches,
+  type ObservedTeamPerformance,
   type PlayerPosition,
   type PlayerProfile,
   type PlayerRef,
   type PreferredFoot,
+  type Side,
   type Stat,
   type TeamMatchStats,
   type TeamStatKey,
@@ -553,6 +557,131 @@ export function createLocalApiTeamMatches(options: Options) {
     const matches = await withTeamNames(options, rows.sort(byKickoff(false)));
     const competitions = scope.map(({ name, season }) => ({ name, season }));
     return { teamId, matches, competitions, scope: TEAM_MATCHES_SCOPE, source: PROVENANCE };
+  };
+}
+
+const TEAM_PERFORMANCE_SCOPE =
+  "Resultados de los partidos finalizados observados en esta competición. No es necesariamente la temporada completa: sin clasificación ni puntos.";
+
+/** A count or score of the source's aggregate: a non-negative integer (never a boolean nor a decimal). */
+function count(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw invalid(field);
+  return value;
+}
+
+const RESULT_KEYS: Readonly<Record<MatchResult, "wins" | "draws" | "losses">> = { win: "wins", draw: "draws", loss: "losses" };
+const resultOf = (goalsFor: number, goalsAgainst: number): MatchResult =>
+  goalsFor > goalsAgainst ? "win" : goalsFor === goalsAgainst ? "draw" : "loss";
+
+/**
+ * One competition of the source's aggregate. The service computes it; this
+ * only checks it is in the declared scope and consistent (states add up, the
+ * record matches its results and venues, each result matches its score and
+ * side) before adapting it. Anything else makes the whole answer invalid.
+ */
+async function parseCompetitionPerformance(
+  options: Options, entry: unknown, index: number, teamSourceId: number, scope: readonly SourceCompetition[],
+): Promise<ObservedCompetitionPerformance> {
+  const at = (field: string) => `data.competitions[${index}].${field}`;
+  if (!isRecord(entry) || !isRecord(entry.matches) || !isRecord(entry.record) || !isRecord(entry.venues) || !Array.isArray(entry.results)) {
+    throw invalid(`data.competitions[${index}]`);
+  }
+  const competition = scope.find((c) => c.tournamentId === entry.tournament_id && c.seasonId === entry.season_id);
+  if (!competition) throw invalid(`${at("tournament_id")}: competición fuera del ámbito declarado`);
+  const m = entry.matches;
+  const matches = {
+    inScope: count(m.in_scope, at("matches.in_scope")), finished: count(m.finished, at("matches.finished")),
+    pending: count(m.pending, at("matches.pending")), counted: count(m.counted, at("matches.counted")),
+    finishedWithoutValidScore: count(m.finished_without_valid_score, at("matches.finished_without_valid_score")),
+    unknownStatus: count(m.unknown_status, at("matches.unknown_status")),
+  };
+  const r = entry.record;
+  const record = {
+    played: count(r.played, at("record.played")), wins: count(r.wins, at("record.wins")), draws: count(r.draws, at("record.draws")),
+    losses: count(r.losses, at("record.losses")), goalsFor: count(r.goals_for, at("record.goals_for")),
+    goalsAgainst: count(r.goals_against, at("record.goals_against")), goalDifference: 0,
+  };
+  if (r.goal_difference !== record.goalsFor - record.goalsAgainst) throw invalid(at("record.goal_difference"));
+  record.goalDifference = record.goalsFor - record.goalsAgainst;
+  const venues = {} as ObservedCompetitionPerformance["venues"];
+  for (const side of ["home", "away"] as const) {
+    const v = entry.venues[side];
+    if (!isRecord(v)) throw invalid(at(`venues.${side}`));
+    venues[side] = { win: count(v.wins, at(`venues.${side}.wins`)), draw: count(v.draws, at(`venues.${side}.draws`)),
+      loss: count(v.losses, at(`venues.${side}.losses`)) };
+  }
+
+  const rows = entry.results.map((row, i) => {
+    const rat = (field: string) => at(`results[${i}].${field}`);
+    if (!isRecord(row) || !isRecord(row.match)) throw invalid(rat("match"));
+    if (row.match.tournament_id !== competition.tournamentId || row.match.season_id !== competition.seasonId) {
+      throw invalid(`${rat("match.tournament_id")}: partido de otra competición`);
+    }
+    const match = parseMatch(row.match, positiveId(row.match.match_id, rat("match.match_id")), (field) => rat(`match.${field}`));
+    if (match.status !== "finished" || match.score === null) throw invalid(`${rat("match")}: no es un finalizado con marcador`);
+    if (row.side !== "home" && row.side !== "away") throw invalid(rat("side"));
+    const side: Side = row.side;
+    if ((side === "home" ? match.homeId : match.awayId) !== teamSourceId) throw invalid(rat("side"));
+    const goalsFor = count(row.goals_for, rat("goals_for"));
+    const goalsAgainst = count(row.goals_against, rat("goals_against"));
+    const [own, other] = side === "home" ? [match.score.home, match.score.away] : [match.score.away, match.score.home];
+    if (own !== goalsFor || other !== goalsAgainst) throw invalid(`${rat("goals_for")}: no coincide con el marcador`);
+    const result = resultOf(goalsFor, goalsAgainst);
+    if (row.result !== result) throw invalid(rat("result"));
+    return { match, side, result, goalsFor, goalsAgainst };
+  });
+
+  const tally = { win: 0, draw: 0, loss: 0 };
+  const byVenue = { home: { win: 0, draw: 0, loss: 0 }, away: { win: 0, draw: 0, loss: 0 } };
+  for (const row of rows) {
+    tally[row.result]++;
+    byVenue[row.side][row.result]++;
+  }
+  const consistent =
+    matches.inScope === matches.finished + matches.pending + matches.unknownStatus
+    && matches.counted === matches.finished - matches.finishedWithoutValidScore
+    && record.played === matches.counted && rows.length === record.played
+    && (["win", "draw", "loss"] as const).every((k) => tally[k] === record[RESULT_KEYS[k]]
+      && byVenue.home[k] === venues.home[k] && byVenue.away[k] === venues.away[k])
+    && rows.reduce((sum, row) => sum + row.goalsFor, 0) === record.goalsFor
+    && rows.reduce((sum, row) => sum + row.goalsAgainst, 0) === record.goalsAgainst;
+  if (!consistent) throw invalid(`${at("record")}: los totales no coinciden con los partidos`);
+
+  return {
+    id: `sofascore-scope-${competition.tournamentId}-${competition.seasonId}`,
+    name: competition.name,
+    season: competition.season,
+    matches,
+    record,
+    venues,
+    results: await withTeamNames(options, rows),
+  };
+}
+
+/**
+ * `teamObservedPerformance` against the local API: the team's results in each
+ * competition of the declared scope, as the service aggregates them, plus the
+ * teams that can be analysed (those with explicit correspondence). `null` for
+ * a team without correspondence or one the source does not know.
+ */
+export function createLocalApiTeamPerformance(options: Options) {
+  return async (teamId: string): Promise<ObservedTeamPerformance | null> => {
+    const teamSourceId = SOURCE_TEAM_IDS[teamId];
+    if (teamSourceId === undefined) return null;
+    const scope = await sourceScope(options);
+    const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${teamSourceId}/performance`);
+    if (body === null) return null;
+    if (!isRecord(body) || !isRecord(body.data) || body.data.team_id !== teamSourceId || !Array.isArray(body.data.competitions)) {
+      throw invalid("se esperaba { data: { team_id, competitions: [] } }");
+    }
+    const competitions: ObservedCompetitionPerformance[] = [];
+    // One at a time: the local service refuses concurrent connections.
+    for (const [index, entry] of body.data.competitions.entries()) {
+      competitions.push(await parseCompetitionPerformance(options, entry, index, teamSourceId, scope));
+    }
+    const names = await teamNames(options, Object.values(SOURCE_TEAM_IDS));
+    const teams = Object.entries(SOURCE_TEAM_IDS).map(([id, sourceId]) => ({ id, name: names.get(sourceId) ?? null }));
+    return { teamId, competitions, teams, scope: TEAM_PERFORMANCE_SCOPE, source: PROVENANCE };
   };
 }
 

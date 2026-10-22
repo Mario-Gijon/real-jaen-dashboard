@@ -204,6 +204,46 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   correspondencia muestra un estado explícito con un enlace a los partidos reales del
   Real Jaén; nunca se sustituye el equipo o la temporada sin decirlo.
 
+## Equipos reales desde la API local
+
+«Equipos» puede leer de la API local con su propio selector, independiente de los otros
+dos y sintético por defecto:
+
+```
+TEAMS_SOURCE=local
+LOCAL_DATA_API_URL=http://127.0.0.1:8001
+```
+
+Reinicia el servidor Next tras cambiar `.env.local`. La API local debe ser una versión con
+`GET /api/v1/teams/{id}/performance` (y `/api/v1/scope`): si está en marcha una anterior,
+reiníciala (`python api.py`), porque lee código y datos al arrancar.
+
+- En modo real la página no carga nada sintético: ni competiciones, ni clasificación, ni
+  plantilla. La cuadrícula muestra sólo los equipos con correspondencia explícita (hoy el
+  Real Jaén); el diseño admite más en cuanto se añadan.
+- Competición y temporada son las del ámbito de la API local (`GET /api/v1/scope`). Cada
+  entrada (un grupo en una temporada) tiene un id propio derivado del proveedor,
+  `sofascore-scope-{tournament_id}-{season_id}` (hoy `sofascore-scope-94191-97382`): estable
+  mientras se use esa fuente y nunca relacionado con una temporada sintética. Un `?season=`
+  sintético muestra un estado explícito, nunca se sustituye.
+- «Rendimiento del equipo» reutiliza la presentación sintética: balance (PJ, V, E, D, GF,
+  GC y DG), Casa / Fuera, resultados por jornada y partidos disputados. Sin clasificación
+  ni puntos (no hay datos que los respalden). El bloque de métricas avanzadas (xG, tiros,
+  posesión) se oculta en modo real hasta que se agreguen; su versión sintética no cambia.
+- Los cálculos los hace el servicio Python: sólo partidos del ámbito, finalizados y con
+  marcador válido (enteros no negativos; un booleano no lo es). Un finalizado sin marcador
+  válido no cuenta, ni como 0–0, y se dice cuántos quedan fuera; los pendientes, tampoco.
+  El servidor Next comprueba que el agregado está en el ámbito y es coherente (estados,
+  balance, Casa / Fuera y cada resultado con su marcador); si no, 503.
+- Un aviso «Datos reales» dice que son los partidos finalizados observados, cuántos de
+  cuántos, y que no es necesariamente la temporada completa. Cero partidos finalizados se
+  dice como tal; un error de la fuente, con reintento.
+- Los partidos disputados abren su detalle real sólo con `MATCHES_SOURCE=local`; si no,
+  se muestran sin enlace.
+- «Jugadores» muestra los jugadores reales si `OBSERVED_PLAYERS_SOURCE=local` (su ficha
+  vuelve a esta temporada real); si no, dice que la fuente real de jugadores no está
+  activada, nunca la plantilla sintética.
+
 ## Goles y tarjetas
 
 - Un evento `goal` lleva el jugador que lo realiza y su equipo (`teamId`). Si `ownGoal` es
@@ -229,6 +269,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 | `GET /api/v1/teams/{teamId}/players` | Jugadores observados del equipo (sin temporada), con su alcance y procedencia; `503 UPSTREAM_UNAVAILABLE` si falla una fuente real |
 | `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo, con su posición en el partido y sus estadísticas individuales; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
+| `GET /api/v1/teams/{teamId}/observed-performance` | Resultados del equipo en cada competición del ámbito real (`ObservedTeamPerformance`): recuentos por estado, balance con diferencia, Casa / Fuera y partidos contados; 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente o su agregado no es coherente |
 | `GET /api/v1/teams/{teamId}/observed-matches` | Partidos del equipo en la fuente real (calendario y resultados), por fecha, y las competiciones de su ámbito (`competitions`); lista vacía si no hay, 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
