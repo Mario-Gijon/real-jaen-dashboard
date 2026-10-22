@@ -2,18 +2,19 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ApiRequestError, getCompetitions, getObservedPlayers, getSeasonTeams, getSource, getTeamObservedPerformance, getTeamSeason,
+  ApiRequestError, getCompetitions, getObservedPlayers, getObservedSquad, getPlayer, getSeasonTeams, getSource,
+  getTeamObservedPerformance, getTeamSeason,
 } from "@/client/api";
 import {
-  TEAM_OUTPUT_INDICATORS, type ObservedCompetitionPerformance, type ObservedMatch, type ObservedTeamPerformance, type RealSection,
-  type SeasonStat, type TeamOutputIndicator,
+  TEAM_OUTPUT_INDICATORS, type ObservedCompetitionPerformance, type ObservedMatch, type ObservedSquad, type ObservedSquadCompetition,
+  type ObservedSquadPlayer, type ObservedTeamPerformance, type RealSection, type SeasonStat, type TeamOutputIndicator,
 } from "@/contract";
 import { TeamsView } from "@/features/teams/TeamsView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
-  getSource: vi.fn(), getTeamObservedPerformance: vi.fn(), getObservedPlayers: vi.fn(),
-  getCompetitions: vi.fn(), getSeasonTeams: vi.fn(), getTeamSeason: vi.fn(),
+  getSource: vi.fn(), getTeamObservedPerformance: vi.fn(), getObservedPlayers: vi.fn(), getObservedSquad: vi.fn(),
+  getCompetitions: vi.fn(), getSeasonTeams: vi.fn(), getTeamSeason: vi.fn(), getPlayer: vi.fn(),
 }));
 
 const jaen = { id: "team-real-jaen", name: "Real Jaén" };
@@ -54,6 +55,34 @@ const competition = (fields: Partial<ObservedCompetitionPerformance> = {}): Obse
 const SCOPE = "Resultados de los partidos finalizados observados en esta competición. No es necesariamente la temporada completa: sin clasificación ni puntos.";
 const performance = (competitions = [competition()]): ObservedTeamPerformance => ({
   teamId: "team-real-jaen", competitions, teams: [jaen], scope: SCOPE, source: { synthetic: false, label: "Datos reales" },
+});
+/**
+ * Observed players as the service accumulates them: a starter, a substitute with one call-up it could not
+ * resolve, one unused in every call-up, a complete 0 and a player with nothing resolved.
+ */
+const squadPlayer = (id: number, name: string, position: ObservedSquadPlayer["player"]["position"], callUps: number,
+  stats: ObservedSquadPlayer["stats"], fields: Partial<ObservedSquadPlayer> = {}): ObservedSquadPlayer => ({
+  player: { id: `sofascore-player-${id}`, name, position }, heightCm: null, preferredFoot: null, lastShirtNumber: null, callUps, stats, ...fields,
+});
+const PLAYERS = [
+  squadPlayer(942663, "Marco Siverio", "forward", 7, { appearances: stat(7, 7, 7), starts: stat(6, 7, 7), minutes: stat(504, 7, 7),
+    goals: stat(6, 7, 7), assists: stat(0, 7, 7) }, { heightCm: 184, preferredFoot: "right", lastShirtNumber: 9 }),
+  squadPlayer(1982588, "Francisco Gallego", "midfielder", 8, { appearances: stat(5, 7, 8), starts: stat(0, 8, 8),
+    minutes: stat(70, 7, 8), goals: stat(0, 7, 8), assists: stat(0, 7, 8) }, { lastShirtNumber: 7 }),
+  squadPlayer(1086428, "Salvi", "goalkeeper", 8, { appearances: stat(0, 8, 8), starts: stat(0, 8, 8), minutes: stat(0, 8, 8),
+    goals: stat(0, 8, 8), assists: stat(0, 8, 8) }, { heightCm: 190, lastShirtNumber: 13 }),
+  squadPlayer(966303, "Moha Keita", "midfielder", 6, { appearances: stat(6, 6, 6), starts: stat(4, 6, 6), minutes: stat(365, 6, 6),
+    goals: stat(0, 6, 6), assists: stat(1, 6, 6) }),
+  squadPlayer(5, "Jugador Sin Resolver", "defender", 1, { appearances: stat(null, 0, 1), starts: stat(0, 1, 1), minutes: stat(null, 0, 1),
+    goals: stat(null, 0, 1), assists: stat(null, 0, 1) }),
+];
+const squadCompetition = (fields: Partial<ObservedSquadCompetition> = {}): ObservedSquadCompetition => ({
+  id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27", matches: { counted: 8, withCallUps: 8 },
+  callUps: { total: 30, played: 18, unused: 10, unknown: 2, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 }, players: PLAYERS, ...fields,
+});
+const SQUAD_SCOPE = "Jugadores observados en las convocatorias de los partidos finalizados contados en esta competición.";
+const squad = (competitions = [squadCompetition()]): ObservedSquad => ({
+  teamId: "team-real-jaen", competitions, scope: SQUAD_SCOPE, source: { synthetic: false, label: "Datos reales" },
 });
 const sections = (realSections: RealSection[]) =>
   vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections });
@@ -222,19 +251,131 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
 
   it("shows the real observed players when enabled, returning to this real season; otherwise says they are not enabled", async () => {
     sections(["teams", "observedPlayers"]);
-    vi.mocked(getObservedPlayers).mockResolvedValue({ teamId: "team-real-jaen", scope: "Jugadores observados en convocatorias.",
-      source: { synthetic: false, label: "Datos reales" }, players: [{ id: "sofascore-player-966303", name: "Moha Keita", position: "midfielder" }] });
+    vi.mocked(getObservedSquad).mockResolvedValue(squad());
     const { unmount } = render(<TeamsView initialTab="players" />);
     const link = await screen.findByRole("link", { name: "Ver ficha de Moha Keita" });
     expect(link).toHaveAttribute("href", `/players/sofascore-player-966303?view=profile&season=${GROUP_2}&from=team&origin=team-real-jaen`);
+    expect(getObservedPlayers).not.toHaveBeenCalled();
     unmount();
 
     sections(["teams"]);
-    vi.mocked(getObservedPlayers).mockClear();
+    vi.mocked(getObservedSquad).mockClear();
     render(<TeamsView initialTab="players" />);
     expect(await screen.findByText("La fuente real de jugadores no está activada.")).toBeVisible();
-    expect(getObservedPlayers).not.toHaveBeenCalled();
+    expect(getObservedSquad).not.toHaveBeenCalled();
     expect(getTeamSeason).not.toHaveBeenCalled();
+  });
+
+  describe("Jugadores con acumulados reales (OBSERVED_PLAYERS_SOURCE=local)", () => {
+    beforeEach(() => {
+      sections(["teams", "observedPlayers"]);
+      vi.mocked(getObservedSquad).mockResolvedValue(squad());
+    });
+    const table = () => screen.findByRole("table", { name: "Jugadores observados" });
+    const row = (name: string) => screen.getByRole("link", { name: `Ver ficha de ${name}` }).closest("tr")!;
+    const cells = (name: string) => [...row(name).querySelectorAll("td")].map((cell) => cell.textContent);
+    const names = () => within(screen.getByRole("table", { name: "Jugadores observados" })).getAllByRole("row").slice(1)
+      .map((r) => within(r).getByRole("link").getAttribute("aria-label")!.replace("Ver ficha de ", ""));
+    const sortBy = (name: RegExp) => within(screen.getByRole("columnheader", { name })).getByRole("button");
+
+    it("keeps the original table with the source's figures and personal data, without one request per player", async () => {
+      render(<TeamsView initialTab="players" />);
+      await table();
+      // Position, PJ, Tit., Min., Goles, Asist., Estatura, Pierna: clear figures for the matches analysed.
+      expect(cells("Marco Siverio")).toEqual(["DelanteroDEL", "7", "6", "504", "6", "0", "184 cm", "Derecha"]);
+      // One call-up the service could not resolve: only this player's figures are partial.
+      expect(cells("Francisco Gallego")).toEqual(["CentrocampistaMED", "5* (participación conocida en 7 de 8 convocatorias)", "0",
+        "70* (dato de 7 de 8 convocatorias)", "0* (dato de 7 de 8 convocatorias)", "0* (dato de 7 de 8 convocatorias)", "—", "—"]);
+      expect(within(row("Francisco Gallego")).getByTitle("Participación conocida en 7 de 8 convocatorias")).toBeVisible();
+      // Unused in every call-up: 0 played and 0 minutes, read like an unused squad member.
+      expect(cells("Salvi")).toEqual(["PorteroPOR", "0", "0", "0", "0", "0", "190 cm", "—"]);
+      expect(row("Salvi")).toHaveAttribute("data-unused");
+      // Nothing resolved: «Sin datos», never 0.
+      expect(cells("Jugador Sin Resolver")).toEqual(["DefensaDEF", "—Sin datos", "0", "—Sin datos", "—Sin datos", "—Sin datos", "—", "—"]);
+      expect(screen.getByTitle("Partidos jugados (convocatorias con participación)")).toBeVisible();
+      expect(within(row("Marco Siverio")).getByTitle("Dorsal en su última convocatoria observada")).toHaveTextContent("9");
+      expect(getPlayer).not.toHaveBeenCalled();
+      for (const synthetic of [getTeamSeason, getObservedPlayers]) expect(synthetic).not.toHaveBeenCalled();
+    });
+
+    it("explains the coverage briefly, with what was set aside", async () => {
+      vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition({ matches: { counted: 8, withCallUps: 7 },
+        callUps: { ...squadCompetition().callUps, contradictions: 1, mismatches: 1, duplicateRecords: 1 } })]));
+      const { unmount } = render(<TeamsView initialTab="players" />);
+      await table();
+      expect(screen.getByText(SQUAD_SCOPE)).toBeVisible();
+      expect(screen.getByText("Convocatorias en 7 de 8 partidos finalizados. Un suplente sin minutos ni entrada registrada cuenta como no utilizado; un gol o asistencia que la fuente omite en una actuación completa, como 0. Dorsal de la última convocatoria observada, no necesariamente el actual.")).toBeVisible();
+      expect(screen.getByText("2 convocatorias sin participación resuelta; 1 dato de goles o asistencias contradice las incidencias; 1 registro duplicado se cuenta una vez; esas cifras llevan * (al ordenar van tras las completas) y «—» es sin datos.")).toBeVisible();
+      unmount();
+      // Without uncertainties, no warning beyond the general coverage.
+      vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition({ players: [PLAYERS[0]], callUps: { total: 7, played: 7, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 } })]));
+      render(<TeamsView initialTab="players" />);
+      await table();
+      expect(screen.queryByText(/sin participación resuelta|llevan \*/)).toBeNull();
+    });
+
+    it("sorts complete figures first, then partial ones, then missing ones, in both directions", async () => {
+      const user = userEvent.setup();
+      render(<TeamsView initialTab="players" />);
+      await table();
+      await user.click(sortBy(/^Goles/));
+      // Gallego's 0* covers 7 of 8 call-ups: after the complete ones, neither a total nor missing.
+      expect(names()).toEqual(["Marco Siverio", "Salvi", "Moha Keita", "Francisco Gallego", "Jugador Sin Resolver"]);
+      await user.click(sortBy(/^Goles/));
+      expect(screen.getByRole("columnheader", { name: /^Goles/ })).toHaveAttribute("aria-sort", "ascending");
+      expect(names()).toEqual(["Salvi", "Moha Keita", "Marco Siverio", "Francisco Gallego", "Jugador Sin Resolver"]);
+      await user.click(sortBy(/^Min/));
+      expect(names()).toEqual(["Marco Siverio", "Moha Keita", "Salvi", "Francisco Gallego", "Jugador Sin Resolver"]);
+      expect(screen.getByRole("columnheader", { name: /^Min/ })).toHaveAttribute("aria-sort", "descending");
+    });
+
+    it("filters by line with the keyboard", async () => {
+      const user = userEvent.setup();
+      render(<TeamsView initialTab="players" />);
+      await table();
+      screen.getByRole("button", { name: /^Centrocampistas/ }).focus();
+      await user.keyboard("{Enter}");
+      expect(screen.getByRole("button", { name: /^Centrocampistas/ })).toHaveAttribute("aria-pressed", "true");
+      expect(names()).toEqual(["Francisco Gallego", "Moha Keita"]);
+    });
+
+    it("takes the figures of the competition the real season selector chooses, asking once", async () => {
+      const next = "sofascore-scope-94191-99999";
+      vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition(), competition({ id: next, season: "27/28" })]));
+      vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition(), squadCompetition({ id: next, season: "27/28",
+        players: [PLAYERS[3]], callUps: { total: 6, played: 6, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 } })]));
+      const user = userEvent.setup();
+      render(<TeamsView initialTab="players" />);
+      await table();
+      expect(names()).toHaveLength(5);
+      await user.selectOptions(screen.getByRole("combobox", { name: "Temporada" }), next);
+      expect(names()).toEqual(["Moha Keita"]);
+      expect(screen.getByRole("link", { name: "Ver ficha de Moha Keita" })).toHaveAttribute("href", expect.stringContaining(`season=${next}`));
+      expect(getObservedSquad).toHaveBeenCalledTimes(1);
+    });
+
+    it("says so when the competition has no players, and when the source has nothing for it", async () => {
+      vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition({ players: [], matches: { counted: 0, withCallUps: 0 },
+        callUps: { total: 0, played: 0, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 } })]));
+      const { unmount } = render(<TeamsView initialTab="players" />);
+      expect(await screen.findByText("La fuente no tiene convocatorias de este equipo en esta competición.")).toBeVisible();
+      unmount();
+      vi.mocked(getObservedSquad).mockResolvedValue(squad([]));
+      render(<TeamsView initialTab="players" />);
+      expect(await screen.findByText("La fuente real no tiene jugadores observados de este equipo en esta competición.")).toBeVisible();
+    });
+
+    it("shows loading, then a failure with retry, never synthetic players", async () => {
+      let fail: (error: Error) => void = () => {};
+      vi.mocked(getObservedSquad).mockReturnValueOnce(new Promise((_, reject) => { fail = reject; }));
+      render(<TeamsView initialTab="players" />);
+      expect(await screen.findByText("Cargando jugadores…")).toBeVisible();
+      fail(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "La fuente real no responde."));
+      expect(await screen.findByRole("alert")).toHaveTextContent("La fuente real no responde.");
+      await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
+      await table();
+      for (const synthetic of [getTeamSeason, getObservedPlayers, getPlayer]) expect(synthetic).not.toHaveBeenCalled();
+    });
   });
 
   it("asks nothing when the source cannot be determined, and stays synthetic without TEAMS_SOURCE", async () => {

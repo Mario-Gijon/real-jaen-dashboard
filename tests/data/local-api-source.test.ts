@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createLocalApiObservedPlayers,
+  createLocalApiObservedSquad,
   clearTeamNameCache,
   createLocalApiObservedMatches,
   createLocalApiPlayerProfile,
@@ -233,13 +234,21 @@ describe("local API adapter: player profile", () => {
 
 /**
  * Rows shaped like `GET /api/v1/players/{id}/matches` of the real local API
- * on 2026-10-21 (trimmed): a confirmed appearance and an unused substitute,
- * whose `statistics` only carries `totalShots: 0`.
+ * on 2026-10-22 (trimmed): a confirmed appearance and an unused substitute,
+ * whose `statistics` only carries `totalShots: 0`, each with the service's
+ * normalization (`normalized`).
  */
+const normalizedFigure = (value: number | null, source: string | null = value === null ? null : "reported") => ({ value, source });
+const normalized = (participation: string, minutes: number | null, goals: number | null, assists: number | null,
+  sources: { goals?: string } = {}) => ({
+  participation, basis: "minutes", minutes: normalizedFigure(minutes, participation === "unused" && minutes !== null ? "unused" : undefined),
+  goals: normalizedFigure(goals, participation === "unused" && goals !== null ? "unused" : sources.goals),
+  assists: normalizedFigure(assists, participation === "unused" && assists !== null ? "unused" : undefined), issues: [],
+});
 const callUp = (overrides: Record<string, unknown> = {}, match: Record<string, unknown> = {}) => ({
   source: "Sofascore", match_id: 16599363, team_id: 2841, player_id: 966303, side: "away",
   source_team_id: 2841, substitute: false, match_position: "F", shirt_number: 19, minutes_played: 83,
-  played: true, fetched_at: "2026-10-21T12:07:31+00:00",
+  played: true, fetched_at: "2026-10-21T12:07:31+00:00", normalized: normalized("played", 83, 1, 0),
   statistics: { totalPass: 24, accuratePass: 19, goalAssist: 0, goals: 1, minutesPlayed: 83, rating: 7.4,
     expectedGoals: 0.454, totalShots: 4, statisticsType: { sportSlug: "football", statisticsType: "player" } },
   match: { source: "Sofascore", match_id: 16599363, kickoff_utc: "2026-08-30T17:15:00+00:00", status: "finished",
@@ -249,7 +258,7 @@ const callUp = (overrides: Record<string, unknown> = {}, match: Record<string, u
   ...overrides,
 });
 const unused = callUp(
-  { match_id: 16599388, side: "home", substitute: true, minutes_played: null, played: null,
+  { match_id: 16599388, side: "home", substitute: true, minutes_played: null, played: null, normalized: normalized("unused", 0, 0, 0),
     statistics: { totalShots: 0, statisticsType: { sportSlug: "football", statisticsType: "player" } } },
   { match_id: 16599388, kickoff_utc: "2026-09-06T09:30:00+00:00", round: 2, home_team_id: 2841, away_team_id: 24265,
     home_score: 2, away_score: 2 },
@@ -312,13 +321,16 @@ describe("local API adapter: observed matches", () => {
     const statistics = { minutesPlayed: 90, totalShots: 3, onTargetScoringAttempt: 0, shotOffTarget: 2, blockedScoringAttempt: 1,
       totalContest: 4, wonContest: 1, ballRecovery: 6, possessionLostCtrl: 9, duelWon: 7, duelLost: 0, fouls: 2, saves: 3,
       wasFouled: 5, touches: 40 };
-    const result = await matchesSource(matchesApi([callUp({ statistics, match_position: "G" })]))("sofascore-player-966303");
+    const result = await matchesSource(matchesApi([callUp({ statistics, match_position: "G",
+      normalized: normalized("played", 90, 0, 0, { goals: "omitted_zero" }) })]))("sofascore-player-966303");
     const [row] = result!.matches;
     expect(row.position).toBe("goalkeeper");
     expect(row.stats).toMatchObject({
       shots: { value: 3 }, shotsOnTarget: { value: 0 }, dribbles: { value: 4 }, dribblesWon: { value: 1 },
       recoveries: { value: 6 }, possessionLost: { value: 9 }, duelsWon: { value: 7 }, duelsLost: { value: 0 },
-      fouls: { value: 2 }, saves: { value: 3 }, goals: missing, passes: missing,
+      fouls: { value: 2 }, saves: { value: 3 }, passes: missing,
+      // Goals the source omits in a full appearance: 0 from the service's rule, not from this adapter.
+      minutes: { value: 90 }, goals: { value: 0 },
     });
   });
 
@@ -327,52 +339,50 @@ describe("local API adapter: observed matches", () => {
     expect(result!.matches[0].position).toBeNull();
   });
 
-  it("never treats a statistics object with totalShots 0 as participation or real stats", async () => {
+  it("takes participation from the service: an unused substitute has 0 minutes, goals and assists and no other stat", async () => {
     const result = await matchesSource(matchesApi([unused]))("sofascore-player-966303");
     const [row] = result!.matches;
     expect(row.role).toBe("substitute");
-    expect(row.participation).toBe("unknown");
-    for (const stat of Object.values(row.stats)) expect(stat).toEqual(missing);
+    expect(row.participation).toBe("unused");
+    expect([row.stats.minutes, row.stats.goals, row.stats.assists]).toEqual([{ value: 0 }, { value: 0 }, { value: 0 }]);
+    // totalShots 0 of the bench is not a stat of the match.
+    expect(row.stats.shots).toEqual(missing);
   });
 
-  it.each([
-    // played, minutes_played, participation, minutes shown
-    [true, 83, "confirmed", { value: 83 }],
-    [true, null, "confirmed", missing],
-    [null, 30, "confirmed", { value: 30 }],
-    [false, 0, "unknown", missing],
-    [false, null, "unknown", missing],
-    [null, null, "unknown", missing],
-    [null, 0, "unknown", missing],
-  ])("played=%s with minutes_played=%s → participation %s", async (played, minutes, participation, shown) => {
-    const result = await matchesSource(matchesApi([callUp({ played, minutes_played: minutes, statistics: { totalShots: 0 } })]))(
+  it("leaves a call-up the service cannot resolve unknown, with no stats at all", async () => {
+    const result = await matchesSource(matchesApi([callUp({ normalized: normalized("unknown", null, null, null) })]))(
       "sofascore-player-966303",
     );
-    expect(result!.matches[0].participation).toBe(participation);
-    expect(result!.matches[0].stats.minutes).toEqual(shown);
-    if (participation === "unknown") expect(result!.matches[0].stats.shots).toEqual(missing);
-  });
-
-  it.each([
-    [true, 0],
-    [false, 90],
-  ])("never settles played=%s against minutes_played=%s: unknown, no stats, logged", async (played, minutes) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const result = await matchesSource(matchesApi([callUp({ played, minutes_played: minutes })]))("sofascore-player-966303");
     const [row] = result!.matches;
     expect(row.participation).toBe("unknown");
     for (const stat of Object.values(row.stats)) expect(stat).toEqual(missing);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("se contradicen"));
   });
 
-  it("keeps omitted stats missing, never 0, when participation is confirmed", async () => {
-    const result = await matchesSource(matchesApi([callUp({ statistics: { totalPass: 3, totalShots: 0, minutesPlayed: 22 } })]))(
-      "sofascore-player-966303",
-    );
+  it("follows the service over the raw row: minutes it could not read stay missing, never re-derived here", async () => {
+    // The raw row says 83, but the service found duplicates that disagree.
+    const result = await matchesSource(matchesApi([callUp({ normalized: normalized("played", null, 1, 0) })]))("sofascore-player-966303");
+    expect(result!.matches[0].participation).toBe("confirmed");
+    expect(result!.matches[0].stats.minutes).toEqual(missing);
+  });
+
+  it("keeps every other omitted stat missing, never 0, when participation is confirmed", async () => {
+    const result = await matchesSource(matchesApi([callUp({ statistics: { totalPass: 3, totalShots: 0, minutesPlayed: 22 },
+      normalized: normalized("played", 22, null, null) })]))("sofascore-player-966303");
     const { stats } = result!.matches[0];
     expect(stats.shots).toEqual({ value: 0 });
     expect(stats.passes).toEqual({ value: 3 });
     for (const key of ["goals", "assists", "xg", "passesCompleted", "rating"] as const) expect(stats[key], key).toEqual(missing);
+  });
+
+  it.each([
+    ["no normalization (an older service)", { normalized: undefined }],
+    ["an unknown participation", { normalized: { ...normalized("played", 83, 1, 0), participation: "maybe" } }],
+    ["an unused substitute with minutes", { normalized: normalized("unused", 20, 0, 0) }],
+    ["an unknown call-up with goals", { normalized: { ...normalized("unknown", null, null, null), goals: normalizedFigure(1) } }],
+    ["a value without its origin", { normalized: { ...normalized("played", 83, 1, 0), goals: { value: 1, source: null } } }],
+    ["a boolean goal", { normalized: { ...normalized("played", 83, 1, 0), goals: { value: true, source: "reported" } } }],
+  ])("rejects a call-up with %s", async (_case, overrides) => {
+    await expect(matchesSource(matchesApi([callUp(overrides)]))("sofascore-player-966303")).rejects.toBeInstanceOf(UpstreamUnavailableError);
   });
 
   it("leaves a team the source cannot name unnamed, never a name from elsewhere", async () => {
@@ -612,7 +622,15 @@ const lineupEntry = (id: number, name: string, overrides: Record<string, unknown
 const benchEntry = (id: number, name: string) =>
   lineupEntry(id, name, { substitute: true, statistics: { totalShots: 0, statisticsType: { sportSlug: "football", statisticsType: "player" } } });
 const eleven = (first: number) => Array.from({ length: 11 }, (_, i) => lineupEntry(first + i, `Titular ${first + i}`));
-const lineupsBody = (availability = "stored", data?: unknown) => ({
+/** The service's normalized call-ups for the default line-ups: starters played 90, «Suplente Local» unused, «Entra» 22. */
+const LINEUP_CALL_UPS = [
+  ...[...Array.from({ length: 11 }, (_, i) => 100 + i), ...Array.from({ length: 11 }, (_, i) => 300 + i)]
+    .map((id) => ({ player_id: id, ...normalized("played", 90, 0, 0) })),
+  { player_id: 200, ...normalized("unused", 0, 0, 0) },
+  { player_id: 400, ...normalized("played", 22, 0, 0) },
+];
+const lineupsBody = (availability = "stored", data?: unknown, callUps: unknown[] = data ? [] : LINEUP_CALL_UPS) => ({
+  normalized: availability === "stored" ? { players: callUps } : undefined,
   data: availability === "not_stored" ? null : data ?? {
     confirmed: true, statisticalVersion: 3,
     home: { players: [...eleven(100), benchEntry(200, "Suplente Local")], formation: "4-4-2", supportStaff: [], playerColor: {} },
@@ -739,10 +757,10 @@ describe("local API adapter: real line-ups", () => {
       player: { id: "sofascore-player-100", name: "Titular 100", position: "midfielder" },
       shirtNumber: 10, role: "starter", participation: "confirmed", minutes: { value: 90 },
     });
-    // A named substitute with only { totalShots: 0 } did not necessarily play: unknown, no minutes.
+    // The service's normalization: a substitute who did not come on is unused, 0 minutes.
     expect(lineups.home[11]).toEqual({
       player: { id: "sofascore-player-200", name: "Suplente Local", position: "midfielder" },
-      shirtNumber: 20, role: "substitute", participation: "unknown", minutes: missing,
+      shirtNumber: 20, role: "substitute", participation: "unused", minutes: { value: 0 },
     });
     expect(lineups.away[11]).toMatchObject({ role: "substitute", participation: "confirmed", minutes: { value: 22 } });
   });
@@ -760,8 +778,9 @@ describe("local API adapter: real line-ups", () => {
     expect(lineups.away).toEqual([]);
   });
 
-  it("leaves unknown a player whose minutes are 0", async () => {
-    const { lineups } = (await detail(lineupsBody("stored", { home: { players: [lineupEntry(1, "Cero", { statistics: { minutesPlayed: 0 } })] } })))!;
+  it("follows the service, never the raw minutes: a call-up it leaves unknown stays unknown", async () => {
+    const { lineups } = (await detail(lineupsBody("stored", { home: { players: [lineupEntry(1, "Sin Resolver", { statistics: { minutesPlayed: 90 } })] } },
+      [{ player_id: 1, ...normalized("unknown", null, null, null) }])))!;
     if (lineups.state !== "stored") throw new Error("expected stored line-ups");
     expect(lineups.home[0]).toMatchObject({ participation: "unknown", minutes: missing });
   });
@@ -776,6 +795,8 @@ describe("local API adapter: real line-ups", () => {
       () => new Response(JSON.stringify(lineupsBody("stored", { home: { players: [{ player: { name: "Sin id" } }] } }))),
       () => new Response(JSON.stringify(lineupsBody("stored", { confirmed: "sí", home: { players: [] } }))),
       () => new Response(JSON.stringify(lineupsBody("stored", { home: { players: [lineupEntry(1, "X", { substitute: "no" })] } }))),
+      // An older service without the normalization.
+      () => new Response(JSON.stringify({ ...lineupsBody(), normalized: undefined })),
     ]) {
       const result = (await detail(failing))!;
       expect(result.lineups).toEqual({ state: "error", fetchedAt: null });
@@ -990,5 +1011,102 @@ describe("local API adapter: team performance", () => {
       String(input).endsWith("/performance") ? new Response(JSON.stringify(empty)) : names(input));
     expect((await performanceSource(fetch)("team-real-jaen"))!.competitions[0].record.played).toBe(0);
     await expect(performanceSource(answer({}, 500))("team-real-jaen")).rejects.toThrow("HTTP 500");
+  });
+});
+
+
+/** `GET /api/v1/teams/2841/player-stats` for a starter, a used substitute and one called up without confirmed participation. */
+const figure = (value: unknown, matches: number, of: number) => ({ value, matches, of });
+const squadRow = (overrides: Record<string, unknown> = {}) => ({
+  player_id: 942663, name: "Marco Siverio Toro", usual_position: "F", height_cm: 184, preferred_foot: "Right", last_shirt_number: 9,
+  call_ups: 3, starts: figure(3, 3, 3), appearances: figure(3, 3, 3), minutes: figure(250, 3, 3), goals: figure(2, 2, 3),
+  assists: figure(0, 3, 3), ...overrides,
+});
+const SQUAD_ROWS = [
+  squadRow(),
+  squadRow({ player_id: 1982588, name: "Francisco Gallego", usual_position: "M", height_cm: null, preferred_foot: null, last_shirt_number: 7,
+    call_ups: 2, starts: figure(0, 2, 2), appearances: figure(1, 1, 2), minutes: figure(13, 1, 2), goals: figure(null, 0, 2), assists: figure(0, 1, 2) }),
+  squadRow({ player_id: 1086428, name: "Salvi", usual_position: "G", height_cm: 190, preferred_foot: null, last_shirt_number: 13,
+    call_ups: 3, starts: figure(0, 3, 3), appearances: figure(0, 3, 3), minutes: figure(0, 3, 3), goals: figure(0, 3, 3), assists: figure(0, 3, 3) }),
+];
+const squadBody = (overrides: Record<string, unknown> = {}, players: unknown[] = SQUAD_ROWS) => ({
+  data: { team_id: 2841, competitions: [{
+    name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382,
+    matches: { counted: 3, with_call_ups: 3 },
+    call_ups: { total: 8, played: 4, unused: 3, unknown: 1, contradictions: 0, mismatches: 0, team_warnings: 0, duplicate_records: 0, discarded_records: 0 },
+    players, ...overrides,
+  }] },
+  meta: { note: "Acumulados de los jugadores observados…" },
+});
+const squadSource = (fetch: typeof globalThis.fetch) => createLocalApiObservedSquad({ baseUrl: "http://127.0.0.1:8001", fetch });
+const squadApi = (body: unknown) => vi.fn(async (input: RequestInfo | URL) =>
+  scoped(input) ?? new Response(JSON.stringify(body)));
+
+describe("local API adapter: observed squad", () => {
+  it("adapts the service's figures per scope competition, with personal data in the same answer", async () => {
+    const fetch = squadApi(squadBody());
+    const result = await squadSource(fetch)("team-real-jaen");
+    expect(fetch.mock.calls.map((call) => String(call[0]))).toEqual([SCOPE_URL, "http://127.0.0.1:8001/api/v1/teams/2841/player-stats"]);
+    const [competition] = result!.competitions;
+    expect([competition.id, competition.name, competition.season]).toEqual(["sofascore-scope-94191-97382", "Primera Federación, Grupo 2", "26/27"]);
+    expect(competition.matches).toEqual({ counted: 3, withCallUps: 3 });
+    expect(competition.callUps).toEqual({ total: 8, played: 4, unused: 3, unknown: 1, contradictions: 0, mismatches: 0, teamWarnings: 0,
+      duplicateRecords: 0, discardedRecords: 0 });
+    const [starter, substitute, unused] = competition.players;
+    expect(starter).toEqual({
+      player: { id: "sofascore-player-942663", name: "Marco Siverio Toro", position: "forward" }, heightCm: 184, preferredFoot: "right",
+      lastShirtNumber: 9, callUps: 3, stats: {
+        appearances: { value: 3, coverage: "complete", matches: 3, of: 3 }, starts: { value: 3, coverage: "complete", matches: 3, of: 3 },
+        minutes: { value: 250, coverage: "complete", matches: 3, of: 3 }, goals: { value: 2, coverage: "partial", matches: 2, of: 3 },
+        assists: { value: 0, coverage: "complete", matches: 3, of: 3 },
+      },
+    });
+    // Played 1; the other call-up could not be resolved: a partial count, never «played 2» nor «played 1 of 2».
+    expect(substitute.stats.appearances).toEqual({ value: 1, coverage: "partial", matches: 1, of: 2 });
+    expect(substitute.stats.goals).toEqual({ value: null, coverage: "none", reason: "not_available", matches: 0, of: 2 });
+    // Unused in all 3 call-ups: 0 appearances and 0 minutes, complete.
+    expect(unused.stats.appearances).toEqual({ value: 0, coverage: "complete", matches: 3, of: 3 });
+    expect(unused.stats.minutes).toEqual({ value: 0, coverage: "complete", matches: 3, of: 3 });
+    expect(result!.scope).toMatch(/No garantiza toda la temporada ni es una plantilla completa o necesariamente actual/);
+    expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
+  });
+
+  it("answers null without explicit correspondence or for a team the source does not know", async () => {
+    const fetch = squadApi(squadBody());
+    expect(await squadSource(fetch)("team-montealto")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await squadSource(vi.fn(async (input: RequestInfo | URL) => scoped(input) ?? new Response("{}", { status: 404 })))("team-real-jaen")).toBeNull();
+  });
+
+  it.each([
+    ["a competition outside the declared scope", squadBody({ tournament_id: 94190 })],
+    ["a boolean figure", squadBody({}, [squadRow({ goals: figure(true, 2, 3) })])],
+    ["a decimal minute total", squadBody({}, [squadRow({ minutes: figure(250.5, 3, 3) })])],
+    ["a negative figure", squadBody({}, [squadRow({ assists: figure(-1, 3, 3) })])],
+    ["a zero without call-ups that have it", squadBody({}, [squadRow({ goals: figure(0, 0, 3) })])],
+    ["a figure over other call-ups", squadBody({}, [squadRow({ minutes: figure(250, 3, 4) })])],
+    ["more call-ups with data than call-ups", squadBody({}, [squadRow({ minutes: figure(250, 4, 3) })])],
+    ["more starts than flags", squadBody({}, [squadRow({ starts: figure(3, 2, 3) })])],
+    ["more appearances than known participations", squadBody({}, [squadRow({ appearances: figure(3, 2, 3) })])],
+    ["more call-ups than matches with call-ups", squadBody({}, [squadRow({ call_ups: 4 })])],
+    ["a repeated player", squadBody({}, [squadRow(), squadRow()])],
+    ["a player without name", squadBody({}, [squadRow({ name: null })])],
+    ["a boolean height", squadBody({}, [squadRow({ height_cm: true })])],
+    ["a boolean shirt number", squadBody({}, [squadRow({ last_shirt_number: true })])],
+    ["call-up totals that do not add up", squadBody({ call_ups: { total: 9, played: 4, unused: 3, unknown: 2, contradictions: 0, mismatches: 0, team_warnings: 0, duplicate_records: 0, discarded_records: 0 } })],
+    ["played totals that do not add up", squadBody({ call_ups: { total: 8, played: 5, unused: 2, unknown: 1, contradictions: 0, mismatches: 0, team_warnings: 0, duplicate_records: 0, discarded_records: 0 } })],
+    ["unused totals that do not add up", squadBody({ call_ups: { total: 8, played: 4, unused: 2, unknown: 2, contradictions: 0, mismatches: 0, team_warnings: 0, duplicate_records: 0, discarded_records: 0 } })],
+    ["more contradictions than unresolved call-ups", squadBody({ call_ups: { ...squadBody().data.competitions[0].call_ups, contradictions: 2 } })],
+    ["more matches with call-ups than counted", squadBody({ matches: { counted: 2, with_call_ups: 3 } })],
+    ["another team's answer", { ...squadBody(), data: { ...squadBody().data, team_id: 9001 } }],
+  ])("refuses the whole answer with %s: no figure from a response that does not hold", async (_case, body) => {
+    await expect(squadSource(squadApi(body))("team-real-jaen")).rejects.toThrow(UpstreamUnavailableError);
+  });
+
+  it("keeps an empty competition apart from a failure", async () => {
+    const empty = squadBody({ matches: { counted: 0, with_call_ups: 0 },
+      call_ups: { total: 0, played: 0, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, team_warnings: 0, duplicate_records: 0, discarded_records: 0 } }, []);
+    expect((await squadSource(squadApi(empty))("team-real-jaen"))!.competitions[0].players).toEqual([]);
+    await expect(squadSource(answer({}, 500))("team-real-jaen")).rejects.toThrow("HTTP 500");
   });
 });

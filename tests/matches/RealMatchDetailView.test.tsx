@@ -39,7 +39,8 @@ const startersFrom = (first: number) => Array.from({ length: 11 }, (_, i) => lin
 const lineups: ObservedMatchDetail["lineups"] = {
   state: "stored", fetchedAt: "2026-10-21T12:07:31+00:00", confirmed: true,
   home: [...startersFrom(1), lineupPlayer(40, "Suplente Sin Jugar", { role: "substitute", participation: "unknown", minutes: missing }),
-    lineupPlayer(41, "Suplente Con Minutos", { role: "substitute", minutes: { value: 5 } })],
+    lineupPlayer(41, "Suplente Con Minutos", { role: "substitute", minutes: { value: 5 } }),
+    lineupPlayer(42, "Suplente No Utilizado", { role: "substitute", participation: "unused", minutes: { value: 0 } })],
   away: [...startersFrom(50), lineupPlayer(90, "Entra Tarde", { role: "substitute", minutes: { value: 22 } })],
 };
 const goal = (kind: ObservedGoal["kind"], scorer: PlayerRef | null, assist: PlayerRef | null = null, minute = 30): ObservedGoal =>
@@ -169,7 +170,7 @@ describe("Real match detail: Alineaciones", () => {
     expect(within(panel).getByText("Alineaciones confirmadas por la fuente.")).toBeVisible();
     const home = within(panel).getByRole("region", { name: "CE Europa" });
     expect(within(home).getByRole("list", { name: "Once inicial de CE Europa" }).children).toHaveLength(11);
-    expect(within(home).getByRole("list", { name: "Banquillo de CE Europa" }).children).toHaveLength(2);
+    expect(within(home).getByRole("list", { name: "Banquillo de CE Europa" }).children).toHaveLength(3);
     expect(row(panel, "Titular 1")).toHaveTextContent("1Titular 1MED");
     expect(within(panel).queryByText(/4-4-2|Formación/)).toBeNull();
     // Real profiles are not enabled here: names without links.
@@ -200,6 +201,9 @@ describe("Real match detail: Alineaciones", () => {
     expect(within(withMinutes).queryByLabelText(/Entra/)).toBeNull();
     expect(withMinutes).toHaveTextContent("5′");
     expect(row(panel, "Suplente Sin Jugar")).toHaveTextContent("Participación no confirmada");
+    // Unused as the data service resolves it: said so, never «0′».
+    expect(row(panel, "Suplente No Utilizado")).toHaveTextContent("No utilizado");
+    expect(row(panel, "Suplente No Utilizado")).not.toHaveTextContent("0′");
     expect(within(row(panel, "Titular 1")).queryByRole("img")).toBeNull();
   });
 

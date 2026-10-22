@@ -358,6 +358,64 @@ export type ObservedPlayers = {
   source: DataProvenance;
 };
 
+/** What «Equipos → Jugadores» accumulates for an observed player. */
+export const OBSERVED_SQUAD_STATS = ["appearances", "starts", "minutes", "goals", "assists"] as const;
+export type ObservedSquadStat = (typeof OBSERVED_SQUAD_STATS)[number];
+
+/**
+ * An observed player's figures in one competition of a real source, over
+ * their call-ups there (`of`), from the service's normalized call-ups:
+ * `starts` from the explicit line-up flag, `appearances` the call-ups in
+ * which the player took part out of those whose participation is known
+ * (`matches`: played or unused), and minutes, goals and assists summed over
+ * the call-ups that have them (an unused substitute adds 0). A partial
+ * figure is not a total.
+ */
+export type ObservedSquadPlayer = {
+  player: PlayerRef;
+  heightCm: number | null;
+  preferredFoot: PreferredFoot | null;
+  /** Shirt number in the player's most recent dated call-up here: historical, not necessarily the current one. */
+  lastShirtNumber: number | null;
+  /** Counted matches in which the source lists the player in this team's call-up. */
+  callUps: number;
+  stats: Record<ObservedSquadStat, SeasonStat>;
+};
+
+/**
+ * Observed players of a team in one competition of a real source's scope,
+ * over the same counted matches as its results. Not a full nor necessarily
+ * current squad.
+ */
+export type ObservedSquadCompetition = {
+  /** Same id as the competition in {@link ObservedCompetitionPerformance}. */
+  id: string;
+  name: string;
+  season: string | null;
+  /** Counted matches, and how many of them list any call-up of the team. */
+  matches: { counted: number; withCallUps: number };
+  /**
+   * Call-ups (one per player and match) by participation, and the quality
+   * issues: participation contradictions, goals or assists that contradict
+   * the incidents, a team id that differs from the line-up side (counted for
+   * the side's team), merged duplicates and discarded records.
+   */
+  callUps: {
+    total: number; played: number; unused: number; unknown: number; contradictions: number; mismatches: number;
+    teamWarnings: number; duplicateRecords: number; discardedRecords: number;
+  };
+  players: ObservedSquadPlayer[];
+};
+
+/** `GET /api/v1/teams/{teamId}/observed-squad`: per competition of the source's scope. */
+export type ObservedSquad = {
+  teamId: string;
+  competitions: ObservedSquadCompetition[];
+  /** What the figures cover, for the analyst, in Spanish. */
+  scope: string;
+  source: DataProvenance;
+};
+
 /**
  * `GET /api/v1/players/{playerId}/profile`: a player's personal data only, as
  * a real source gives them. It belongs to no season and claims no current
@@ -431,13 +489,21 @@ export type ObservedPlayerMatch = {
   /** Position in this match's line-up, as the source gives it; not the player's usual position. */
   position: PlayerPosition | null;
   /**
-   * `confirmed` only when the source says the player took part. `unknown`
-   * never means "did not play": the source simply does not say.
+   * As the data service normalizes the call-up with line-ups, minutes and
+   * incidents: `confirmed` when the player took part; `unused` for a
+   * substitute who did not come on (confirmed line-up and substitutions that
+   * account for every substitute used); `unknown` when the evidence is not
+   * enough or contradicts itself: never "did not play".
    */
-  participation: "confirmed" | "unknown";
+  participation: "confirmed" | "unused" | "unknown";
   /**
-   * As given by the source; a value it omits is missing, never 0. Without
-   * confirmed participation every value is missing. `xg` keeps its decimals;
+   * `minutes`, `goals` and `assists` are the service's normalization: the
+   * source's value, or 0 when it omits a goal or assist in an appearance
+   * with full individual stats (a rule for this source, checked against the
+   * incidents; a contradiction stays missing), or 0 for an unused
+   * substitute. Minutes are never derived. Every other value is as given by
+   * the source; a value it omits is missing, never 0. Without confirmed
+   * participation every other value is missing. `xg` keeps its decimals;
    * `rating` is the provider's own rating (see `ratingSource`). `fouls` are
    * committed; `duelsWon`/`duelsLost` include aerial duels; `dribbles` are
    * attempted and `dribblesWon` successful. No pass accuracy is stored: it is
@@ -554,9 +620,9 @@ export type ObservedLineupPlayer = {
   shirtNumber: number | null;
   /** From the source's explicit flag; `null` when it does not say, never guessed. */
   role: "starter" | "substitute" | null;
-  /** As in {@link ObservedPlayerMatch}: a named substitute is not a player who took part. */
-  participation: "confirmed" | "unknown";
-  /** Only with confirmed participation; otherwise missing. */
+  /** As in {@link ObservedPlayerMatch}: the same normalization, so both screens agree. */
+  participation: "confirmed" | "unused" | "unknown";
+  /** As normalized: the source's minutes when the player took part (missing if it gives none), 0 when unused. */
   minutes: Stat;
 };
 

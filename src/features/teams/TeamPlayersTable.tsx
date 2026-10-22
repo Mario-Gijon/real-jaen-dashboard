@@ -7,7 +7,7 @@ import { getPlayer } from "@/client/api";
 import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { playerHref } from "../players/navigation";
 import { useApi } from "../use-api";
-import type { PlayerPosition, PlayerSeasonStats, SquadPlayer } from "@/contract";
+import type { PlayerPosition, PlayerRef, PlayerSeasonStats, PreferredFoot, SeasonStat } from "@/contract";
 import {
   POSITION_LABEL,
   POSITION_ORDER,
@@ -27,6 +27,18 @@ type StatKey = keyof Pick<
 export type SortKey = "name" | "position" | StatKey;
 type Sort = { key: SortKey; direction: "ascending" | "descending" };
 
+/**
+ * One row: a synthetic squad member, or an observed player of a real source
+ * whose figures count call-ups and whose personal data come with the row.
+ */
+export type SquadRow = {
+  player: PlayerRef;
+  shirtNumber: number | null;
+  stats: Record<StatKey, SeasonStat>;
+  /** Already in the response; without it, each row asks for the player's season. */
+  personal?: { heightCm: number | null; preferredFoot: PreferredFoot | null };
+};
+
 /** Key, header, header on phones, full name. */
 const STAT_COLUMNS: readonly (readonly [StatKey, string, string, string])[] = [
   ["appearances", "PJ", "PJ", "Partidos jugados"],
@@ -40,7 +52,7 @@ const lineIndex = (position: PlayerPosition | null) =>
   position ? POSITION_ORDER.indexOf(position) : POSITION_ORDER.length;
 
 /** Line, then shirt number: how a squad list reads by default. */
-function byPosition(a: SquadPlayer, b: SquadPlayer) {
+function byPosition(a: SquadRow, b: SquadRow) {
   return (
     lineIndex(a.player.position) - lineIndex(b.player.position) ||
     (a.shirtNumber ?? 999) - (b.shirtNumber ?? 999) ||
@@ -48,15 +60,24 @@ function byPosition(a: SquadPlayer, b: SquadPlayer) {
   );
 }
 
-/** Missing values always go last, whatever the direction. */
-function sortSquad(rows: readonly SquadPlayer[], { key, direction }: Sort): SquadPlayer[] {
+/** Complete figures, then partial ones, then missing ones. */
+const COVERAGE_RANK: Readonly<Record<SeasonStat["coverage"], number>> = { complete: 0, partial: 1, none: 2 };
+
+/**
+ * Whatever the direction, complete figures go first, then partial ones (each
+ * group by its value) and missing ones last, so a partial figure is never
+ * ranked as a whole-season total nor as 0. Ties read by position.
+ */
+function sortSquad(rows: readonly SquadRow[], { key, direction }: Sort): SquadRow[] {
   const sign = direction === "ascending" ? 1 : -1;
   return [...rows].sort((a, b) => {
     if (key === "position") return sign * byPosition(a, b);
     if (key === "name") return sign * a.player.name.localeCompare(b.player.name, "es");
-    const [x, y] = [a.stats[key].value, b.stats[key].value];
-    if (x === null || y === null) return x === y ? byPosition(a, b) : x === null ? 1 : -1;
-    return sign * (x - y) || byPosition(a, b);
+    const [x, y] = [a.stats[key], b.stats[key]];
+    const group = COVERAGE_RANK[x.coverage] - COVERAGE_RANK[y.coverage];
+    if (group) return group;
+    if (x.value === null || y.value === null) return byPosition(a, b);
+    return sign * (x.value - y.value) || byPosition(a, b);
   });
 }
 
@@ -70,18 +91,31 @@ function MinutesBar({ minutes, max }: { minutes: number; max: number }) {
   );
 }
 
+/** Partial notes of a real source's figures, which count call-ups rather than matches. */
+function callUpsNote(key: StatKey) {
+  return (stat: SeasonStat) => key === "appearances"
+    ? `Participación conocida en ${stat.matches} de ${stat.of} convocatorias`
+    : `Dato de ${stat.matches} de ${stat.of} convocatorias`;
+}
+
 /**
  * The season squad: filter by line, sort by column, navigate to the player.
  * Every squad member appears, with or without minutes; a real 0 reads «0».
+ * With `observed`, the rows are a real source's observed players: figures are
+ * over call-ups (a call-up without resolved participation makes them
+ * partial), the shirt is the last one observed and each name opens the real
+ * profile through `href`.
  */
 export function TeamPlayersTable({
   squad,
   seasonId,
   teamId,
+  observed,
 }: {
-  squad: readonly SquadPlayer[];
+  squad: readonly SquadRow[];
   seasonId: string;
   teamId: string;
+  observed?: { href: (playerId: string) => string };
 }) {
   const [line, setLine] = useState<PlayerPosition | "all">("all");
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "ascending" });
@@ -158,7 +192,7 @@ export function TeamPlayersTable({
       </div>
       <div className={css.scroll}>
         <table className={css.table}>
-          <caption className={css.sr}>Jugadores de la plantilla</caption>
+          <caption className={css.sr}>{observed ? "Jugadores observados" : "Jugadores de la plantilla"}</caption>
           <thead>
             <tr>
               <th aria-sort={ariaSort("name")} className={css.player} scope="col">
@@ -169,7 +203,7 @@ export function TeamPlayersTable({
               </th>
               {STAT_COLUMNS.map(([key, short, phone, long]) => (
                 <th aria-sort={ariaSort(key)} className={css.stat} key={key} scope="col">
-                  {header(key, short, long, true, phone)}
+                  {header(key, short, observed && key === "appearances" ? "Partidos jugados (convocatorias con participación)" : long, true, phone)}
                 </th>
               ))}
               <th className={css.personalHeader} scope="col">Estatura</th>
@@ -178,15 +212,22 @@ export function TeamPlayersTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <LinkedTableRow data-unused={row.stats.appearances.value === 0 || undefined} key={row.player.id}>
+              <LinkedTableRow
+                data-unused={(row.stats.appearances.value === 0 && row.stats.appearances.coverage === "complete") || undefined}
+                key={row.player.id}
+              >
                 <th className={css.player} scope="row">
                   <Link
                     aria-label={`Ver ficha de ${row.player.name}`}
                     className={css.open}
-                    href={playerHref(row.player.id, seasonId, { kind: "team", id: teamId })}
+                    href={observed ? observed.href(row.player.id) : playerHref(row.player.id, seasonId, { kind: "team", id: teamId })}
                     prefetch={false}
                   >
-                    <span aria-hidden="true" className={css.shirt}>
+                    <span
+                      aria-hidden="true"
+                      className={css.shirt}
+                      title={observed && row.shirtNumber !== null ? "Dorsal en su última convocatoria observada" : undefined}
+                    >
                       {row.shirtNumber ?? "—"}
                     </span>
                     {/* The contract has no player picture yet: always the neutral fallback. */}
@@ -210,13 +251,18 @@ export function TeamPlayersTable({
                   >
                     {key === "minutes" ? (
                       <span className={css.minutesValue}>
-                        <SeasonValue stat={row.stats[key]} />
+                        <SeasonValue partialNote={observed && callUpsNote(key)} stat={row.stats[key]} />
                         <MinutesBar max={maxMinutes} minutes={row.stats.minutes.value ?? 0} />
                       </span>
-                    ) : <SeasonValue stat={row.stats[key]} />}
+                    ) : <SeasonValue partialNote={observed && callUpsNote(key)} stat={row.stats[key]} />}
                   </td>
                 ))}
-                <PersonalCells playerId={row.player.id} seasonId={seasonId} />
+                {row.personal ? (
+                  <>
+                    <td>{row.personal.heightCm !== null ? `${row.personal.heightCm} cm` : "—"}</td>
+                    <td>{footLabel(row.personal.preferredFoot)}</td>
+                  </>
+                ) : <PersonalCells playerId={row.player.id} seasonId={seasonId} />}
               </LinkedTableRow>
             ))}
           </tbody>

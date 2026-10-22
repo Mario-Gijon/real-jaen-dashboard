@@ -83,6 +83,7 @@ export function createSyntheticSource(data: RawDataset): DataSource {
     teamObservedMatches: async () => null,
     teamObservedPerformance: async () => null,
     matchObservedDetail: async () => null,
+    observedSquad: async () => null,
   };
 }
 
@@ -98,6 +99,7 @@ export const syntheticSource: DataSource = {
   teamSeason: (seasonId, teamId) => lazy().teamSeason(seasonId, teamId),
   player: (playerId, seasonId) => lazy().player(playerId, seasonId),
   observedPlayers: (teamId) => lazy().observedPlayers(teamId),
+  observedSquad: async () => null,
   playerProfile: async () => null,
   playerObservedMatches: async () => null,
   teamObservedMatches: async () => null,

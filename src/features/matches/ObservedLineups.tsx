@@ -139,7 +139,7 @@ function PlayerList({ players, label, matchId, linkProfiles, marks }: {
           {role === "substitute" && !entered
             ? participation === "confirmed" && minutes.value !== null
               ? <span className={css.minutes} aria-label={`${formatNumber(minutes.value)} minutos`}>{formatNumber(minutes.value)}′</span>
-              : <span className={css.unknown}>Participación no confirmada</span>
+              : <span className={css.unknown}>{participation === "unused" ? "No utilizado" : "Participación no confirmada"}</span>
             : null}
         </span>
         {entered ? <span className={css.entry}>

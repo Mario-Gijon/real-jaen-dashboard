@@ -1,5 +1,6 @@
 import {
   OBSERVED_MATCH_STAT_KEYS,
+  OBSERVED_SQUAD_STATS,
   TEAM_STAT_KEYS,
   type MatchStatus,
   type ObservedMatch,
@@ -10,6 +11,10 @@ import {
   type ObservedPlayerMatch,
   type ObservedPlayerMatches,
   type ObservedPlayers,
+  type ObservedSquad,
+  type ObservedSquadCompetition,
+  type ObservedSquadPlayer,
+  type ObservedSquadStat,
   type ObservedSubstitution,
   type MatchResult,
   type ObservedCompetition,
@@ -385,34 +390,50 @@ function parseMatch(match: Record<string, unknown>, id: number, at: (field: stri
   };
 }
 
-/**
- * Whether the source confirms the player took part, from `played` and the
- * minutes. A `statistics` object alone proves nothing (the source sends
- * `{ totalShots: 0 }` for unused substitutes).
- *
- * | played        | minutes      | participation                      |
- * |---------------|--------------|------------------------------------|
- * | true          | > 0 or none  | confirmed                          |
- * | absent / null | > 0          | confirmed (minutes imply it)       |
- * | false         | 0 or none    | unknown (never "did not play")     |
- * | absent / null | 0 or none    | unknown                            |
- * | true          | 0            | unknown: contradiction, logged     |
- * | false         | > 0          | unknown: contradiction, logged     |
- *
- * A contradiction is never settled by picking one field.
- */
-function participationOf(played: unknown, minutes: number | null, where: string): boolean {
-  const someMinutes = minutes !== null && minutes > 0;
-  if ((played === true && minutes === 0) || (played === false && someMinutes)) {
-    console.warn(`API local: ${where}: played=${String(played)} y minutes=${minutes} se contradicen; participación desconocida.`);
-    return false;
+/** The service's participation of a call-up. */
+const PARTICIPATIONS: Readonly<Record<string, ObservedPlayerMatch["participation"]>> = {
+  played: "confirmed",
+  unused: "unused",
+  unknown: "unknown",
+};
+const NORMALIZED_SOURCES = new Set(["reported", "omitted_zero", "unused"]);
+
+/** A call-up as the service normalizes it: participation, and minutes, goals and assists with their origin. */
+type NormalizedCallUp = { participation: ObservedPlayerMatch["participation"]; minutes: Stat; goals: Stat; assists: Stat };
+
+/** One normalized figure, `{ value, source }`: a non-negative integer with its origin, or missing with none. */
+function normalizedFigure(value: unknown, field: string): Stat {
+  if (!isRecord(value)) throw invalid(field);
+  if (value.value === null) {
+    if (value.source !== null) throw invalid(`${field}.source`);
+    return NOT_AVAILABLE;
   }
-  return played === true || (played !== false && someMinutes);
+  if (typeof value.source !== "string" || !NORMALIZED_SOURCES.has(value.source)) throw invalid(`${field}.source`);
+  return { value: count(value.value, `${field}.value`) };
 }
 
 /**
- * One call-up row. Without confirmed participation (see `participationOf`)
- * every stat stays missing. Omitted stats are missing, never 0.
+ * The service's normalization of one call-up (`normalized`): the source's
+ * rules live there, once, for figures, profile and line-ups. This only checks
+ * it holds: an unused substitute has 0 of everything, an unknown call-up
+ * nothing.
+ */
+function parseNormalized(value: unknown, field: string): NormalizedCallUp {
+  if (!isRecord(value)) throw invalid(`${field}: falta la normalización del servicio`);
+  const participation = typeof value.participation === "string" ? PARTICIPATIONS[value.participation] : undefined;
+  if (!participation) throw invalid(`${field}.participation`);
+  const [minutes, goals, assists] = (["minutes", "goals", "assists"] as const).map((key) => normalizedFigure(value[key], `${field}.${key}`));
+  const figures = [minutes, goals, assists].map((stat) => stat.value);
+  if (participation === "unused" && figures.some((figure) => figure !== 0)) throw invalid(`${field}: un no utilizado suma 0`);
+  if (participation === "unknown" && figures.some((figure) => figure !== null)) throw invalid(`${field}: sin participación no hay cifras`);
+  return { participation, minutes, goals, assists };
+}
+
+/**
+ * One call-up row, with the service's normalization: participation, minutes,
+ * goals and assists come from it (an unused substitute has 0 of each). Every
+ * other stat is the source's own, only for a confirmed appearance; omitted,
+ * it stays missing, never 0.
  */
 function parseMatchRow(row: unknown, index: number, playerSourceId: number, scope: readonly SourceCompetition[]): RawObservedMatch {
   const at = (field: string) => `data[${index}].${field}`;
@@ -430,16 +451,15 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number, scop
   assertInScope(row.match, scope, (field) => at(`match.${field}`));
   const match = parseMatch(row.match, id, (field) => at(`match.${field}`));
 
-  const minutes =
-    optionalNumber(row.minutes_played, at("minutes_played")) ??
-    (statistics ? optionalNumber(statistics.minutesPlayed, at("statistics.minutesPlayed")) : null);
-  const confirmed = participationOf(row.played, minutes, `partido ${id}`);
+  const normalized = parseNormalized(row.normalized, at("normalized"));
+  const confirmed = normalized.participation === "confirmed";
   const stats = {} as Record<ObservedMatchStatKey, Stat>;
   for (const key of OBSERVED_MATCH_STAT_KEYS) {
-    const field = key === "minutes" ? null : STAT_FIELDS[key];
-    const value = field === null
-      ? minutes
-      : statistics ? optionalNumber(statistics[field], at(`statistics.${field}`)) : null;
+    if (key === "minutes" || key === "goals" || key === "assists") {
+      stats[key] = normalized[key];
+      continue;
+    }
+    const value = statistics ? optionalNumber(statistics[STAT_FIELDS[key]], at(`statistics.${STAT_FIELDS[key]}`)) : null;
     stats[key] = confirmed && value !== null ? { value } : NOT_AVAILABLE;
   }
 
@@ -448,7 +468,7 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number, scop
     side: row.side,
     role: row.substitute === true ? "substitute" : row.substitute === false ? "starter" : null,
     position: position(row.match_position, at("match_position")),
-    participation: confirmed ? "confirmed" : "unknown",
+    participation: normalized.participation,
     stats,
   };
 }
@@ -756,6 +776,137 @@ export function createLocalApiTeamPerformance(options: Options) {
   };
 }
 
+const OBSERVED_SQUAD_SCOPE =
+  "Jugadores observados en las convocatorias de los partidos finalizados disponibles de esta competición. No garantiza toda la temporada ni es una plantilla completa o necesariamente actual.";
+
+/** The service's name for each accumulated figure. */
+const SQUAD_STAT_FIELDS: Readonly<Record<ObservedSquadStat, string>> = {
+  appearances: "appearances",
+  starts: "starts",
+  minutes: "minutes",
+  goals: "goals",
+  assists: "assists",
+};
+
+/**
+ * One accumulated figure of the service, `{ value, matches, of }`, over the
+ * player's call-ups: a sum of non-negative integers, absent when no call-up
+ * has it. `appearances` counts the call-ups in which the player took part
+ * (`value`) out of those whose participation is known (`matches`: played or
+ * unused), so 0 is a value whenever any is known.
+ */
+function parseSquadStat(value: unknown, stat: ObservedSquadStat, callUps: number, field: string): SeasonStat {
+  if (!isRecord(value)) throw invalid(field);
+  const matches = count(value.matches, `${field}.matches`);
+  if (count(value.of, `${field}.of`) !== callUps) throw invalid(`${field}.of: no son las convocatorias del jugador`);
+  if (matches > callUps) throw invalid(`${field}.matches`);
+  if (matches === 0) {
+    if (value.value !== null) throw invalid(`${field}.value: sin convocatorias con dato no hay cifra`);
+    return { value: null, coverage: "none", reason: "not_available", matches: 0, of: callUps };
+  }
+  const total = count(value.value, `${field}.value`);
+  if ((stat === "starts" || stat === "appearances") && total > matches) throw invalid(`${field}.value`);
+  return { value: total, coverage: matches === callUps ? "complete" : "partial", matches, of: callUps };
+}
+
+function parseSquadPlayer(row: unknown, field: string, withCallUps: number): ObservedSquadPlayer {
+  if (!isRecord(row)) throw invalid(field);
+  const id = positiveId(row.player_id, `${field}.player_id`);
+  const name = optionalText(row.name, `${field}.name`);
+  if (name === null) throw invalid(`${field}.name`);
+  const height = row.height_cm ?? null;
+  if (height !== null && !(typeof height === "number" && Number.isInteger(height) && height > 0)) throw invalid(`${field}.height_cm`);
+  const foot = optionalText(row.preferred_foot, `${field}.preferred_foot`);
+  const shirt = row.last_shirt_number ?? null;
+  const callUps = count(row.call_ups, `${field}.call_ups`);
+  if (callUps === 0 || callUps > withCallUps) throw invalid(`${field}.call_ups`);
+  const stats = {} as Record<ObservedSquadStat, SeasonStat>;
+  for (const stat of OBSERVED_SQUAD_STATS) {
+    stats[stat] = parseSquadStat(row[SQUAD_STAT_FIELDS[stat]], stat, callUps, `${field}.${SQUAD_STAT_FIELDS[stat]}`);
+  }
+  return {
+    player: { id: playerIdFromSource(id), name, position: position(row.usual_position, `${field}.usual_position`) },
+    heightCm: height,
+    preferredFoot: (foot && FEET[foot.toLowerCase()]) || null,
+    lastShirtNumber: shirt === null ? null : count(shirt, `${field}.last_shirt_number`),
+    callUps,
+    stats,
+  };
+}
+
+/**
+ * One competition of the service's player aggregate. The service computes
+ * it; this checks it is in the declared scope and adds up (each figure over
+ * the player's call-ups, players once each, call-ups and confirmed
+ * participations matching their totals). Anything else makes the whole
+ * answer invalid: no figure is shown from a response that does not hold.
+ */
+function parseSquadCompetition(entry: unknown, index: number, scope: readonly SourceCompetition[]): ObservedSquadCompetition {
+  const at = (field: string) => `data.competitions[${index}].${field}`;
+  if (!isRecord(entry) || !isRecord(entry.matches) || !isRecord(entry.call_ups) || !Array.isArray(entry.players)) {
+    throw invalid(`data.competitions[${index}]`);
+  }
+  const competition = scope.find((c) => c.tournamentId === entry.tournament_id && c.seasonId === entry.season_id);
+  if (!competition) throw invalid(`${at("tournament_id")}: competición fuera del ámbito declarado`);
+  const matches = { counted: count(entry.matches.counted, at("matches.counted")),
+    withCallUps: count(entry.matches.with_call_ups, at("matches.with_call_ups")) };
+  if (matches.withCallUps > matches.counted) throw invalid(at("matches.with_call_ups"));
+  const c = entry.call_ups;
+  const callUps = {
+    total: count(c.total, at("call_ups.total")), played: count(c.played, at("call_ups.played")),
+    unused: count(c.unused, at("call_ups.unused")), unknown: count(c.unknown, at("call_ups.unknown")),
+    contradictions: count(c.contradictions, at("call_ups.contradictions")),
+    mismatches: count(c.mismatches, at("call_ups.mismatches")),
+    teamWarnings: count(c.team_warnings, at("call_ups.team_warnings")),
+    duplicateRecords: count(c.duplicate_records, at("call_ups.duplicate_records")),
+    discardedRecords: count(c.discarded_records, at("call_ups.discarded_records")),
+  };
+  const seen = new Set<string>();
+  const players = entry.players.map((row, i) => {
+    const player = parseSquadPlayer(row, at(`players[${i}]`), matches.withCallUps);
+    if (seen.has(player.player.id)) throw invalid(`${at(`players[${i}].player_id`)} repetido`);
+    seen.add(player.player.id);
+    return player;
+  });
+  const sum = (of: (p: ObservedSquadPlayer) => number) => players.reduce((total, p) => total + of(p), 0);
+  if (sum((p) => p.callUps) !== callUps.total || callUps.played + callUps.unused + callUps.unknown !== callUps.total
+    || sum((p) => p.stats.appearances.value ?? 0) !== callUps.played
+    || sum((p) => p.stats.appearances.matches) !== callUps.played + callUps.unused
+    || callUps.contradictions > callUps.unknown) {
+    throw invalid(`${at("call_ups")}: los totales no coinciden con los jugadores`);
+  }
+  return {
+    id: `sofascore-scope-${competition.tournamentId}-${competition.seasonId}`,
+    name: competition.name,
+    season: competition.season,
+    matches,
+    callUps,
+    players,
+  };
+}
+
+/**
+ * `observedSquad` against the local API: the team's observed players with
+ * their figures in each competition of the declared scope, as the service
+ * accumulates them, personal data included (one request, never one per
+ * player). `null` for a team without correspondence or one the source does
+ * not know.
+ */
+export function createLocalApiObservedSquad(options: Options) {
+  return async (teamId: string): Promise<ObservedSquad | null> => {
+    const teamSourceId = SOURCE_TEAM_IDS[teamId];
+    if (teamSourceId === undefined) return null;
+    const scope = await sourceScope(options);
+    const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${teamSourceId}/player-stats`);
+    if (body === null) return null;
+    if (!isRecord(body) || !isRecord(body.data) || body.data.team_id !== teamSourceId || !Array.isArray(body.data.competitions)) {
+      throw invalid("se esperaba { data: { team_id, competitions: [] } }");
+    }
+    const competitions = body.data.competitions.map((entry, index) => parseSquadCompetition(entry, index, scope));
+    return { teamId, competitions, scope: OBSERVED_SQUAD_SCOPE, source: PROVENANCE };
+  };
+}
+
 const SECTION_STATES = new Set(["stored", "empty", "not_stored"]);
 
 /**
@@ -789,12 +940,14 @@ function parseTeamStats(payload: unknown): { home: TeamMatchStats; away: TeamMat
 /**
  * One side of a stored `lineups` payload, in the source's order. The side is
  * the payload's (`home`/`away`), not each player's `teamId`. The role comes
- * only from the explicit `substitute` flag. Participation follows
- * `participationOf` with the minutes in `statistics` (there is no `played`
- * here): an unused substitute only carries `{ totalShots: 0 }`, so it stays
- * unknown. Formation, colours, captain and stats are left out.
+ * only from the explicit `substitute` flag. Participation and minutes are the
+ * service's normalization of each call-up (`normalized`, as in the figures and
+ * the profile); a player it does not cover stays unknown. Formation, colours,
+ * captain and stats are left out.
  */
-function parseLineupSide(payload: Record<string, unknown>, side: "home" | "away"): ObservedLineupPlayer[] {
+function parseLineupSide(
+  payload: Record<string, unknown>, side: "home" | "away", normalized: ReadonlyMap<number, NormalizedCallUp>,
+): ObservedLineupPlayer[] {
   const team = payload[side];
   if (team === undefined || team === null) return [];
   if (!isRecord(team)) throw invalid(`lineups.${side}`);
@@ -810,16 +963,13 @@ function parseLineupSide(payload: Record<string, unknown>, side: "home" | "away"
     if (shirt !== null && (!Number.isInteger(shirt) || shirt < 0)) throw invalid(at("shirtNumber"));
     const substitute = entry.substitute ?? null;
     if (substitute !== null && typeof substitute !== "boolean") throw invalid(at("substitute"));
-    const statistics = entry.statistics ?? null;
-    if (statistics !== null && !isRecord(statistics)) throw invalid(at("statistics"));
-    const minutes = statistics ? optionalNumber(statistics.minutesPlayed, at("statistics.minutesPlayed")) : null;
-    const confirmed = participationOf(undefined, minutes, `alineación, jugador ${id}`);
+    const callUp = normalized.get(id);
     return {
       player: { id: playerIdFromSource(id), name, position: position(entry.position ?? entry.player.position, at("position")) },
       shirtNumber: shirt,
       role: substitute === null ? null : substitute ? "substitute" : "starter",
-      participation: confirmed ? "confirmed" : "unknown",
-      minutes: confirmed && minutes !== null ? { value: minutes } : NOT_AVAILABLE,
+      participation: callUp?.participation ?? "unknown",
+      minutes: callUp?.minutes ?? NOT_AVAILABLE,
     };
   });
 }
@@ -874,11 +1024,26 @@ function parseIncidents(payload: unknown): { goals: ObservedGoal[]; substitution
   return { goals, substitutions };
 }
 
-function parseLineups(payload: unknown) {
+/** The service's normalized call-ups of a match (`normalized.players`), by the provider's player id. */
+function parseNormalizedPlayers(value: unknown): Map<number, NormalizedCallUp> {
+  if (!isRecord(value) || !Array.isArray(value.players)) throw invalid("normalized: falta la normalización del servicio");
+  const players = new Map<number, NormalizedCallUp>();
+  value.players.forEach((entry, index) => {
+    const field = `normalized.players[${index}]`;
+    if (!isRecord(entry)) throw invalid(field);
+    const id = positiveId(entry.player_id, `${field}.player_id`);
+    if (players.has(id)) throw invalid(`${field}.player_id repetido`);
+    players.set(id, parseNormalized(entry, field));
+  });
+  return players;
+}
+
+function parseLineups(payload: unknown, body: Record<string, unknown>) {
   if (!isRecord(payload)) throw invalid("lineups");
   const confirmed = payload.confirmed ?? null;
   if (confirmed !== null && typeof confirmed !== "boolean") throw invalid("lineups.confirmed");
-  return { confirmed, home: parseLineupSide(payload, "home"), away: parseLineupSide(payload, "away") };
+  const normalized = parseNormalizedPlayers(body.normalized);
+  return { confirmed, home: parseLineupSide(payload, "home", normalized), away: parseLineupSide(payload, "away", normalized) };
 }
 
 /**
@@ -890,7 +1055,7 @@ async function matchSection<T extends object>(
   options: Options,
   sourceId: number,
   section: "statistics" | "lineups" | "incidents",
-  parse: (data: unknown) => T,
+  parse: (data: unknown, body: Record<string, unknown>) => T,
 ): Promise<({ state: "stored"; fetchedAt: string | null } & T) | { state: "empty" | "not_stored" | "error"; fetchedAt: string | null }> {
   try {
     const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}/${section}`);
@@ -901,7 +1066,7 @@ async function matchSection<T extends object>(
     if (typeof state !== "string" || !SECTION_STATES.has(state)) throw invalid("meta.availability");
     const fetchedAt = optionalText(body.meta.fetched_at, "meta.fetched_at");
     if (state !== "stored") return { state: state as "empty" | "not_stored", fetchedAt };
-    return { state: "stored", fetchedAt, ...parse(body.data) };
+    return { state: "stored", fetchedAt, ...parse(body.data, body) };
   } catch (failure) {
     if (!(failure instanceof UpstreamUnavailableError)) throw failure;
     console.error(`[api] ${section} del partido ${sourceId}:`, failure.message);

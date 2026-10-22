@@ -4,7 +4,8 @@ import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ApiRequestError, getCompetitions, getObservedPlayers, getSeasonTeams, getSource, getTeamObservedPerformance, getTeamSeason,
+  ApiRequestError, getCompetitions, getObservedPlayers, getObservedSquad, getSeasonTeams, getSource, getTeamObservedPerformance,
+  getTeamSeason,
 } from "@/client/api";
 import type { ObservedCompetitionPerformance, ObservedTeam, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
@@ -17,6 +18,7 @@ import { observedCrest } from "../matches/ObservedMatchList";
 import { observedMatchHref } from "../players/navigation";
 import { useApi } from "../use-api";
 import { ObservedPlayersList } from "./ObservedPlayersList";
+import { ObservedSquadTable } from "./ObservedSquadTable";
 import { TeamCrestGrid } from "./TeamCrestGrid";
 import { RealTeamPerformance, TeamPerformance } from "./TeamPerformance";
 import { TeamPlayersTable } from "./TeamPlayersTable";
@@ -213,8 +215,9 @@ const realTeamRef = (team: ObservedTeam): TeamRef => ({ id: team.id, ...observed
  * explicit correspondence, and the competitions of the source's scope as
  * seasons, never related to the synthetic ones. Performance shows the
  * results of the observed finished matches; the players tab shows the real
- * observed players when that source is enabled, and says so when it is not.
- * Nothing synthetic is loaded.
+ * observed players with their figures in the selected competition when that
+ * source is enabled (`OBSERVED_PLAYERS_SOURCE=local`), and says so when it
+ * is not. Nothing synthetic is loaded.
  */
 function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performance", realMatches, realPlayers }: Props & {
   realMatches: boolean; realPlayers: boolean;
@@ -224,8 +227,9 @@ function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performan
   // A season id from the URL must be one of the source's; a synthetic one is said so, never swapped.
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId ?? null);
   const [tab, setTab] = useState<Tab>(initialTab);
-  const observed = useApi(realPlayers && tab === "players" ? `observed|${teamId}` : null, (signal) =>
-    getObservedPlayers(teamId, { signal }),
+  // Every competition at once: the season selector then picks the figures without asking again.
+  const squad = useApi(realPlayers && tab === "players" ? `observed-squad|${teamId}` : null, (signal) =>
+    getObservedSquad(teamId, { signal }),
   );
   const competitions = load.data?.competitions ?? [];
   const competition: ObservedCompetitionPerformance | null =
@@ -284,7 +288,7 @@ function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performan
         </div>
       ) : (
         <TeamShell
-          busy={tab === "players" && observed.loading}
+          busy={tab === "players" && squad.loading}
           onSelectTeam={setTeamId}
           onTab={setTab}
           subtitle={subtitle}
@@ -302,12 +306,12 @@ function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performan
             </div>
           ) : !realPlayers ? (
             <p className={css.status} role="status">La fuente real de jugadores no está activada.</p>
-          ) : observed.error ? (
-            <ObservedError error={observed.error} retry={observed.retry} />
-          ) : !observed.data ? (
+          ) : squad.error ? (
+            <ObservedError error={squad.error} retry={squad.retry} />
+          ) : !squad.data ? (
             <p className={css.status} role="status">Cargando jugadores…</p>
           ) : (
-            <ObservedPlayersList observed={observed.data} seasonId={competition.id} seasonLabel={subtitle} />
+            <ObservedSquadTable competitionId={competition.id} squad={squad.data} />
           )}
         </TeamShell>
       )}

@@ -54,7 +54,7 @@ function passAccuracy(stats: ObservedPlayerMatch["stats"]): Stat {
  * Selecting a match never leaves the profile; `onSelect` lets the profile
  * keep it in the URL. A missing value reads «—», never 0; a call-up without
  * confirmed participation has no minutes nor stats and never reads «No
- * participó». `matchHref` (real matches active) adds «Ver partido completo».
+ * participó»; an unused substitute reads «No utilizado». `matchHref` (real matches active) adds «Ver partido completo».
  */
 export function ObservedMatches({ load, usualPosition, initialMatchId = null, matchHref = null, onSelect }: {
   load: Load; usualPosition: PlayerPosition | null; initialMatchId?: string | null;
@@ -135,9 +135,10 @@ function Score({ row }: { row: ObservedPlayerMatch }) {
     {score ? `${score.home}–${score.away}` : "—"}
   </span>;
 }
-/** Role and minutes; a call-up without confirmed participation says so, never «No participó». */
+/** Role and minutes; an unused substitute says so, and a call-up the data cannot resolve too, never «No participó». */
 function Role({ row }: { row: ObservedPlayerMatch }) {
   const role = row.role === "starter" ? "Titular" : row.role === "substitute" ? "Suplente" : "Rol no disponible";
+  if (row.participation === "unused") return <>{role} · No utilizado</>;
   if (row.participation !== "confirmed") return <>{role} · Participación no confirmada</>;
   return <>{role} · <MatchValue stat={row.stats.minutes} />{row.stats.minutes.value !== null ? "′" : null}</>;
 }
@@ -195,7 +196,9 @@ function MatchDetail({ row, usualPosition, ratingSource, href }: {
             </dd></div>)}</dl>
         </section>)}
     </div> : <p className={shared.message}>
-      Convocado. La fuente no confirma su participación: sin minutos ni estadísticas individuales en este partido.
+      {row.participation === "unused"
+        ? "Convocado, no utilizado: no entró en el partido."
+        : "Convocado. Los datos no permiten confirmar su participación: sin minutos ni estadísticas individuales en este partido."}
     </p>}
     {href ? <Link className={css.fullMatch} href={href} prefetch={false}>Ver partido completo</Link> : null}
   </>;

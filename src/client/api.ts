@@ -7,6 +7,7 @@ import type {
   ObservedMatchDetail,
   ObservedPlayerMatches,
   ObservedPlayers,
+  ObservedSquad,
   ObservedTeamMatches,
   ObservedTeamPerformance,
   PlayerProfile,
@@ -97,6 +98,11 @@ export function getPlayer(playerId: string, seasonId: string, options?: RequestO
 /** Players seen with a team, in no season; `source` says where they come from. */
 export function getObservedPlayers(teamId: string, options?: RequestOptions) {
   return get<ObservedPlayers>(`/teams/${segment(teamId)}/players`, options);
+}
+
+/** A team's observed players with their figures per competition of the real source's scope. */
+export function getObservedSquad(teamId: string, options?: RequestOptions) {
+  return get<ObservedSquad>(`/teams/${segment(teamId)}/observed-squad`, options);
 }
 
 /** A real match with its team stats (`id` from a real match list). */

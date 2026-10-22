@@ -171,12 +171,23 @@ describe("Partidos (real)", () => {
     expect(within(detail()).queryByText("Tiros")).toBeNull();
   });
 
-  it("tells a call-up without confirmed participation from an appearance", async () => {
+  it("tells a call-up without resolved participation from an appearance", async () => {
     await loadMatches([benched], { initialMatchId: "sofascore-match-2" });
-    expect(within(detail()).getByText(/La fuente no confirma su participación: sin minutos ni estadísticas/)).toBeVisible();
+    expect(within(detail()).getByText(/Los datos no permiten confirmar su participación: sin minutos ni estadísticas/)).toBeVisible();
     expect(within(detail()).getByText(/Suplente · Participación no confirmada/)).toBeVisible();
     expect(within(detail()).queryByText(/Valoración/)).toBeNull();
     expect(within(detail()).queryByRole("term")).toBeNull();
+  });
+
+  it("says an unused substitute was not used, without stats", async () => {
+    const unused: ObservedPlayerMatch = { ...benched, participation: "unused",
+      stats: { ...noStats, minutes: { value: 0 }, goals: { value: 0 }, assists: { value: 0 } } };
+    await loadMatches([unused], { initialMatchId: "sofascore-match-2" });
+    expect(within(detail()).getByText("Convocado, no utilizado: no entró en el partido.")).toBeVisible();
+    expect(within(detail()).getByText(/Suplente · No utilizado/)).toBeVisible();
+    expect(within(detail()).queryByRole("term")).toBeNull();
+    // The history row says it too.
+    expect(within(rowButtons()[0]).getByText(/Suplente · No utilizado/)).toBeVisible();
   });
 
   it("changes the selected match in place and keeps it in the URL without navigating", async () => {

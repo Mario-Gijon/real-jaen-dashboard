@@ -68,8 +68,10 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 
 - La llamada la hace el servidor Next (`src/server/local-api`), nunca el navegador:
   `127.0.0.1` debe ser la máquina donde corre `next dev`/`next start`.
-- Sólo se muestran nombre y posición, con su procedencia («Datos reales») y su alcance. El
-  listado no depende de la temporada seleccionada. Sin estadísticas ni enlace a la ficha.
+- En la página sintética de Equipos sólo se muestran nombre y posición, con su procedencia
+  («Datos reales») y su alcance: el listado no depende de la temporada sintética
+  seleccionada y no lleva estadísticas. Con `TEAMS_SOURCE=local`, la tabla lleva los
+  acumulados reales (ver «Acumulados de jugadores»).
 - Sólo hay correspondencia explícita para el Real Jaén (`team-real-jaen` ↔ equipo `2841`
   de la fuente); el resto de equipos responde 404. Nunca se relacionan jugadores por nombre.
 - Los IDs de jugador (`sofascore-player-966303`) se derivan del ID del proveedor: son
@@ -253,9 +255,64 @@ reiníciala (`python api.py`), porque lee código y datos al arrancar.
   dice como tal; un error de la fuente, con reintento.
 - Los partidos disputados abren su detalle real sólo con `MATCHES_SOURCE=local`; si no,
   se muestran sin enlace.
-- «Jugadores» muestra los jugadores reales si `OBSERVED_PLAYERS_SOURCE=local` (su ficha
-  vuelve a esta temporada real); si no, dice que la fuente real de jugadores no está
-  activada, nunca la plantilla sintética.
+- «Jugadores» muestra los jugadores reales con sus acumulados si
+  `OBSERVED_PLAYERS_SOURCE=local` (ver abajo; su ficha vuelve a esta temporada real); si
+  no, dice que la fuente real de jugadores no está activada, nunca la plantilla sintética.
+
+### Acumulados de jugadores
+
+Con `TEAMS_SOURCE=local` y `OBSERVED_PLAYERS_SOURCE=local`, «Equipos › Jugadores» usa la
+tabla original (nombre y posición, PJ, Tit., Min., Goles, Asist., estatura y pierna) con
+los acumulados reales de la competición que elige el selector de temporada. La API local
+debe tener `GET /api/v1/teams/{id}/player-stats`; si está en marcha una versión anterior,
+reiníciala.
+
+| `TEAMS_SOURCE` | `OBSERVED_PLAYERS_SOURCE` | «Equipos › Jugadores» |
+|---|---|---|
+| `synthetic` | `synthetic` | Plantilla sintética con sus acumulados |
+| `synthetic` | `local` | Lista real (nombre y posición), sin acumulados: la temporada es sintética y no se mezcla con cifras reales |
+| `local` | `synthetic` | «La fuente real de jugadores no está activada» |
+| `local` | `local` | Tabla con los acumulados reales de la competición elegida |
+
+- Los calcula el servicio Python (`GET /api/v1/teams/{id}/player-stats`, una petición para
+  todas las competiciones del ámbito, con estatura y pierna incluidas; ninguna por jugador)
+  sobre los mismos partidos contados que el balance, por equipo y competición-temporada.
+  Next lo valida (ámbito, enteros no negativos, cada cifra sobre las convocatorias del
+  jugador, totales que cuadran) y si no, 503; la interfaz lo presenta.
+- Las reglas de cada convocatoria las aplica el servicio una sola vez
+  (`normalized` en `/players/{id}/matches` y en `/matches/{id}/lineups`), así que
+  acumulados, ficha (Partidos) y alineaciones dicen lo mismo. Next no las repite. El
+  servicio conserva los valores originales y el origen de cada normalizado (ver
+  `README.txt` de la API).
+- **Participación**: jugó (minutos o `played`; entrada registrada en las incidencias;
+  titular de una alineación confirmada), **no utilizado** (suplente sin minutos ni entrada,
+  sólo con el resto de banquillo `totalShots`/`statisticsType`, en una alineación confirmada
+  cuyas entradas registradas coinciden exactamente con los suplentes con minutos de ese
+  lado) o **sin resolver** (una contradicción, estadísticas o incidencias sin entrada, o
+  cobertura insuficiente). `totalShots: 0` por sí solo no prueba nada.
+- **PJ**: convocatorias en que jugó, sobre las de participación conocida; sólo una
+  convocatoria sin resolver la hace parcial. **Tit.**: `substitute` explícito.
+- **Min.**: los que informa la fuente, nunca derivados de eventos; un no utilizado suma 0.
+- **Goles** y **Asist.**: los de `statistics`; si una actuación con estadísticas
+  sustanciales (minutos > 0 y al menos 3 claves individuales) omite `goals` o
+  `goalAssist`, cuenta 0 (regla para esta fuente, que omite los ceros: no es un 0 del
+  payload). Se contrastan con las incidencias cuando éstas cuadran con el marcador: goles
+  normales y de penalti del jugador y `assist1`; el autogol y la tanda no son goles del
+  jugador. Si discrepan, la cifra de ese partido queda sin dato y se cuenta como
+  contradicción; nunca se suman ni se elige una fuente.
+- El equipo es el del lado de la alineación; un `team_id`/`source_team_id` distinto se
+  conserva como advertencia, no descarta la convocatoria.
+- La regla del 0 no se extiende a xG, valoración, otras estadísticas ni datos personales.
+- Toda cifra dice de cuántas convocatorias tiene dato: `*` si es parcial («Dato de X de Y
+  convocatorias», «Participación conocida en X de Y convocatorias») y «—» («Sin datos») si
+  ninguna. El aviso general recuerda que son los partidos disponibles; los avisos
+  concretos sólo aparecen si hay convocatorias sin resolver, contradicciones, duplicados o
+  descartes.
+- Al ordenar por una cifra, en cualquier sentido: primero las completas, después las
+  parciales (cada grupo por su valor) y al final las que no tienen datos. Ni una parcial
+  pasa por total ni una ausente por 0.
+- El dorsal es el de la última convocatoria observada con fecha (se indica así): no
+  necesariamente el actual. No es una plantilla completa ni necesariamente actual.
 
 ## Goles y tarjetas
 
@@ -283,6 +340,7 @@ reiníciala (`python api.py`), porque lee código y datos al arrancar.
 | `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo, con su posición en el partido y sus estadísticas individuales; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/teams/{teamId}/observed-performance` | Resultados del equipo en cada competición del ámbito real (`ObservedTeamPerformance`): recuentos por estado, balance con diferencia, Casa / Fuera y partidos contados; 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente o su agregado no es coherente |
+| `GET /api/v1/teams/{teamId}/observed-squad` | Jugadores observados del equipo con sus acumulados en cada competición del ámbito real (`ObservedSquad`, sólo con `OBSERVED_PLAYERS_SOURCE=local`); 404 sin fuente real o sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente o su agregado no es coherente |
 | `GET /api/v1/teams/{teamId}/observed-matches` | Partidos del equipo en la fuente real (calendario y resultados), por fecha, y las competiciones de su ámbito (`competitions`); lista vacía si no hay, 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`

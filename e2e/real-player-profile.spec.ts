@@ -222,7 +222,7 @@ test("Real players: Partidos master-detail, selection in place, kept on reload a
 
   // A call-up without confirmed participation: no minutes nor stats.
   await rows.nth(2).click();
-  await expect(visibleDetail(page)).toContainText("La fuente no confirma su participación");
+  await expect(visibleDetail(page)).toContainText("Los datos no permiten confirmar su participación");
   await expect(visibleDetail(page).locator("dt")).toHaveCount(0);
 
   // Reload keeps the selection.

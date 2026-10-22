@@ -122,3 +122,91 @@ test("Equipos reales: un error tiene reintento y una temporada sintética no se 
   await page.getByRole("link", { name: "Ver la temporada real" }).click();
   await expect(page.getByLabel("Balance")).toBeVisible();
 });
+
+const figure = (value: number | null, matches: number, of: number) => stat(value, matches, of);
+/** As the service accumulates them: a starter, a player with one call-up it could not resolve and a substitute never used. */
+const squad = {
+  teamId: "team-real-jaen", source: { synthetic: false, label: "Datos reales" },
+  scope: "Jugadores observados en las convocatorias de los partidos finalizados disponibles de esta competición. No garantiza toda la temporada ni es una plantilla completa o necesariamente actual.",
+  competitions: [{
+    id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27", matches: { counted: 3, withCallUps: 3 },
+    callUps: { total: 9, played: 5, unused: 3, unknown: 1, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0,
+      discardedRecords: 0 },
+    players: [
+      { player: { id: "sofascore-player-942663", name: "Marco Siverio Toro", position: "forward" }, heightCm: 184, preferredFoot: null,
+        lastShirtNumber: 9, callUps: 3, stats: { appearances: figure(3, 3, 3), starts: figure(3, 3, 3), minutes: figure(250, 3, 3),
+          goals: figure(2, 3, 3), assists: figure(0, 3, 3) } },
+      { player: { id: "sofascore-player-966303", name: "Moha Keita", position: "midfielder" }, heightCm: 165, preferredFoot: "right",
+        lastShirtNumber: 19, callUps: 3, stats: { appearances: figure(2, 2, 3), starts: figure(1, 3, 3), minutes: figure(110, 2, 3),
+          goals: figure(1, 2, 3), assists: figure(1, 2, 3) } },
+      { player: { id: "sofascore-player-1086428", name: "Salvi", position: "goalkeeper" }, heightCm: 190, preferredFoot: null,
+        lastShirtNumber: 13, callUps: 3, stats: { appearances: figure(0, 3, 3), starts: figure(0, 3, 3), minutes: figure(0, 3, 3),
+          goals: figure(0, 3, 3), assists: figure(0, 3, 3) } },
+    ],
+  }],
+};
+const realProfile = {
+  player: { id: "sofascore-player-966303", name: "Moha Keita", position: "midfielder", birthDate: "1999-09-18", heightCm: 165,
+    preferredFoot: "right", country: "Senegal" },
+  scope: "Datos personales según la fuente. No indican equipo actual.", source: { synthetic: false, label: "Datos reales" },
+};
+
+test("Equipos reales: jugadores con acumulados reales, orden, filtro, ficha y vuelta", async ({ page }, testInfo) => {
+  await serveReal(page, ["teams", "observedPlayers"]);
+  await page.route("**/api/v1/teams/*/observed-squad", (route) => route.fulfill({ json: squad }));
+  await page.route("**/api/v1/players/*/profile", (route) => route.fulfill({ json: realProfile }));
+  await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: {
+    playerId: "sofascore-player-966303", matches: [], ratingSource: "SofaScore", source: { synthetic: false, label: "Datos reales" },
+    scope: "Partidos en los que la fuente registra al jugador en la convocatoria." } }));
+  const perPlayer: string[] = [];
+  page.on("request", (r) => { if (/\/api\/v1\/(players\/[^/]+$|teams\/[^/]+\/players$|seasons\/)/.test(new URL(r.url()).pathname)) perPlayer.push(r.url()); });
+
+  await page.goto("/teams?tab=players");
+  const table = page.getByRole("table", { name: "Jugadores observados" });
+  await expect(table).toBeVisible();
+  const row = (name: string) => table.getByRole("row").filter({ has: page.getByRole("link", { name: `Ver ficha de ${name}` }) });
+  await expect(row("Marco Siverio Toro").locator("td").nth(4)).toHaveText("2");
+  await expect(row("Moha Keita").locator("td").nth(1)).toContainText("2*");
+  await expect(row("Salvi").locator("td").nth(1)).toHaveText("0");
+  await expect(row("Salvi").locator("td").nth(2)).toHaveText("0");
+  await expect(row("Salvi").locator("td").nth(3)).toHaveText("0");
+  await expect(row("Moha Keita").locator("td").nth(6)).toHaveText("165 cm");
+  await expect(page.getByText(/^1 convocatoria sin participación resuelta; esas cifras llevan \*/)).toBeVisible();
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("real-teams-players.png"), fullPage: true });
+
+  // Keyboard: sort by goals (complete first, then partial, then missing) and filter by line.
+  const goals = page.getByRole("columnheader", { name: /^Goles|^G/ });
+  await goals.getByRole("button").focus();
+  await page.keyboard.press("Enter");
+  await expect(goals).toHaveAttribute("aria-sort", "descending");
+  const names = () => table.getByRole("link").evaluateAll((links) => links.map((l) => l.getAttribute("aria-label")!.replace("Ver ficha de ", "")));
+  expect(await names()).toEqual(["Marco Siverio Toro", "Salvi", "Moha Keita"]);
+  await page.getByRole("button", { name: /^Porteros/ }).focus();
+  await page.keyboard.press("Enter");
+  expect(await names()).toEqual(["Salvi"]);
+  await page.getByRole("button", { name: /^Todos/ }).click();
+
+  // The real profile, and back to this real season and tab.
+  await row("Moha Keita").getByRole("link").click();
+  await expect(page).toHaveURL(new RegExp(`/players/sofascore-player-966303[?]view=profile&season=${GROUP_2}&from=team&origin=team-real-jaen`));
+  await expect(page.getByRole("heading", { name: "Moha Keita" })).toBeVisible();
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/teams[?]season=${GROUP_2}&team=team-real-jaen&tab=players`));
+  await expect(page.getByRole("table", { name: "Jugadores observados" })).toBeVisible();
+  expect(perPlayer).toEqual([]);
+});
+
+test("Equipos reales: un fallo de los acumulados tiene reintento, sin jugadores sintéticos", async ({ page }) => {
+  await serveReal(page, ["teams", "observedPlayers"]);
+  let down = true;
+  await page.route("**/api/v1/teams/*/observed-squad", (route) => down
+    ? route.fulfill({ status: 503, json: { error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." } } })
+    : route.fulfill({ json: squad }));
+  await page.goto("/teams?tab=players");
+  await expect(page.locator("main").getByRole("alert")).toContainText("La fuente de datos real no está disponible.");
+  await expect(page.getByRole("table", { name: /Jugadores/ })).toHaveCount(0);
+  down = false;
+  await page.getByRole("button", { name: "Reintentar" }).click();
+  await expect(page.getByRole("table", { name: "Jugadores observados" })).toBeVisible();
+});

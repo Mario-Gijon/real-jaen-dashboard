@@ -6,6 +6,7 @@ import type {
   ObservedMatchDetail,
   ObservedPlayerMatches,
   ObservedPlayers,
+  ObservedSquad,
   ObservedTeamMatches,
   ObservedTeamPerformance,
   PlayerProfile,
@@ -18,6 +19,7 @@ import type {
 import {
   createLocalApiObservedMatches,
   createLocalApiObservedPlayers,
+  createLocalApiObservedSquad,
   createLocalApiTeamPerformance,
   createLocalApiPlayerProfile,
   createLocalApiMatchDetail,
@@ -46,6 +48,12 @@ export interface DataSource {
    * for that team. A real source that fails throws `UpstreamUnavailableError`.
    */
   observedPlayers(teamId: string): Promise<ObservedPlayers | null>;
+  /**
+   * A team's observed players with their figures in each competition of a
+   * real source's scope; `null` without a real source or correspondence.
+   * Throws like `observedPlayers`.
+   */
+  observedSquad(teamId: string): Promise<ObservedSquad | null>;
   /**
    * Personal data of a player from a real source, in no season; `null` if
    * that source does not know the id. Throws like `observedPlayers`.
@@ -86,8 +94,8 @@ function sectionSource(name: "OBSERVED_PLAYERS_SOURCE" | "MATCHES_SOURCE" | "TEA
  * The configured source. `DATA_SOURCE` will select real adapters later. Two
  * independent switches take one section each from the local API at
  * `LOCAL_DATA_API_URL`, everything else staying synthetic:
- * `OBSERVED_PLAYERS_SOURCE=local` (observed players, their profiles and
- * matches), `MATCHES_SOURCE=local` (Partidos: the team's real matches) and
+ * `OBSERVED_PLAYERS_SOURCE=local` (observed players, their figures per
+ * competition, their profiles and matches), `MATCHES_SOURCE=local` (Partidos: the team's real matches) and
  * `TEAMS_SOURCE=local` (Equipos: real teams and their results).
  */
 export function getDataSource(): DataSource {
@@ -112,6 +120,7 @@ export function getDataSource(): DataSource {
     ...(real.includes("observedPlayers")
       ? {
           observedPlayers: createLocalApiObservedPlayers(local),
+          observedSquad: createLocalApiObservedSquad(local),
           playerProfile: createLocalApiPlayerProfile(local),
           playerObservedMatches: createLocalApiObservedMatches(local),
         }
