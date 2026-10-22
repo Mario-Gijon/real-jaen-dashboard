@@ -86,7 +86,12 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   sirve para volver). Fecha, rival y condición, resultado, titular/suplente y, si existen,
   minutos, goles, asistencias, tiros, xG, pases completados/intentados y valoración de
   SofaScore. Una estadística omitida es «—», nunca 0. Si fallan los partidos, la ficha
-  personal sigue visible.
+  personal sigue visible. Con `MATCHES_SOURCE=local` cada partido enlaza a su detalle real
+  (`/matches/{id}?view=observed&from=player&player=…`), cuyo «Volver al jugador» regresa a la
+  ficha con su propio origen (equipo o alineaciones de un partido real); sin partidos reales
+  se muestra sin enlace, nunca una ficha sintética. El contexto tiene un solo nivel: un
+  jugador abierto desde las alineaciones de ese partido vuelve a ellas, y de ahí a la lista
+  de partidos. Un retorno manipulado se descarta y se usa un destino interno.
 - Participación (`played` / `minutes_played`): confirmada con `played: true` (minutos > 0
   o ausentes) o, sin `played`, con minutos > 0. `played: false` o sin datos, con 0 minutos
   o sin ellos, queda desconocida: no se afirma que no jugara. Si se contradicen

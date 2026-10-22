@@ -1,13 +1,14 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiRequestError, getPlayer, getPlayerObservedMatches, getPlayerProfile, getSeasonMatches } from "@/client/api";
+import { ApiRequestError, getMatch, getPlayer, getPlayerObservedMatches, getPlayerProfile, getSeasonMatches, getSource } from "@/client/api";
 import type { ObservedPlayerMatch, ObservedPlayerMatches, PlayerProfile } from "@/contract";
 import { PlayerProfileView } from "@/features/players/PlayerProfileView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
   getPlayerProfile: vi.fn(), getPlayerObservedMatches: vi.fn(), getPlayer: vi.fn(), getSeasonMatches: vi.fn(),
+  getSource: vi.fn(), getMatch: vi.fn(),
 }));
 
 const SCOPE = "Datos personales según la fuente. No indican equipo actual.";
@@ -28,6 +29,7 @@ const noMatches: ObservedPlayerMatches = {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getPlayerObservedMatches).mockResolvedValue(noMatches);
+  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers"] });
 });
 
 async function load(data: PlayerProfile = moha) {
@@ -145,5 +147,35 @@ describe("Partidos observados", () => {
     await userEvent.setup().click(within(section).getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByRole("table", { name: "Partidos observados del jugador" })).toBeVisible();
     expect(getPlayerProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("links each match to its real detail when real matches are enabled, carrying this profile's return", async () => {
+    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
+    vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches: [played, benched] });
+    vi.mocked(getPlayerProfile).mockResolvedValue(moha);
+    render(<PlayerProfileView playerId={moha.player.id} returnHref={RETURN}
+      context={{ seasonId: "s", origin: { kind: "team", id: "team-real-jaen" } }} />);
+    const section = await screen.findByRole("region", { name: /Partidos observados/ });
+    const links = await within(section).findAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["vs Rayo Majadahonda", "/matches/sofascore-match-1?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen"],
+      ["vs Rival sin identificar", "/matches/sofascore-match-2?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen"],
+    ]);
+    expect(links[0]).not.toHaveAttribute("target");
+    expect(getMatch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["real matches are not enabled", () => vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] })],
+    ["the source cannot be determined", () => vi.mocked(getSource).mockRejectedValue(new ApiRequestError(503, "X", "No"))],
+  ])("shows the matches without links when %s, never a synthetic detail", async (_, setSource) => {
+    setSource();
+    vi.mocked(getPlayerObservedMatches).mockResolvedValue({ ...noMatches, matches: [played] });
+    await load();
+    const section = await screen.findByRole("region", { name: /Partidos observados/ });
+    await within(section).findByText("vs Rayo Majadahonda");
+    await vi.waitFor(() => expect(getSource).toHaveBeenCalled());
+    expect(within(section).queryAllByRole("link")).toHaveLength(0);
+    expect(getMatch).not.toHaveBeenCalled();
   });
 });

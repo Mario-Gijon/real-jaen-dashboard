@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { MatchStatus, ObservedMatch, ObservedTeam } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { CLUB_ID } from "../home/preparation";
+import { observedMatchHref } from "../players/navigation";
 import { dateLabel } from "../format";
 import css from "./MatchList.module.css";
 
@@ -38,7 +39,7 @@ export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch
             <Link
               className={css.match}
               data-observed=""
-              href={`/matches/${encodeURIComponent(match.id)}?view=observed`}
+              href={observedMatchHref(match.id)}
               prefetch={false}
               aria-label={`${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.competition, match.season].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}
             >

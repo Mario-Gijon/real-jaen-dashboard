@@ -50,6 +50,13 @@
 .match {
   padding-left: 0 !important;
 }
+.table tbody tr[data-linked] {
+  cursor: pointer;
+}
+.table tbody tr[data-linked]:hover,
+.table tbody tr[data-linked]:focus-within {
+  background: var(--rj-bg-hover);
+}
 .opponent {
   display: block;
   font-weight: 700;
@@ -81,6 +88,10 @@
     max-width: 170px;
     background: var(--rj-bg-main);
     white-space: normal !important;
+  }
+  .table tbody tr[data-linked]:hover .match,
+  .table tbody tr[data-linked]:focus-within .match {
+    background: var(--rj-bg-hover);
   }
   .when {
     white-space: nowrap;

@@ -146,3 +146,106 @@ test("Real players: failing matches keep the personal data and retry on their ow
   await section.getByRole("button", { name: "Reintentar" }).click();
   await expect(page.getByRole("table", { name: "Partidos observados del jugador" })).toBeVisible();
 });
+
+const RAYO = (MOHA_MATCHES.matches[0] as { match: { id: string } }).match;
+const lineupPlayer = (id: number, name: string, role = "starter") => ({
+  player: { id: `sofascore-player-${id}`, name, position: "midfielder" }, shirtNumber: id % 100,
+  role, participation: "confirmed", minutes: { value: 90 },
+});
+const RAYO_DETAIL = {
+  match: RAYO, scope: "Partido, estadísticas colectivas, alineaciones e incidencias según la fuente.",
+  source: { synthetic: false, label: "Datos reales" },
+  statistics: { state: "not_stored", fetchedAt: null },
+  incidents: { state: "not_stored", fetchedAt: null },
+  lineups: { state: "stored", fetchedAt: "2026-10-21T12:07:31+00:00", confirmed: true,
+    home: [lineupPlayer(966303, "Moha Keita"), ...Array.from({ length: 10 }, (_, i) => lineupPlayer(i + 1, `Jaén ${i + 1}`))],
+    away: [lineupPlayer(1429049, "Jugador Sin Estatura"), ...Array.from({ length: 10 }, (_, i) => lineupPlayer(i + 20, `Rayo ${i + 20}`))] },
+};
+
+/** Real profiles and real matches both enabled; the match detail is simulated too. */
+async function serveRealWithMatches(page: Page) {
+  await serveReal(page);
+  await page.route("**/api/v1/source", (route) =>
+    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] } }));
+  await page.route("**/api/v1/matches/*/observed", (route) => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
+    return id === RAYO.id
+      ? route.fulfill({ json: RAYO_DETAIL })
+      : route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Partido no encontrado en la fuente real de partidos." } } });
+  });
+}
+
+test("Real players: profile to its real match and back to the profile and to its origin", async ({ page, context }, testInfo) => {
+  await serveRealWithMatches(page);
+  await page.goto("/teams?tab=players");
+  await page.getByRole("table", { name: /Jugadores observados/ }).getByRole("link", { name: "Ver ficha de Moha Keita" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Moha Keita" })).toBeVisible();
+  // From the profile to the match and back nothing synthetic is asked (the team view itself is).
+  const synthetic: string[] = [];
+  page.on("request", (r) => { if (/\/api\/v1\/(competitions|matches\/[^/]+$|players\/[^/]+$)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
+  const profileUrl = page.url();
+
+  const matches = page.getByRole("table", { name: "Partidos observados del jugador" });
+  await expect(matches.getByRole("link")).toHaveCount(2);
+  const rayo = matches.getByRole("link", { name: "vs Rayo Majadahonda" });
+  await expect(rayo).toHaveAttribute("href",
+    /^\/matches\/sofascore-match-16599928\?view=observed&from=player&player=sofascore-player-966303&season=[^&]+&playerFrom=team&playerOrigin=team-real-jaen$/);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("real-profile-match-links.png"), fullPage: true });
+
+  // A real link: it opens in another tab too.
+  const [other] = await Promise.all([context.waitForEvent("page"), rayo.click({ modifiers: ["ControlOrMeta"] })]);
+  await expect(other).toHaveURL(/\/matches\/sofascore-match-16599928\?view=observed&from=player/);
+  await other.close();
+  await expect(page).toHaveURL(profileUrl);
+
+  // Keyboard: the match link takes focus and opens with Enter.
+  await rayo.focus();
+  await expect(rayo).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-16599928\?view=observed&from=player/);
+  await expect(page.getByRole("heading", { level: 1, name: "Real Jaén contra Rayo Majadahonda" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Real Jaén contra Rayo Majadahonda" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "‹ Volver a partidos" })).toHaveCount(0);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.getByRole("link", { name: "‹ Volver al jugador" }).click();
+  await expect(page).toHaveURL(profileUrl);
+  await expect(page.getByRole("heading", { level: 1, name: "Moha Keita" })).toBeVisible();
+  expect(synthetic).toEqual([]);
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page).toHaveURL(/\/teams\?season=[^&]+&team=team-real-jaen&tab=players$/);
+  await expect(page.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("Real players: from a profile's match, another player's profile returns to that match's line-ups", async ({ page }) => {
+  await serveRealWithMatches(page);
+  await page.goto("/players/sofascore-player-966303?view=profile&season=s&from=team&origin=team-real-jaen");
+  await page.getByRole("link", { name: "vs Rayo Majadahonda" }).click();
+  await page.getByRole("tab", { name: "Alineaciones" }).click();
+  await page.getByRole("tabpanel", { name: "Alineaciones" }).getByRole("link", { name: "Jugador Sin Estatura" }).click();
+  await expect(page).toHaveURL(/\/players\/sofascore-player-1429049\?view=profile&from=observedMatch&origin=sofascore-match-16599928&originTab=lineups$/);
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-16599928\?view=observed&tab=lineups$/);
+  await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
+  // One level only: the parameters never pile up.
+  expect(page.url().length).toBeLessThan(120);
+});
+
+test("Real players: direct and tampered match links fall back to internal destinations", async ({ page }) => {
+  await serveRealWithMatches(page);
+  for (const player of ["%2F%2Fexample.com", "https%3A%2F%2Fexample.com", "..%2Fteams", ""]) {
+    await page.goto(`/matches/sofascore-match-16599928?view=observed&from=player&player=${player}`);
+    await expect(page.getByRole("link", { name: "‹ Volver a partidos" })).toHaveAttribute("href", "/matches");
+  }
+  await page.goto("/matches/sofascore-match-16599928?view=observed&from=player&player=sofascore-player-966303&season=..%2Fx&playerFrom=team&playerOrigin=%2F%2Fexample.com");
+  await expect(page.getByRole("link", { name: "‹ Volver al jugador" })).toHaveAttribute("href", "/players/sofascore-player-966303?view=profile");
+  await page.getByRole("link", { name: "‹ Volver al jugador" }).click();
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page).toHaveURL(/\/teams\?tab=players$/);
+
+  // An id the real source does not know keeps the way back to the profile.
+  await page.goto("/matches/sofascore-match-999?view=observed&from=player&player=sofascore-player-966303");
+  await expect(page.getByRole("heading", { name: "Partido no encontrado en la fuente real" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "‹ Volver al jugador" })).toHaveAttribute("href", "/players/sofascore-player-966303?view=profile");
+});

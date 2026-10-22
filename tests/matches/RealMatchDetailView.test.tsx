@@ -140,6 +140,21 @@ describe("Real match detail: Resumen", () => {
     expect(await screen.findByText("0 – 3")).toBeVisible();
   });
 
+  it("returns to the list by default and to the real profile it was opened from", async () => {
+    const { unmount } = render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    expect(screen.getByRole("link", { name: "‹ Volver a partidos" })).toHaveAttribute("href", "/matches");
+    unmount();
+    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
+    const profile = "/players/sofascore-player-7?view=profile&from=team&origin=team-real-jaen";
+    render(<RealMatchDetailView matchId="sofascore-match-16599363" playerReturnHref={profile} />);
+    expect(screen.getByRole("link", { name: "‹ Volver al jugador" })).toHaveAttribute("href", profile);
+    expect(screen.queryByRole("link", { name: "‹ Volver a partidos" })).toBeNull();
+    // A profile opened from these line-ups still returns to them, not to the previous profile.
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Alineaciones" }));
+    expect(screen.getByRole("link", { name: "Titular 50" })).toHaveAttribute("href",
+      "/players/sofascore-player-50?view=profile&from=observedMatch&origin=sofascore-match-16599363&originTab=lineups");
+  });
+
   it("asks nothing when the real matches are not enabled", async () => {
     vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
     render(<RealMatchDetailView matchId="sofascore-match-16599363" />);

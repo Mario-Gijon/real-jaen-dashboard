@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile } from "@/client/api";
+import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile, getSource } from "@/client/api";
 import type { PlayerProfile } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
@@ -9,6 +9,7 @@ import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { MISSING, birthLabel, footLabel, heightLabel, positionLabel } from "../format";
 import { useApi } from "../use-api";
 import { ObservedMatches } from "./ObservedMatches";
+import { observedMatchHref, type ProfileOrigin } from "./navigation";
 import css from "./PlayerDetailView.module.css";
 
 /**
@@ -16,11 +17,19 @@ import css from "./PlayerDetailView.module.css";
  * source lists them in, with where they come from and what they cover. It
  * loads nothing synthetic (no season, team or calendar of the app); unknown
  * values read «—». The matches load on their own, so their failure keeps the
- * personal data visible.
+ * personal data visible. Each match opens its real detail only when the real
+ * match source is active, carrying this profile's context so the detail can
+ * return here and, from here, to where the profile was opened.
  */
-export function PlayerProfileView({ playerId, returnHref }: { playerId: string; returnHref: string }) {
+export function PlayerProfileView({ playerId, returnHref, context = { seasonId: null, origin: null } }: {
+  playerId: string; returnHref: string; context?: { seasonId: string | null; origin: ProfileOrigin | null };
+}) {
   const profile = useApi(`profile|${playerId}`, (signal) => getPlayerProfile(playerId, { signal }));
   const matches = useApi(`observed-matches|${playerId}`, (signal) => getPlayerObservedMatches(playerId, { signal }));
+  const source = useApi("source", (signal) => getSource({ signal }));
+  const matchHref = source.data?.realSections.includes("matches")
+    ? (matchId: string) => observedMatchHref(matchId, { playerId, ...context })
+    : null;
   const back = <Link className={css.back} href={returnHref}>← Volver</Link>;
   if (profile.error) {
     const notFound = profile.error instanceof ApiRequestError && profile.error.status === 404;
@@ -39,7 +48,7 @@ export function PlayerProfileView({ playerId, returnHref }: { playerId: string; 
   return <div className={css.page}>
     {back}
     <Identity data={profile.data} />
-    <ObservedMatches load={matches} />
+    <ObservedMatches load={matches} matchHref={matchHref} />
   </div>;
 }
 

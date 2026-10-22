@@ -24,14 +24,17 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
 });
 
 /**
- * Detail of a real match (reached from the real match list), organised like
+ * Detail of a real match (reached from the real match list or a real
+ * profile, to which «Volver» then returns), organised like
  * the synthetic detail: header, then «Resumen» (team stats) and
  * «Alineaciones» (line-ups marked with the recorded goals, assists and
  * substitutions). Each section keeps its own state and retry, with
  * provenance. Loads nothing synthetic; an id the real source does not know is
  * said so, never looked up among the synthetic matches.
  */
-export function RealMatchDetailView({ matchId, initialSection = "summary" }: { matchId: string; initialSection?: Section }) {
+export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null }: {
+  matchId: string; initialSection?: Section; playerReturnHref?: string | null;
+}) {
   const source = useApi("source", (signal) => getSource({ signal }));
   const real = source.data?.realSections.includes("matches") ?? false;
   const detail = useApi(real ? `observed-match|${matchId}` : null, (signal) => getObservedMatchDetail(matchId, { signal }));
@@ -40,7 +43,9 @@ export function RealMatchDetailView({ matchId, initialSection = "summary" }: { m
   const [section, setSection] = useState<Section>(initialSection);
 
   return <div className={css.page}>
-    <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>
+    {playerReturnHref
+      ? <Link href={playerReturnHref} className={css.back}>‹ Volver al jugador</Link>
+      : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
     {source.error ? <Failure title="No se pudo determinar la fuente de los partidos" retry={source.retry} />
       : !source.data ? <p role="status" className={css.message}>Cargando partido…</p>
       : !real ? <div role="status" className={css.message}>

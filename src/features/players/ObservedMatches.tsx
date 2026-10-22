@@ -1,8 +1,11 @@
+import Link from "next/link";
 import type { ObservedPlayerMatch, ObservedPlayerMatches, Stat } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { MISSING, dateLabel, formatNumber } from "../format";
 import shared from "./PlayerDetailView.module.css";
 import css from "./ObservedMatches.module.css";
+import linkCss from "./PlayerLink.module.css";
 
 type Load = { data: ObservedPlayerMatches | null; error: unknown; retry: () => void };
 
@@ -20,9 +23,11 @@ const COLUMNS = [
  * newest first, with the season and competition each one belongs to. A
  * missing value reads «—», never 0; without confirmed participation there are
  * no minutes nor stats, and nothing claims the player did not play. Its own
- * error and retry leave the rest of the profile in place.
+ * error and retry leave the rest of the profile in place. With `matchHref`
+ * (real matches active) each row opens the real match detail; without it the
+ * match is shown unlinked, never as a synthetic detail.
  */
-export function ObservedMatches({ load }: { load: Load }) {
+export function ObservedMatches({ load, matchHref = null }: { load: Load; matchHref?: ((matchId: string) => string) | null }) {
   const { data, error, retry } = load;
   return <section aria-labelledby="observed-matches" className={css.section}>
     <h2 id="observed-matches">
@@ -55,7 +60,7 @@ export function ObservedMatches({ load }: { load: Load }) {
                 </tr>
               </thead>
               <tbody>
-                {data.matches.map(row => <MatchRow key={row.match.id} row={row} />)}
+                {data.matches.map(row => <MatchRow key={row.match.id} row={row} href={matchHref?.(row.match.id) ?? null} />)}
               </tbody>
             </table>
           </div>}
@@ -63,13 +68,17 @@ export function ObservedMatches({ load }: { load: Load }) {
   </section>;
 }
 
-function MatchRow({ row }: { row: ObservedPlayerMatch }) {
+function MatchRow({ row, href }: { row: ObservedPlayerMatch; href: string | null }) {
   const { match, side, role, participation, stats } = row;
   const opponent = side === "home" ? match.away : match.home;
   const seasonRound = [match.season, match.round !== null ? `J${match.round}` : null].filter(Boolean).join(" · ");
-  return <tr data-participation={participation}>
+  const label = `vs ${opponent.name ?? "Rival sin identificar"}`;
+  const Row = href ? LinkedTableRow : "tr";
+  return <Row data-participation={participation} data-linked={href ? "" : undefined}>
     <th scope="row" className={css.match}>
-      <span className={css.opponent}>vs {opponent.name ?? "Rival sin identificar"}</span>
+      {href
+        ? <Link className={`${linkCss.link} ${css.opponent}`} href={href} prefetch={false}>{label}</Link>
+        : <span className={css.opponent}>{label}</span>}
       <span className={`${css.meta} ${css.when}`}>{dateLabel(match.kickoff)} · {side === "home" ? "Local" : "Visitante"}</span>
       {match.competition || seasonRound ? <span className={css.meta}>
         {match.competition ? <span>{match.competition}</span> : null}
@@ -89,7 +98,7 @@ function MatchRow({ row }: { row: ObservedPlayerMatch }) {
     {COLUMNS.map(([key, , , decimals]) => <td className={css.num} key={key}><Value stat={stats[key]} decimals={decimals} /></td>)}
     <td className={css.num}><Value stat={stats.passesCompleted} />/<Value stat={stats.passes} /></td>
     <td className={css.num}><Value stat={stats.rating} decimals={1} /></td>
-  </tr>;
+  </Row>;
 }
 
 function Value({ stat, decimals = 0 }: { stat: Stat; decimals?: number }) {
