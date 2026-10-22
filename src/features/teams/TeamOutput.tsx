@@ -1,8 +1,8 @@
 "use client";
 
-import type { SeasonStat, TeamMatch } from "@/contract";
+import type { SeasonStat } from "@/contract";
 import { formatNumber, MISSING } from "../format";
-import { average, difference, type Indicator, type Period } from "./performance";
+import { difference, type Indicator } from "./performance";
 import css from "./TeamOutput.module.css";
 
 type Measure = { indicator: Indicator; label: string; decimals: number };
@@ -111,20 +111,18 @@ function Delta({
 /**
  * «¿Cuánto produce y cuánto concede?»: per-match averages of attack and
  * defence, and the game context, for the season or for the last three
- * finished matches (then compared with the season).
+ * finished matches (`compare`, then compared with the season). The averages
+ * come computed, with their coverage, from whichever source.
  */
 export function TeamOutput({
-  period,
-  periodMatches,
-  seasonMatches,
+  compare,
+  values,
+  seasonValue,
 }: {
-  period: Period;
-  periodMatches: readonly TeamMatch[];
-  seasonMatches: readonly TeamMatch[];
+  compare: boolean;
+  values: (indicator: Indicator) => SeasonStat;
+  seasonValue: (indicator: Indicator) => SeasonStat;
 }) {
-  const values = (indicator: Indicator) => average(periodMatches, indicator);
-  const seasonValue = (indicator: Indicator) => average(seasonMatches, indicator);
-  const compare = period === "last3";
   const partial = [...UNITS.flatMap((u) => [...u.main, ...u.secondary]), ...CONTEXT].some(
     ({ indicator }) =>
       values(indicator).coverage === "partial" ||

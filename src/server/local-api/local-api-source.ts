@@ -16,7 +16,11 @@ import {
   type ObservedCompetitionPerformance,
   type ObservedTeam,
   type ObservedTeamMatches,
+  type ObservedTeamOutput,
   type ObservedTeamPerformance,
+  type SeasonStat,
+  type TeamOutputIndicator,
+  TEAM_OUTPUT_INDICATORS,
   type PlayerPosition,
   type PlayerProfile,
   type PlayerRef,
@@ -561,7 +565,7 @@ export function createLocalApiTeamMatches(options: Options) {
 }
 
 const TEAM_PERFORMANCE_SCOPE =
-  "Resultados de los partidos finalizados observados en esta competición. No es necesariamente la temporada completa: sin clasificación ni puntos.";
+  "Resultados, producción y concesión de los partidos finalizados observados en esta competición (estadísticas del partido completo). No es necesariamente la temporada completa: sin clasificación ni puntos.";
 
 /** A count or score of the source's aggregate: a non-negative integer (never a boolean nor a decimal). */
 function count(value: unknown, field: string): number {
@@ -572,6 +576,64 @@ function count(value: unknown, field: string): number {
 const RESULT_KEYS: Readonly<Record<MatchResult, "wins" | "draws" | "losses">> = { win: "wins", draw: "draws", loss: "losses" };
 const resultOf = (goalsFor: number, goalsAgainst: number): MatchResult =>
   goalsFor > goalsAgainst ? "win" : goalsFor === goalsAgainst ? "draw" : "loss";
+
+/** Highest valid per-match average of each indicator: a percentage for possession, unbounded otherwise. */
+const OUTPUT_LIMIT: Partial<Record<TeamOutputIndicator, number>> = { possession: 100 };
+
+/** One average of the service: `{ value, matches, of }` as a {@link SeasonStat}; absent when no match has it. */
+function parseAverage(value: unknown, indicator: TeamOutputIndicator, field: string): SeasonStat {
+  if (!isRecord(value)) throw invalid(field);
+  const matches = count(value.matches, `${field}.matches`);
+  const of = count(value.of, `${field}.of`);
+  if (matches > of) throw invalid(`${field}.matches`);
+  if (matches === 0) {
+    if (value.value !== null) throw invalid(`${field}.value: sin partidos con dato no hay media`);
+    return { value: null, coverage: "none", reason: "not_available", matches: 0, of };
+  }
+  const average = value.value;
+  if (typeof average !== "number" || !Number.isFinite(average) || average < 0 || average > (OUTPUT_LIMIT[indicator] ?? Infinity)) {
+    throw invalid(`${field}.value`);
+  }
+  return { value: average, coverage: matches === of ? "complete" : "partial", matches, of };
+}
+
+function parseAverages(value: unknown, of: number, field: string): Record<TeamOutputIndicator, SeasonStat> {
+  if (!isRecord(value)) throw invalid(field);
+  const averages = {} as Record<TeamOutputIndicator, SeasonStat>;
+  for (const indicator of TEAM_OUTPUT_INDICATORS) {
+    averages[indicator] = parseAverage(value[indicator], indicator, `${field}.${indicator}`);
+    if (averages[indicator].of !== of) throw invalid(`${field}.${indicator}.of`);
+  }
+  return averages;
+}
+
+const near = (a: number | null, b: number) => a !== null && Math.abs(a - b) < 1e-9;
+
+/**
+ * Production and concession of the service over the counted matches. It
+ * checks what can be checked against the results: averages over every
+ * counted match (season) or over «Últimos 3», which must be the three most
+ * recent dated results; goals must match the scores.
+ */
+function parseOutput(value: unknown, results: readonly { match: { id: string; kickoff: string | null }; goalsFor: number; goalsAgainst: number }[], field: string): ObservedTeamOutput {
+  if (!isRecord(value) || !isRecord(value.last3) || !Array.isArray(value.last3.match_ids)) throw invalid(field);
+  const season = parseAverages(value.season, results.length, `${field}.season`);
+  const dated = results.filter((row) => row.match.kickoff !== null);
+  const expected = dated.slice(-3);
+  const matchIds = value.last3.match_ids.map((id, i) => matchIdFromSource(positiveId(id, `${field}.last3.match_ids[${i}]`)));
+  if (matchIds.join() !== expected.map((row) => row.match.id).join()) throw invalid(`${field}.last3.match_ids: no son los tres más recientes`);
+  const last3 = parseAverages(value.last3.values, expected.length, `${field}.last3.values`);
+  if (count(value.undated, `${field}.undated`) !== results.length - dated.length) throw invalid(`${field}.undated`);
+  const checkGoals = (rows: readonly { goalsFor: number; goalsAgainst: number }[], averages: Record<TeamOutputIndicator, SeasonStat>) => {
+    if (!rows.length) return;
+    const goals = rows.reduce((sum, row) => sum + row.goalsFor, 0) / rows.length;
+    const against = rows.reduce((sum, row) => sum + row.goalsAgainst, 0) / rows.length;
+    if (!near(averages.goals.value, goals) || !near(averages.goalsAgainst.value, against)) throw invalid(`${field}: goles que no coinciden con los marcadores`);
+  };
+  checkGoals(results, season);
+  checkGoals(expected, last3);
+  return { season, last3: { matchIds, values: last3 }, undated: value.undated as number };
+}
 
 /**
  * One competition of the source's aggregate. The service computes it; this
@@ -647,6 +709,14 @@ async function parseCompetitionPerformance(
     && rows.reduce((sum, row) => sum + row.goalsAgainst, 0) === record.goalsAgainst;
   if (!consistent) throw invalid(`${at("record")}: los totales no coinciden con los partidos`);
 
+  // A failure of the metrics alone keeps the record: the figures are left out, never replaced.
+  let output: ObservedTeamOutput | null = null;
+  try {
+    output = parseOutput(entry.output, rows.map((row) => ({ ...row, match: { id: row.match.id, kickoff: row.match.kickoff } })), at("output"));
+  } catch (error) {
+    if (!(error instanceof UpstreamUnavailableError)) throw error;
+    console.error(`API local: ${error.message}; se muestran resultados sin producción ni concesión.`);
+  }
   return {
     id: `sofascore-scope-${competition.tournamentId}-${competition.seasonId}`,
     name: competition.name,
@@ -655,6 +725,7 @@ async function parseCompetitionPerformance(
     record,
     venues,
     results: await withTeamNames(options, rows),
+    output,
   };
 }
 

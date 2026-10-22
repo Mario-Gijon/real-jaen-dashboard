@@ -843,12 +843,24 @@ describe("local API adapter: real incidents", () => {
 const perfMatch = (id: number, home: number, away: number, homeScore: number | boolean | null, awayScore: number | null, round: number) =>
   fixture({ match_id: id, home_team_id: home, away_team_id: away, home_score: homeScore, away_score: awayScore, round,
     kickoff_utc: `2026-09-0${round}T17:00:00+00:00` });
+/** `output` of the aggregate for those two matches (3-0 and 0-2): goals from the scores, xG only in one of them. */
+const average = (value: number | null, matches: number, of: number) => ({ value, matches, of });
+const averages = (of: number, overrides: Record<string, unknown> = {}) => ({
+  ...Object.fromEntries(["goals", "xg", "shots", "shotsOnTarget", "goalsAgainst", "xgAgainst", "shotsAgainst", "shotsOnTargetAgainst", "possession", "corners"].map((key) => [key, average(null, 0, of)])),
+  ...overrides,
+});
+const OUTPUT = {
+  season: averages(2, { goals: average(1.5, 2, 2), goalsAgainst: average(1, 2, 2), xg: average(1.25, 1, 2), possession: average(55.5, 2, 2) }),
+  last3: { match_ids: [1, 2], values: averages(2, { goals: average(1.5, 2, 2), goalsAgainst: average(1, 2, 2), xg: average(1.25, 1, 2), possession: average(55.5, 2, 2) }) },
+  undated: 0,
+};
 const performanceBody = (overrides: Record<string, unknown> = {}, results?: unknown[]) => ({
   data: { team_id: 2841, competitions: [{
     name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382,
     matches: { in_scope: 4, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, unknown_status: 0 },
     record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: 3, goals_against: 2, goal_difference: 1 },
     venues: { home: { wins: 0, draws: 0, losses: 1 }, away: { wins: 1, draws: 0, losses: 0 } },
+    output: OUTPUT,
     results: results ?? [
       { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", opponent_team_id: 135672, goals_for: 3, goals_against: 0, result: "win" },
       { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", opponent_team_id: 24322, goals_for: 0, goals_against: 2, result: "loss" },
@@ -878,6 +890,13 @@ describe("local API adapter: team performance", () => {
       ["sofascore-match-2", "home", "loss", 0, 2, "Real Jaén"],
     ]);
     expect(result!.teams).toEqual([{ id: "team-real-jaen", name: "Real Jaén" }]);
+    // Averages with their coverage; absent when no match has the value, never 0.
+    const output = competition.output!;
+    expect(output.season.xg).toEqual({ value: 1.25, coverage: "partial", matches: 1, of: 2 });
+    expect(output.season.possession).toEqual({ value: 55.5, coverage: "complete", matches: 2, of: 2 });
+    expect(output.season.corners).toEqual({ value: null, coverage: "none", reason: "not_available", matches: 0, of: 2 });
+    expect(output.last3.matchIds).toEqual(["sofascore-match-1", "sofascore-match-2"]);
+    expect(output.undated).toBe(0);
     expect(result!.scope).toMatch(/No es necesariamente la temporada completa/);
     expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
   });
@@ -924,12 +943,48 @@ describe("local API adapter: team performance", () => {
     await expect(performanceSource(fetch)("team-real-jaen")).rejects.toBeInstanceOf(UpstreamUnavailableError);
   });
 
+  it.each([
+    ["no output (an older service)", undefined],
+    ["a boolean average", { ...OUTPUT, season: { ...OUTPUT.season, xg: average(true as unknown as number, 1, 2) } }],
+    ["an infinite or negative average", { ...OUTPUT, season: { ...OUTPUT.season, xg: average(-1, 1, 2) } }],
+    ["a possession over 100 %", { ...OUTPUT, season: { ...OUTPUT.season, possession: average(101, 2, 2) } }],
+    ["a zero average without matches", { ...OUTPUT, season: { ...OUTPUT.season, corners: average(0, 0, 2) } }],
+    ["more matches with data than counted", { ...OUTPUT, season: { ...OUTPUT.season, xg: average(1, 3, 2) } }],
+    ["season averages over other matches", { ...OUTPUT, season: averages(3) }],
+    ["a «Últimos 3» that is not the most recent", { ...OUTPUT, last3: { ...OUTPUT.last3, match_ids: [2, 1] } }],
+    ["goals that do not match the scores", { ...OUTPUT, season: { ...OUTPUT.season, goals: average(2, 2, 2) } }],
+    ["a missing indicator", { ...OUTPUT, season: { goals: average(1.5, 2, 2) } }],
+  ])("keeps the record but leaves the figures out with %s", async (_case, output) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const names = teamApi(null);
+    const fetch = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/performance") ? new Response(JSON.stringify(performanceBody({ output }))) : names(input));
+    const [competition] = (await performanceSource(fetch)("team-real-jaen"))!.competitions;
+    expect(competition.output).toBeNull();
+    expect(competition.record.played).toBe(2);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("leaves an undated match out of «Últimos 3», as the service does", async () => {
+    const names = teamApi(null);
+    const undated = performanceBody({ output: { ...OUTPUT, last3: { ...OUTPUT.last3, match_ids: [1] , values: averages(1, { goals: average(3, 1, 1), goalsAgainst: average(0, 1, 1) }) }, undated: 1 } }, [
+      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", goals_for: 3, goals_against: 0, result: "win" },
+      { match: { ...perfMatch(2, 2841, 24322, 0, 2, 2), kickoff_utc: null }, side: "home", goals_for: 0, goals_against: 2, result: "loss" },
+    ]);
+    const fetch = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/performance") ? new Response(JSON.stringify(undated)) : names(input));
+    const [competition] = (await performanceSource(fetch)("team-real-jaen"))!.competitions;
+    expect(competition.output!.last3.matchIds).toEqual(["sofascore-match-1"]);
+    expect(competition.output!.undated).toBe(1);
+  });
+
   it("keeps zero matches apart from a failure: an empty record is an answer, a failing service is not", async () => {
     const names = teamApi(null);
     const empty = performanceBody({
       matches: { in_scope: 0, finished: 0, pending: 0, counted: 0, finished_without_valid_score: 0, unknown_status: 0 },
       record: { played: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0, goal_difference: 0 },
       venues: { home: { wins: 0, draws: 0, losses: 0 }, away: { wins: 0, draws: 0, losses: 0 } },
+      output: { season: averages(0), last3: { match_ids: [], values: averages(0) }, undated: 0 },
     }, []);
     const fetch = vi.fn(async (input: RequestInfo | URL) =>
       String(input).endsWith("/performance") ? new Response(JSON.stringify(empty)) : names(input));

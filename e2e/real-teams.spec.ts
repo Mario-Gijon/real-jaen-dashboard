@@ -18,6 +18,22 @@ const results = [
   { match: match(5, rival(5, "Antequera"), jaen, [2, 0]), side: "away", result: "loss", goalsFor: 0, goalsAgainst: 2 },
 ];
 const GROUP_2 = "sofascore-scope-94191-97382";
+const INDICATORS = ["goals", "xg", "shots", "shotsOnTarget", "goalsAgainst", "xgAgainst", "shotsAgainst", "shotsOnTargetAgainst", "possession", "corners"];
+const stat = (value: number | null, matches: number, of: number) => value === null
+  ? { value: null, coverage: "none", reason: "not_available", matches: 0, of }
+  : { value, coverage: matches === of ? "complete" : "partial", matches, of };
+const averages = (of: number, values: Record<string, unknown>) =>
+  Object.fromEntries(INDICATORS.map((key) => [key, values[key] ?? stat(null, 0, of)]));
+/** As the source computes it: corners missing everywhere, xG in two of three matches. */
+const output = {
+  season: averages(3, { goals: stat(5 / 3, 3, 3), goalsAgainst: stat(4 / 3, 3, 3), xg: stat(1.42, 2, 3), xgAgainst: stat(1.1, 2, 3),
+    shots: stat(11, 3, 3), shotsAgainst: stat(13, 3, 3), shotsOnTarget: stat(4, 3, 3), shotsOnTargetAgainst: stat(3, 3, 3),
+    possession: stat(48.5, 2, 3) }),
+  last3: { matchIds: results.map((r) => r.match.id), values: averages(3, { goals: stat(5 / 3, 3, 3), goalsAgainst: stat(4 / 3, 3, 3),
+    xg: stat(1.42, 2, 3), xgAgainst: stat(1.1, 2, 3), shots: stat(11, 3, 3), shotsAgainst: stat(13, 3, 3),
+    shotsOnTarget: stat(4, 3, 3), shotsOnTargetAgainst: stat(3, 3, 3), possession: stat(48.5, 2, 3) }) },
+  undated: 0,
+};
 const performance = {
   teamId: "team-real-jaen", teams: [jaen], source: { synthetic: false, label: "Datos reales" },
   scope: "Resultados de los partidos finalizados observados en esta competición. No es necesariamente la temporada completa: sin clasificación ni puntos.",
@@ -27,6 +43,7 @@ const performance = {
     record: { played: 3, wins: 1, draws: 1, losses: 1, goalsFor: 5, goalsAgainst: 4, goalDifference: 1 },
     venues: { home: { win: 0, draw: 1, loss: 0 }, away: { win: 1, draw: 0, loss: 1 } },
     results,
+    output,
   }],
 };
 
@@ -57,7 +74,15 @@ test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, si
   await expect(balance).toContainText("PJ3");
   await expect(page.getByText(/1 finalizado sin marcador válido no se incluye/)).toBeVisible();
   await expect(page.getByText(/Clasificación|Puntos/)).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Rendimiento", exact: true })).toHaveCount(0);
+  // Production and concession from the source, with partial coverage marked and a missing value as «—».
+  await expect(page.getByRole("heading", { name: "Rendimiento", exact: true })).toBeVisible();
+  await expect(page.locator('[data-indicator="goals"]')).toHaveText("1,67");
+  await expect(page.locator('[data-indicator="xg"]')).toHaveText("1,42*");
+  await expect(page.locator('[data-indicator="corners"]')).toHaveText("—");
+  await page.getByRole("button", { name: "Últimos 3" }).click();
+  await expect(page.locator('[data-indicator="goals"]')).toContainText("±0,00 vs temporada");
+  await expect(page.getByRole("table", { name: "Partidos disputados" }).locator("tr[data-in-period]")).toHaveCount(3);
+  await page.getByRole("button", { name: "Temporada", exact: true }).click();
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-teams.png"), fullPage: true });
 

@@ -480,6 +480,30 @@ export type ObservedTeamMatches = {
   source: DataProvenance;
 };
 
+/** What a team produces and concedes per match, as «Rendimiento» shows it; `…Against` is what its rivals did. */
+export const TEAM_OUTPUT_INDICATORS = [
+  "goals", "xg", "shots", "shotsOnTarget",
+  "goalsAgainst", "xgAgainst", "shotsAgainst", "shotsOnTargetAgainst",
+  "possession", "corners",
+] as const;
+export type TeamOutputIndicator = (typeof TEAM_OUTPUT_INDICATORS)[number];
+
+/**
+ * Per-match averages over a team's counted matches: each one over the
+ * matches that have the value (`matches` of `of`), `null` when none has it
+ * (never 0). Possession is the arithmetic mean of the percentages.
+ */
+export type ObservedTeamOutput = {
+  season: Record<TeamOutputIndicator, SeasonStat>;
+  /**
+   * The three most recent counted matches with a date (oldest first), and
+   * the averages over them: chosen first, then each value's coverage.
+   */
+  last3: { matchIds: string[]; values: Record<TeamOutputIndicator, SeasonStat> };
+  /** Counted matches without a date: in the season averages, never in «Últimos 3». */
+  undated: number;
+};
+
 /**
  * Results of a team in one competition of a real source's scope, from its
  * finished matches with a valid score only: the observed sample, not
@@ -504,6 +528,8 @@ export type ObservedCompetitionPerformance = {
   venues: Record<Side, Record<MatchResult, number>>;
   /** The counted matches, oldest first, seen from the team. */
   results: { match: ObservedMatch; side: Side; result: MatchResult; goalsFor: number; goalsAgainst: number }[];
+  /** Production and concession over the same matches; `null` when the source's figures could not be read. */
+  output: ObservedTeamOutput | null;
 };
 
 /** `GET /api/v1/teams/{teamId}/observed-performance`. */

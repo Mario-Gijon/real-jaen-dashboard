@@ -20,6 +20,13 @@ const performance = () => new Response(JSON.stringify({ data: { team_id: 2841, c
   matches: { in_scope: 2, finished: 1, pending: 1, counted: 1, finished_without_valid_score: 0, unknown_status: 0 },
   record: { played: 1, wins: 1, draws: 0, losses: 0, goals_for: 3, goals_against: 0, goal_difference: 3 },
   venues: { home: { wins: 0, draws: 0, losses: 0 }, away: { wins: 1, draws: 0, losses: 0 } },
+  output: {
+    season: Object.fromEntries(["goals", "xg", "shots", "shotsOnTarget", "goalsAgainst", "xgAgainst", "shotsAgainst", "shotsOnTargetAgainst", "possession", "corners"].map((key) =>
+      [key, key === "goals" ? { value: 3, matches: 1, of: 1 } : key === "goalsAgainst" ? { value: 0, matches: 1, of: 1 } : { value: null, matches: 0, of: 1 }])),
+    last3: { match_ids: [1], values: Object.fromEntries(["goals", "xg", "shots", "shotsOnTarget", "goalsAgainst", "xgAgainst", "shotsAgainst", "shotsOnTargetAgainst", "possession", "corners"].map((key) =>
+      [key, key === "goals" ? { value: 3, matches: 1, of: 1 } : key === "goalsAgainst" ? { value: 0, matches: 1, of: 1 } : { value: null, matches: 0, of: 1 }])) },
+    undated: 0,
+  },
   results: [{ side: "away", opponent_team_id: 135672, goals_for: 3, goals_against: 0, result: "win", match: {
     match_id: 1, kickoff_utc: "2026-08-30T17:15:00+00:00", status: "finished", tournament_id: 94191, season_id: 97382,
     competition: "Primera Federacion, Group 2", season: "26/27", round: 1, home_team_id: 135672, away_team_id: 2841,
@@ -59,6 +66,8 @@ describe("GET /api/v1/teams/{teamId}/observed-performance", () => {
     const body = (await response.json()) as ObservedTeamPerformance;
     expect(body.competitions[0].id).toBe("sofascore-scope-94191-97382");
     expect(body.competitions[0].record.goalDifference).toBe(3);
+    expect(body.competitions[0].output!.season.goals).toEqual({ value: 3, coverage: "complete", matches: 1, of: 1 });
+    expect(body.competitions[0].output!.season.xg.value).toBeNull();
     expect(body.source.synthetic).toBe(false);
   });
 

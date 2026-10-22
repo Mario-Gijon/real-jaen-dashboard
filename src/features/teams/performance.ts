@@ -1,6 +1,7 @@
 import {
   seasonStat,
   type MatchResult,
+  type TeamOutputIndicator,
   type SeasonStat,
   type Stat,
   type TeamMatch,
@@ -53,17 +54,7 @@ export function goalsAgainst({ match, side }: TeamMatch): number {
   return side === "home" ? match.score!.away : match.score!.home;
 }
 
-export type Indicator =
-  | "goals"
-  | "xg"
-  | "shots"
-  | "shotsOnTarget"
-  | "goalsAgainst"
-  | "xgAgainst"
-  | "shotsAgainst"
-  | "shotsOnTargetAgainst"
-  | "possession"
-  | "corners";
+export type Indicator = TeamOutputIndicator;
 
 const NO_STATS: Stat = { value: null, reason: "not_available" };
 

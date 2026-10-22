@@ -227,9 +227,22 @@ reiníciala (`python api.py`), porque lee código y datos al arrancar.
   mientras se use esa fuente y nunca relacionado con una temporada sintética. Un `?season=`
   sintético muestra un estado explícito, nunca se sustituye.
 - «Rendimiento del equipo» reutiliza la presentación sintética: balance (PJ, V, E, D, GF,
-  GC y DG), Casa / Fuera, resultados por jornada y partidos disputados. Sin clasificación
-  ni puntos (no hay datos que los respalden). El bloque de métricas avanzadas (xG, tiros,
-  posesión) se oculta en modo real hasta que se agreguen; su versión sintética no cambia.
+  GC y DG), Casa / Fuera, resultados por jornada, «Rendimiento» (producción y concesión
+  por partido, «Temporada» / «Últimos 3») y partidos disputados. Sin clasificación ni
+  puntos (no hay datos que los respalden).
+- Producción y concesión las calcula el servicio Python sobre los mismos partidos que el
+  balance, con el periodo `ALL` de las estadísticas de cada partido (nunca la suma de las
+  partes): lo propio del lado del equipo y lo concedido del rival. Goles desde el marcador;
+  xG `expectedGoals`, tiros `totalShotsOnGoal`, a puerta `shotsOnGoal`, posesión
+  `ballPossession` (media aritmética de los porcentajes) y córners `cornerKicks` (sólo del
+  equipo, como en la versión sintética). Cada media es la de los partidos con dato válido,
+  con cuántos de cuántos (`*` si es parcial); sin ningún dato, «—», nunca 0. Un valor fuera
+  de su dominio (booleano, no finito, negativo, decimal donde va un entero, posesión fuera
+  de 0–100), una clave repetida con valores distintos o una sección ausente, vacía o sin un
+  único periodo `ALL` no cuentan como dato. «Últimos 3» son los tres partidos contados más
+  recientes con fecha (por instante real; a igualdad, por id; nunca por jornada), y sólo
+  después se calcula la cobertura. Si las cifras no se pueden leer, se dice y el balance
+  sigue visible.
 - Los cálculos los hace el servicio Python: sólo partidos del ámbito, finalizados y con
   marcador válido (enteros no negativos; un booleano no lo es). Un finalizado sin marcador
   válido no cuenta, ni como 0–0, y se dice cuántos quedan fuera; los pendientes, tampoco.

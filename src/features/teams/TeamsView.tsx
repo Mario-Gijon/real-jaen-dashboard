@@ -318,7 +318,7 @@ function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performan
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** What the figures rest on: counted finished matches out of the observed ones, and what was left out. */
-function coverage({ matches }: ObservedCompetitionPerformance): string {
+function coverage({ matches, output }: ObservedCompetitionPerformance): string {
   const parts = [
     `${plural(matches.counted, "partido finalizado", "partidos finalizados")} con resultado de ${plural(matches.inScope, "partido observado", "partidos observados")} en esta competición (${plural(matches.pending, "pendiente", "pendientes")}).`,
   ];
@@ -327,6 +327,9 @@ function coverage({ matches }: ObservedCompetitionPerformance): string {
   }
   if (matches.unknownStatus) {
     parts.push(`${plural(matches.unknownStatus, "partido con estado desconocido no se incluye", "partidos con estado desconocido no se incluyen")}.`);
+  }
+  if (output?.undated) {
+    parts.push(`${plural(output.undated, "partido sin fecha no entra", "partidos sin fecha no entran")} en «Últimos 3».`);
   }
   return parts.join(" ");
 }

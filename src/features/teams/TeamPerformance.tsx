@@ -2,12 +2,12 @@
 import Link from "next/link";
 import { LinkedTableRow } from "@/ui/LinkedTableRow";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MatchResult, ObservedCompetitionPerformance, Side, TeamMatch, TeamRef, TeamSeason } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel, formatNumber } from "../format";
 import { observedCrest } from "../matches/ObservedMatchList";
-import { finishedMatches, goalsAgainst, goalsFor, periodMatches, venueRecord, type Period, type VenueRecord } from "./performance";
+import { average, finishedMatches, goalsAgainst, goalsFor, periodMatches, venueRecord, type Period, type VenueRecord } from "./performance";
 import { TeamOutput } from "./TeamOutput";
 import css from "./TeamPerformance.module.css";
 
@@ -95,30 +95,17 @@ export function TeamPerformance({ season }: { season: TeamSeason }) {
     <div className={css.performance}>
       <SeasonZone balance={balance} lead={{ rank, points: record.points }} played={played} venues={venueRecord(season.matches)} />
 
-      <section aria-labelledby="zone-output" className={css.zone}>
-        <header className={css.zoneHeader}>
-          <h3 className={css.zoneTitle} id="zone-output">
-            Rendimiento
-          </h3>
-          <div aria-label="Periodo" className={css.periods} role="group">
-            {PERIODS.map(([id, label]) => (
-              <button
-                aria-pressed={period === id}
-                key={id}
-                onClick={() => setPeriod(id)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </header>
+      <OutputZone period={period} setPeriod={setPeriod}>
         {finished.length ? (
-          <TeamOutput period={period} periodMatches={inPeriod} seasonMatches={finished} />
+          <TeamOutput
+            compare={period === "last3"}
+            seasonValue={(indicator) => average(finished, indicator)}
+            values={(indicator) => average(inPeriod, indicator)}
+          />
         ) : (
           <p className={css.empty}>Sin partidos disputados.</p>
         )}
-      </section>
+      </OutputZone>
 
       <PlayedZone highlighted={highlighted} played={played} />
     </div>
@@ -130,17 +117,46 @@ function signed(value: number): string {
   return value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : "0";
 }
 
+/** RENDIMIENTO: its title, the period control and what it shows for that period. */
+function OutputZone({ period, setPeriod, children }: { period: Period; setPeriod: (period: Period) => void; children: ReactNode }) {
+  return (
+    <section aria-labelledby="zone-output" className={css.zone}>
+      <header className={css.zoneHeader}>
+        <h3 className={css.zoneTitle} id="zone-output">
+          Rendimiento
+        </h3>
+        <div aria-label="Periodo" className={css.periods} role="group">
+          {PERIODS.map(([id, label]) => (
+            <button
+              aria-pressed={period === id}
+              key={id}
+              onClick={() => setPeriod(id)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
 /**
  * The same zones with a real source's results: balance (with goal
- * difference), home and away, the result sequence and the played matches.
- * No table position nor points (there are no standings), and the advanced
- * metrics zone is left out until those aggregates exist. `matchHref` opens
- * the real match detail when real matches are enabled.
+ * difference), home and away, the result sequence, production and
+ * concession (as computed by the source, for the season or «Últimos 3») and
+ * the played matches. No table position nor points (there are no
+ * standings). If the production figures could not be read, the rest stays.
+ * `matchHref` opens the real match detail when real matches are enabled.
  */
 export function RealTeamPerformance({ competition, matchHref }: {
   competition: ObservedCompetitionPerformance; matchHref: ((matchId: string) => string) | null;
 }) {
-  const { record } = competition;
+  const { record, output } = competition;
+  const [period, setPeriod] = useState<Period>("season");
+  const highlighted = new Set(period === "last3" && output ? output.last3.matchIds : []);
   const played: Played[] = competition.results.map(({ match, side, result, goalsFor, goalsAgainst }) => ({
     id: match.id, round: match.round, kickoff: match.kickoff, side, result, goalsFor, goalsAgainst,
     opponent: { id: (side === "home" ? match.away : match.home).id, ...observedCrest(side === "home" ? match.away : match.home) },
@@ -163,7 +179,18 @@ export function RealTeamPerformance({ competition, matchHref }: {
   return (
     <div className={css.performance}>
       <SeasonZone balance={balance} lead={null} played={played} venues={competition.venues} />
-      <PlayedZone highlighted={new Set()} played={played} />
+      <OutputZone period={period} setPeriod={setPeriod}>
+        {output ? (
+          <TeamOutput
+            compare={period === "last3"}
+            seasonValue={(indicator) => output.season[indicator]}
+            values={(indicator) => (period === "last3" ? output.last3.values : output.season)[indicator]}
+          />
+        ) : (
+          <p className={css.empty} role="status">No se pudieron leer la producción y la concesión de estos partidos.</p>
+        )}
+      </OutputZone>
+      <PlayedZone highlighted={highlighted} played={played} />
     </div>
   );
 }

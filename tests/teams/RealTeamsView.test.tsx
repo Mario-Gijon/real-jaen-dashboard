@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiRequestError, getCompetitions, getObservedPlayers, getSeasonTeams, getSource, getTeamObservedPerformance, getTeamSeason,
 } from "@/client/api";
-import type { ObservedCompetitionPerformance, ObservedMatch, ObservedTeamPerformance, RealSection } from "@/contract";
+import {
+  TEAM_OUTPUT_INDICATORS, type ObservedCompetitionPerformance, type ObservedMatch, type ObservedTeamPerformance, type RealSection,
+  type SeasonStat, type TeamOutputIndicator,
+} from "@/contract";
 import { TeamsView } from "@/features/teams/TeamsView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
@@ -22,6 +25,19 @@ const match = (id: string, round: number, home: { id: string; name: string | nul
 const europa = { id: "sofascore-team-135672", name: "CE Europa" };
 const huesca = { id: "sofascore-team-24265", name: "Huesca" };
 const GROUP_2 = "sofascore-scope-94191-97382";
+const stat = (value: number | null, matches: number, of: number): SeasonStat => value === null
+  ? { value: null, coverage: "none", reason: "not_available", matches: 0, of }
+  : { value, coverage: matches === of ? "complete" : "partial", matches, of };
+const averages = (of: number, values: Partial<Record<TeamOutputIndicator, SeasonStat>>) =>
+  Object.fromEntries(TEAM_OUTPUT_INDICATORS.map((key) => [key, values[key] ?? stat(null, 0, of)])) as Record<TeamOutputIndicator, SeasonStat>;
+/** As computed by the source: shots on target missing everywhere, xG and possession in two of three matches. */
+const OUTPUT: ObservedCompetitionPerformance["output"] = {
+  season: averages(3, { goals: stat(2, 3, 3), goalsAgainst: stat(2 / 3, 3, 3), xg: stat(1.4, 2, 3), xgAgainst: stat(0.95, 2, 3),
+    shots: stat(12, 3, 3), shotsAgainst: stat(0, 3, 3), possession: stat(52.5, 2, 3), corners: stat(4, 3, 3) }),
+  last3: { matchIds: ["sofascore-match-2", "sofascore-match-3"], values: averages(2, { goals: stat(1.5, 2, 2), goalsAgainst: stat(1, 2, 2),
+    xg: stat(1.15, 2, 2), shots: stat(10, 2, 2), shotsAgainst: stat(0, 2, 2), possession: stat(50, 2, 2), corners: stat(3, 2, 2) }) },
+  undated: 0,
+};
 const competition = (fields: Partial<ObservedCompetitionPerformance> = {}): ObservedCompetitionPerformance => ({
   id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27",
   matches: { inScope: 37, finished: 3, pending: 29, counted: 3, finishedWithoutValidScore: 0, unknownStatus: 0 },
@@ -32,6 +48,7 @@ const competition = (fields: Partial<ObservedCompetitionPerformance> = {}): Obse
     { match: match("sofascore-match-2", 2, jaen, huesca, [2, 2]), side: "home", result: "draw", goalsFor: 2, goalsAgainst: 2 },
     { match: match("sofascore-match-3", 3, jaen, europa, [1, 0]), side: "home", result: "win", goalsFor: 1, goalsAgainst: 0 },
   ],
+  output: OUTPUT,
   ...fields,
 });
 const SCOPE = "Resultados de los partidos finalizados observados en esta competición. No es necesariamente la temporada completa: sin clasificación ni puntos.";
@@ -82,11 +99,57 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
       "Jornada 3: Victoria 1-0 en casa contra CE Europa",
     ]);
     expect(screen.queryByText(/Clasificación|Puntos/)).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Rendimiento" })).toBeNull();
-    expect(screen.queryByText(/xG|Posesión|pendiente de datos/i)).toBeNull();
     expect(screen.getByText("Datos reales")).toBeVisible();
     expect(screen.getByText(SCOPE)).toBeVisible();
     expect(screen.getByText("3 partidos finalizados con resultado de 37 partidos observados en esta competición (29 pendientes).")).toBeVisible();
+  });
+
+  it("shows the source's production and concession with their coverage; a missing value is «—», never 0", async () => {
+    const { container } = render(<TeamsView />);
+    await loaded();
+    expect(screen.getByRole("heading", { name: "Rendimiento" })).toBeVisible();
+    const value = (indicator: string) => container.querySelector(`[data-indicator="${indicator}"]`)!;
+    expect(value("goals")).toHaveTextContent(/^2,00$/);
+    expect(value("goalsAgainst")).toHaveTextContent(/^0,67$/);
+    expect(value("shots")).toHaveTextContent(/^12,0$/);
+    // A real zero is a value; a missing one says so.
+    expect(value("shotsAgainst")).toHaveTextContent(/^0,0$/);
+    expect(value("shotsOnTarget")).toHaveTextContent(/^—$/);
+    expect(within(value("shotsOnTarget") as HTMLElement).getByTitle("Sin datos")).toBeVisible();
+    // Partial coverage: the average of the matches with data, marked and explained.
+    expect(value("xg")).toHaveTextContent(/^1,40\*$/);
+    expect(within(value("xg") as HTMLElement).getByTitle("Media de 2 de 3 partidos")).toBeVisible();
+    expect(value("possession")).toHaveTextContent(/^52,5 %\*$/);
+    expect(screen.getByText(/Media solo de los partidos con dato\./)).toBeVisible();
+  });
+
+  it("switches to «Últimos 3» with the source's matches, compared with the season and highlighted in the list", async () => {
+    const { container } = render(<TeamsView />);
+    await loaded();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Últimos 3" }));
+    expect(screen.getByRole("button", { name: "Últimos 3" })).toHaveAttribute("aria-pressed", "true");
+    const goals = container.querySelector('[data-indicator="goals"]')!;
+    expect(goals).toHaveTextContent("1,50");
+    expect(goals).toHaveTextContent("−0,50 vs temporada");
+    const rows = within(screen.getByRole("table", { name: "Partidos disputados" })).getAllByRole("row").slice(1);
+    expect(rows.map((row) => row.hasAttribute("data-in-period"))).toEqual([true, true, false]);
+  });
+
+  it("keeps the real balance and results when the production figures could not be read", async () => {
+    vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition({ output: null })]));
+    render(<TeamsView />);
+    await loaded();
+    expect(screen.getByText("No se pudieron leer la producción y la concesión de estos partidos.")).toBeVisible();
+    expect(item("DG")).toHaveTextContent("DG+4");
+    expect(screen.getByRole("table", { name: "Partidos disputados" })).toBeVisible();
+    expect(getTeamSeason).not.toHaveBeenCalled();
+  });
+
+  it("says when counted matches without a date stay out of «Últimos 3»", async () => {
+    vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition({ output: { ...OUTPUT!, undated: 1 } })]));
+    render(<TeamsView />);
+    await loaded();
+    expect(screen.getByText(/1 partido sin fecha no entra en «Últimos 3»\./)).toBeVisible();
   });
 
   it("lists the played matches newest first, linked to their real detail only when real matches are enabled", async () => {
