@@ -19,13 +19,6 @@
 .field:last-child {
   width: 130px;
 }
-/* A value that cannot be chosen (the only competition of the real source), aligned with the selects. */
-.fixed {
-  align-content: end;
-  min-height: var(--rj-control-height);
-  font-size: var(--rj-text-sm);
-  font-weight: 700;
-}
 .real {
   display: grid;
   gap: var(--rj-space-4);
@@ -76,6 +69,10 @@
 .titles p {
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-sm);
+}
+.titles[data-full-name] h2 {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 /* Desktop: the grid is always visible, so there is nothing to unfold. */
 .identity .change {

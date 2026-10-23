@@ -99,9 +99,9 @@ export function TeamShell({ teams, team, subtitle, tab, onTab, onSelectTeam, bus
       <section aria-labelledby="team-name" className={css.team}>
         <header className={css.identity}>
           <TeamCrest size={44} team={team} />
-          <div className={css.titles}>
+          <div className={css.titles} data-full-name={!subtitle || undefined}>
             <h2 id="team-name">{team.name}</h2>
-            <p>{subtitle}</p>
+            {subtitle ? <p>{subtitle}</p> : null}
           </div>
           <Button
             aria-controls={gridId}

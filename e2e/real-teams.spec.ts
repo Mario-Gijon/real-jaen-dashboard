@@ -58,15 +58,114 @@ async function serveReal(page: Page, { down = false } = {}) {
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
+test("Equipos reales: the 20 teams keep their grid, full names and native tooltips", async ({ page }, testInfo) => {
+  const teams = [jaen, ...[
+    [24322, "AD Alcorcón"], [4489, "Algeciras CF"], [24323, "Antequera"], [24326, "Atlético Madrileño"],
+    [43751, "CD Teruel"], [217210, "CDA Águilas FC"], [135672, "CE Europa"], [24329, "FC Cartagena"],
+    [2840, "Gimnàstic de Tarragona"], [2877, "Hércules CF"], [24265, "Huesca"], [263407, "Juventud Torremolinos CF"],
+    [202074, "Rayo Majadahonda"], [5069, "Real Madrid Castilla U21"], [4487, "Real Murcia"], [2815, "Real Zaragoza"],
+    [24368, "UD Ibiza"], [24363, "UE Sant Andreu"], [24338, "Villarreal B U23"],
+  ].map(([id, name]) => ({ id: `sofascore-team-${id}`, name: String(name) }))];
+  await serveReal(page);
+  await page.route("**/api/v1/teams/*/observed-performance", (route) => {
+    const teamId = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
+    return route.fulfill({ json: { ...performance, teams, teamId,
+      competitions: performance.competitions.map((c) => ({ ...c,
+        venues: teamId === jaen.id ? c.venues : { home: c.venues.away, away: c.venues.home },
+      })),
+    } });
+  });
+  await page.route("**/api/v1/teams/*/observed-squad", (route) => route.fulfill({ json: squad }));
+  await page.goto("/teams");
+  await expect(page.getByRole("heading", { level: 2, name: jaen.name })).toBeVisible();
+  const grid = page.getByRole("group", { name: "Equipo", exact: true });
+  const phone = testInfo.project.name === "mobile";
+  if (phone) await page.getByRole("button", { name: "Cambiar equipo" }).click();
+  await expect(grid.getByRole("radio")).toHaveCount(20);
+  await expect(grid.getByRole("radio").first()).toHaveAccessibleName(jaen.name);
+  await page.screenshot({ path: testInfo.outputPath("teams-grid.png"), fullPage: true });
+  for (const team of teams) {
+    if (phone && !await grid.isVisible()) await page.getByRole("button", { name: "Cambiar equipo" }).click();
+    const tile = grid.locator("label").filter({ has: page.getByRole("radio", { name: team.name, exact: true }) });
+    await expect(tile).toHaveAttribute("title", team.name);
+    await tile.click();
+    await expect(page.locator(`input[type="radio"][value="${team.id}"]`)).toBeChecked();
+    await expect(page.getByRole("heading", { level: 2, name: team.name, exact: true })).toBeVisible();
+    const venues = page.getByLabel("Local y visitante");
+    await expect(venues.locator(":scope > div").nth(0).locator("strong"))
+      .toHaveText(team.id === jaen.id ? ["0", "1", "0"] : ["1", "0", "1"]);
+    await expect(venues.locator(":scope > div").nth(1).locator("strong"))
+      .toHaveText(team.id === jaen.id ? ["1", "0", "1"] : ["0", "1", "0"]);
+    expect(await noHorizontalOverflow(page)).toBe(true);
+  }
+  if (phone) await page.getByRole("button", { name: "Cambiar equipo" }).click();
+  const tile = grid.locator("label").filter({ has: page.getByRole("radio", { name: "Juventud Torremolinos CF", exact: true }) });
+  if (!phone) await tile.hover();
+  await expect(tile.locator("span").last()).toHaveCSS("text-overflow", "ellipsis");
+  await tile.click();
+  const heading = page.getByRole("heading", { level: 2, name: "Juventud Torremolinos CF", exact: true });
+  await expect(heading).toHaveCSS("white-space", "normal");
+  const venues = page.getByLabel("Local y visitante");
+  await expect(venues.locator('[data-result="win"]').first()).toHaveCSS("color", "rgb(24, 134, 93)");
+  await expect(venues.locator('[data-result="draw"]').first()).toHaveCSS("color", "rgb(94, 97, 114)");
+  await expect(venues.locator('[data-result="loss"]').first()).toHaveCSS("color", "rgb(200, 59, 80)");
+  await expect(page.getByText("Tiros a puerta concedidos / partido", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("teams-long-name.png"), fullPage: true });
+  await page.getByRole("button", { name: "Últimos 3", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Partidos disputados" }).locator("tr[data-in-period]")).toHaveCount(3);
+  const reference = await page.getByRole("table", { name: "Partidos disputados" }).locator("thead th").first().evaluate((cell) => {
+    const style = getComputedStyle(cell);
+    return { color: style.color, fontSize: style.fontSize, fontWeight: style.fontWeight,
+      textTransform: style.textTransform, letterSpacing: style.letterSpacing,
+      paddingTop: style.paddingTop, paddingLeft: style.paddingLeft };
+  });
+  await page.screenshot({ path: testInfo.outputPath("teams-last3.png"), fullPage: true });
+  await page.getByRole("tab", { name: "Jugadores", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Jugadores observados" })).toBeVisible();
+  const playersTable = page.getByRole("table", { name: "Jugadores observados" });
+  await expect(playersTable.locator("thead th")).toHaveText([
+    "Jugador", "Posición", "Partidos", "Titularidades", "Minutos", "Goles", "Asistencias", "Estatura", "Pierna",
+  ]);
+  await expect(playersTable.locator("thead th").first()).toHaveCSS("white-space", "nowrap");
+  for (const header of await playersTable.locator("thead th").all()) {
+    for (const [property, value] of Object.entries(reference)) {
+      const cssName = property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      await expect(header).toHaveCSS(cssName, value);
+    }
+  }
+  for (const button of await playersTable.locator("thead button").all()) {
+    await expect(button).toHaveCSS("text-transform", "uppercase");
+    await expect(button).toHaveCSS("color", reference.color);
+  }
+  const note = page.getByRole("complementary", { name: "Nota sobre los datos" });
+  await expect(note).toBeVisible();
+  await expect(note).not.toContainText(/ordenar|—/);
+  await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("teams-players-viewport.png") });
+  await page.screenshot({ path: testInfo.outputPath("teams-players.png"), fullPage: true });
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await playersTable.locator("..").evaluate((scroll) => { scroll.scrollLeft = (scroll.scrollWidth - scroll.clientWidth) / 2; });
+  await page.screenshot({ path: testInfo.outputPath("teams-players-middle.png") });
+  await playersTable.locator("..").evaluate((scroll) => { scroll.scrollLeft = scroll.scrollWidth; });
+  await expect(note).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("teams-players-scrolled.png"), fullPage: true });
+  await page.getByRole("button", { name: /^Porteros/ }).click();
+  await expect(note).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("teams-players-complete.png"), fullPage: true });
+});
+
 test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, sin nada sintético", async ({ page }, testInfo) => {
   await serveReal(page);
   const synthetic: string[] = [];
   page.on("request", (r) => { if (/\/api\/v1\/(competitions|seasons\/)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
   await page.goto("/teams");
   await expect(page.getByRole("heading", { level: 2, name: "Real Jaén" })).toBeVisible();
-  await expect(page.locator("header").getByText("Primera Federación, Grupo 2", { exact: false }).first()).toBeVisible();
+  await expect(page.locator("header").getByText("Primera Federación, Grupo 2", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "Competición" })).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: "Temporada" })).toHaveValue(GROUP_2);
+  await expect(page.getByRole("combobox", { name: "Temporada" })).toHaveCount(0);
+  await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Jornada", exact: true })).toBeVisible();
   // The crest grid keeps its design (folded on phones) with the only team with correspondence.
   await expect(page.locator("input[type=radio]")).toHaveCount(1);
 
@@ -164,7 +263,8 @@ test("Equipos reales: jugadores con acumulados reales, orden, filtro, ficha y vu
   await expect(row("Salvi").locator("td").nth(2)).toHaveText("0");
   await expect(row("Salvi").locator("td").nth(3)).toHaveText("0");
   await expect(row("Moha Keita").locator("td").nth(6)).toHaveText("165 cm");
-  await expect(page.getByText(/^1 convocatoria sin participación resuelta; esas cifras llevan \*/)).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Nota sobre los datos" })).toBeVisible();
+  await expect(page.getByText(/sin participación resuelta; esas cifras/)).toHaveCount(0);
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-teams-players.png"), fullPage: true });
 
@@ -240,7 +340,7 @@ test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la 
   await expect(page).toHaveURL(/\/matches\/sofascore-match-\d+[?]view=observed&from=teams&team=sofascore-team-24368$/);
   await page.goBack();
   await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Temporada" })).toHaveValue(GROUP_2);
+  await expect(page.getByRole("combobox", { name: "Temporada" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Rendimiento del equipo" })).toHaveAttribute("aria-selected", "true");
 
   // «Volver al equipo» returns there too, not to Partidos.

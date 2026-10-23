@@ -16,6 +16,7 @@ import {
 } from "../format";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { SeasonValue } from "../SeasonValue";
+import tableHeader from "@/ui/TableHeader.module.css";
 import css from "./TeamPlayersTable.module.css";
 
 type StatKey = keyof Pick<
@@ -39,11 +40,11 @@ export type SquadRow = {
 
 /** Key, header, header on phones, full name. */
 const STAT_COLUMNS: readonly (readonly [StatKey, string, string, string])[] = [
-  ["appearances", "PJ", "PJ", "Partidos jugados"],
-  ["starts", "Tit.", "Tit", "Titularidades"],
-  ["minutes", "Min.", "Min", "Minutos"],
-  ["goals", "Goles", "G", "Goles"],
-  ["assists", "Asist.", "A", "Asistencias"],
+  ["appearances", "Partidos", "Partidos", "Partidos jugados"],
+  ["starts", "Titularidades", "Titularidades", "Titularidades"],
+  ["minutes", "Minutos", "Minutos", "Minutos"],
+  ["goals", "Goles", "Goles", "Goles"],
+  ["assists", "Asistencias", "Asistencias", "Asistencias"],
 ];
 
 const lineIndex = (position: PlayerPosition | null) =>
@@ -194,21 +195,21 @@ export function TeamPlayersTable({
       <div className={css.scroll}>
         <table className={css.table}>
           <caption className={css.sr}>{observed ? "Jugadores observados" : "Jugadores de la plantilla"}</caption>
-          <thead>
+          <thead className={tableHeader.header}>
             <tr>
               <th aria-sort={ariaSort("name")} className={css.player} scope="col">
                 {header("name", "Jugador", "Nombre")}
               </th>
               <th aria-sort={ariaSort("position")} className={css.position} scope="col">
-                {header("position", "Posición", "Posición", false, "Pos")}
+                {header("position", "Posición", "Posición")}
               </th>
               {STAT_COLUMNS.map(([key, short, phone, long]) => (
                 <th aria-sort={ariaSort(key)} className={css.stat} key={key} scope="col">
                   {header(key, short, observed && key === "appearances" ? "Partidos jugados (convocatorias con participación)" : long, true, phone)}
                 </th>
               ))}
-              <th className={css.personalHeader} scope="col">Estatura</th>
-              <th className={css.personalHeader} scope="col">Pierna</th>
+              <th scope="col">Estatura</th>
+              <th scope="col">Pierna</th>
             </tr>
           </thead>
           <tbody>
@@ -269,6 +270,12 @@ export function TeamPlayersTable({
           </tbody>
         </table>
       </div>
+      {observed && rows.some((row) => STAT_COLUMNS.some(([key]) => row.stats[key].value !== null && row.stats[key].coverage === "partial")) ? (
+        <aside className={css.note} aria-label="Nota sobre los datos">
+          <strong>Nota sobre los datos</strong>
+          <p>El asterisco (*) indica que la cifra se basa en datos de solo algunas convocatorias y puede estar incompleta.</p>
+        </aside>
+      ) : null}
       {rows.length === 0 ? <p className={css.empty}>No hay jugadores en esta posición.</p> : null}
     </div>
   );

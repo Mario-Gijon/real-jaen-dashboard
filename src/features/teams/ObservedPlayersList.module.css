@@ -7,6 +7,10 @@
   color: var(--rj-text-secondary);
   font-size: var(--rj-text-sm);
 }
+.note {
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+}
 .table {
   justify-self: start;
   width: auto;

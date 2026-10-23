@@ -12,44 +12,31 @@ const UNITS: readonly { title: string; main: Measure[]; secondary: Measure[] }[]
   {
     title: "Ataque",
     main: [
-      { indicator: "goals", label: "Goles/p.", decimals: 2 },
-      { indicator: "xg", label: "xG/p.", decimals: 2 },
+      { indicator: "goals", label: "Goles / partido", decimals: 2 },
+      { indicator: "xg", label: "xG / partido", decimals: 2 },
     ],
     secondary: [
-      { indicator: "shots", label: "tiros/p.", decimals: 1 },
-      { indicator: "shotsOnTarget", label: "a puerta/p.", decimals: 1 },
+      { indicator: "shots", label: "Tiros / partido", decimals: 1 },
+      { indicator: "shotsOnTarget", label: "Tiros a puerta / partido", decimals: 1 },
     ],
   },
   {
     title: "Defensa",
     main: [
-      { indicator: "goalsAgainst", label: "Goles enc./p.", decimals: 2 },
-      { indicator: "xgAgainst", label: "xG conc./p.", decimals: 2 },
+      { indicator: "goalsAgainst", label: "Goles encajados / partido", decimals: 2 },
+      { indicator: "xgAgainst", label: "xG concedidos / partido", decimals: 2 },
     ],
     secondary: [
-      { indicator: "shotsAgainst", label: "tiros conc./p.", decimals: 1 },
-      { indicator: "shotsOnTargetAgainst", label: "a puerta conc./p.", decimals: 1 },
+      { indicator: "shotsAgainst", label: "Tiros concedidos / partido", decimals: 1 },
+      { indicator: "shotsOnTargetAgainst", label: "Tiros a puerta concedidos / partido", decimals: 1 },
     ],
   },
 ];
 
 const CONTEXT: readonly Measure[] = [
   { indicator: "possession", label: "Posesión media", decimals: 1 },
-  { indicator: "corners", label: "Córners/p.", decimals: 1 },
+  { indicator: "corners", label: "Córners / partido", decimals: 1 },
 ];
-
-const LONG_LABEL: Record<Indicator, string> = {
-  goals: "Goles por partido",
-  xg: "xG por partido",
-  shots: "Tiros por partido",
-  shotsOnTarget: "Tiros a puerta por partido",
-  goalsAgainst: "Goles encajados por partido",
-  xgAgainst: "xG concedido por partido",
-  shotsAgainst: "Tiros concedidos por partido",
-  shotsOnTargetAgainst: "Tiros a puerta concedidos por partido",
-  possession: "Posesión media",
-  corners: "Córners por partido",
-};
 
 /** «+0,24», «−1,50» or «±0,00»: a plain difference, never good or bad. */
 function signed(value: number, decimals: number): string {
@@ -138,7 +125,7 @@ export function TeamOutput({
             <dl className={css.main}>
               {unit.main.map((m) => (
                 <div key={m.indicator}>
-                  <dt title={LONG_LABEL[m.indicator]}>{m.label}</dt>
+                  <dt>{m.label}</dt>
                   <dd data-indicator={m.indicator}>
                     <span className={css.mainValue}>
                       <Value decimals={m.decimals} stat={values(m.indicator)} />
@@ -158,7 +145,7 @@ export function TeamOutput({
               {unit.secondary.map((m) => (
                 <div key={m.indicator}>
                   {/* Label first in the markup; the value reads first on screen (CSS order). */}
-                  <dt title={LONG_LABEL[m.indicator]}>{m.label}</dt>
+                  <dt>{m.label}</dt>
                   <dd data-indicator={m.indicator}>
                     <strong>
                       <Value decimals={m.decimals} stat={values(m.indicator)} />

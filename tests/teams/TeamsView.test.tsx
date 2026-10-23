@@ -69,7 +69,7 @@ describe("Equipos", () => {
       expect.stringContaining("Competición"),
       expect.stringContaining("Temporada"),
     ]);
-    expect(within(grid()).getByRole("radio", { name: "Real Jaén" })).toBeChecked();
+    expect(within(grid()).getByRole("radio", { name: "Real Jaén CF" })).toBeChecked();
     expect(requested(fetch)).toContain(`/api/v1/seasons/${SEASON_ID}/teams/team-real-jaen`);
   });
 
@@ -87,7 +87,7 @@ describe("Equipos", () => {
     await openTeams();
     await user.click(within(grid()).getByText("Montealto"));
     expect(await screen.findByRole("heading", { level: 2, name: "CD Montealto" })).toBeVisible();
-    expect(within(grid()).getByRole("radio", { name: "Montealto" })).toBeChecked();
+    expect(within(grid()).getByRole("radio", { name: "CD Montealto" })).toBeChecked();
   });
 
   it("keeps the chosen team, season and tab in the URL, replacing it without new history entries", async () => {
@@ -108,17 +108,17 @@ describe("Equipos", () => {
   it("moves through the grid with the arrow keys", async () => {
     const user = userEvent.setup();
     await openTeams();
-    within(grid()).getByRole("radio", { name: "Real Jaén" }).focus();
+    within(grid()).getByRole("radio", { name: "Real Jaén CF" }).focus();
     await user.keyboard("{ArrowRight}");
-    expect(within(grid()).getByRole("radio", { name: "Bravo" })).toBeChecked();
-    expect(within(grid()).getByRole("radio", { name: "Bravo" })).toHaveFocus();
+    expect(within(grid()).getByRole("radio", { name: "Atlético Bravo" })).toBeChecked();
+    expect(within(grid()).getByRole("radio", { name: "Atlético Bravo" })).toHaveFocus();
     expect(await screen.findByRole("heading", { level: 2, name: "Atlético Bravo" })).toBeVisible();
   });
 
   it("draws a neutral shield for clubs without crest, never another crest", async () => {
     await openTeams();
-    const rj = within(grid()).getByRole("radio", { name: "Real Jaén" }).closest("label")!;
-    const alto = within(grid()).getByRole("radio", { name: "Montealto" }).closest("label")!;
+    const rj = within(grid()).getByRole("radio", { name: "Real Jaén CF" }).closest("label")!;
+    const alto = within(grid()).getByRole("radio", { name: "CD Montealto" }).closest("label")!;
     expect(rj.querySelector('[data-crest="image"] img')).toHaveAttribute(
       "src",
       "/crests/real-jaen.webp",
@@ -170,8 +170,8 @@ describe("Rendimiento del equipo", () => {
       within(season).getByTitle("Goles en contra").closest("div")!.querySelector("dd"),
     ).toHaveTextContent("4");
     // Postponed (away) and scheduled (home) matches are not counted.
-    expect(value("Casa")).toHaveTextContent(/^1V0E1D$/);
-    expect(value("Fuera")).toHaveTextContent(/^0V2E0D$/);
+    expect(value("Local")).toHaveTextContent(/^1V0E1D$/);
+    expect(value("Visitante")).toHaveTextContent(/^0V2E0D$/);
   });
 
   it("TEMPORADA: one result per finished match, with round, rival, venue and score", async () => {

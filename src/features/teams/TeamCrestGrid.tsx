@@ -51,6 +51,7 @@ export function TeamCrestGrid({
               title={team.name}
             >
               <input
+                aria-label={team.name}
                 checked={selected}
                 className={css.radio}
                 name="team"

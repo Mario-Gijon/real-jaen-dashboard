@@ -6,8 +6,6 @@ import { ApiRequestError, getObservedSquad, getTeamObservedPerformance } from "@
 import type { ObservedCompetitionPerformance, ObservedTeam, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
-import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
-import { Select } from "@/ui/Select";
 import { CLUB_ID } from "../club";
 import { observedCrest } from "../team-crests";
 import { observedMatchHref } from "../players/navigation";
@@ -19,6 +17,9 @@ import css from "./TeamsView.module.css";
 
 /** A real team as the crest grid and header draw it: the source's name and its crest file, or a neutral shield. */
 const realTeamRef = (team: ObservedTeam): TeamRef => ({ id: team.id, ...observedCrest(team) });
+
+// The current product scope. Keep competition selection internal until other scopes are enabled.
+const CURRENT_SCOPE = { name: "Primera Federación, Grupo 2", season: "26/27" };
 
 /**
  * Teams from the real source (`TEAMS_SOURCE=local`): only teams with an
@@ -43,11 +44,12 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
   );
   const competitions = load.data?.competitions ?? [];
   const competition: ObservedCompetitionPerformance | null =
-    seasonId === null ? competitions[0] ?? null : competitions.find((c) => c.id === seasonId) ?? null;
+    competitions.find((c) => c.name === CURRENT_SCOPE.name && c.season === CURRENT_SCOPE.season
+      && (seasonId === null || c.id === seasonId)) ?? null;
   const notFound = load.error instanceof ApiRequestError && load.error.code === "NOT_FOUND";
   const teams = useMemo(() => gridOrder((load.data?.teams ?? []).map(realTeamRef)), [load.data]);
   const team = teams.find((t) => t.id === teamId) ?? realTeamRef({ id: teamId, name: null });
-  const subtitle = competition ? [competition.name, competition.season].filter(Boolean).join(" · ") : "";
+  const notes = competition ? coverage(competition) : "";
   // A match opened here returns to this team, season and tab, as the URL keeps them.
   const matchHref = (matchId: string) => observedMatchHref(matchId, { kind: "teams", seasonId, teamId: chosenTeamId, tab });
   // Only a team and season the source serves are written; an unknown one stays as asked, with its explicit state.
@@ -55,27 +57,7 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
 
   return (
     <>
-      <PageHeader
-        actions={
-          <div className={css.scope}>
-            <p className={`${css.field} ${css.fixed}`}>
-              <span>Competición</span>
-              {competition?.name ?? "—"}
-            </p>
-            <label className={css.field}>
-              <span>Temporada</span>
-              <Select disabled={!competitions.length} onChange={(event) => setSeasonId(event.target.value)} value={competition?.id ?? ""}>
-                {competitions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.season ?? c.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          </div>
-        }
-        title="Equipos"
-      />
+      <PageHeader title="Equipos" />
 
       {notFound ? (
         <div className={css.status} role="status">
@@ -104,17 +86,14 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
           busy={tab === "players" && squad.loading}
           onSelectTeam={setTeamId}
           onTab={setTab}
-          subtitle={subtitle}
+          subtitle=""
           tab={tab}
           team={team}
           teams={teams}
         >
           {tab === "performance" ? (
             <div className={css.real}>
-              <ProvenanceNotice source={load.data.source}>
-                <p>{load.data.scope}</p>
-                <p>{coverage(competition)}</p>
-              </ProvenanceNotice>
+              {notes ? <p className={css.status}>{notes}</p> : null}
               <RealTeamPerformance competition={competition} key={`${teamId}|${competition.id}`} matchHref={matchHref} />
             </div>
           ) : squad.error ? (
@@ -134,9 +113,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 /** What the figures rest on: counted finished matches out of the observed ones, and what was left out. */
 function coverage({ matches, output }: ObservedCompetitionPerformance): string {
-  const parts = [
-    `${plural(matches.counted, "partido finalizado", "partidos finalizados")} con resultado de ${plural(matches.inScope, "partido observado", "partidos observados")} en esta competición (${plural(matches.pending, "pendiente", "pendientes")}).`,
-  ];
+  const parts: string[] = [];
   if (matches.finishedWithoutValidScore) {
     parts.push(`${plural(matches.finishedWithoutValidScore, "finalizado sin marcador válido no se incluye", "finalizados sin marcador válido no se incluyen")}.`);
   }

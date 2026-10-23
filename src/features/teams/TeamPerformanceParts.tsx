@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { House, LogOut } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MatchResult, Side, TeamRef } from "@/contract";
 import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { TeamCrest } from "@/ui/TeamCrest";
+import tableHeader from "@/ui/TableHeader.module.css";
 import { dateLabel, formatNumber } from "../format";
 import type { Period, VenueRecord } from "./performance";
 import css from "./TeamPerformance.module.css";
@@ -109,10 +111,10 @@ export function PlayedZone({ played, highlighted }: { played: readonly Played[];
       {played.length ? (
         <div className={css.scroll}>
           <table aria-label="Partidos disputados" className={css.table}>
-            <thead>
+            <thead className={tableHeader.header}>
               <tr>
                 <th scope="col">
-                  <abbr title="Jornada">J</abbr>
+                  Jornada
                 </th>
                 <th scope="col">Fecha</th>
                 <th className={css.venue} scope="col">
@@ -225,10 +227,13 @@ export function SeasonZone({ balance, lead, venues, played }: {
             </div>
           ))}
         </dl>
-        <dl aria-label="Casa y fuera" className={css.venues}>
+        <dl aria-label="Local y visitante" className={css.venues}>
           {(["home", "away"] as const).map((side) => (
             <div key={side}>
-              <dt>{side === "home" ? "Casa" : "Fuera"}</dt>
+              <dt>
+                {side === "home" ? <House size={14} aria-hidden="true" /> : <LogOut size={14} aria-hidden="true" />}
+                {side === "home" ? "Local" : "Visitante"}
+              </dt>
               <dd>
                 {(["win", "draw", "loss"] as const).map((result) => (
                   <span data-result={result} key={result}>

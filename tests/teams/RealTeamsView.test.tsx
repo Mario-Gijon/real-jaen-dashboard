@@ -100,15 +100,18 @@ const item = (short: string) => within(screen.getByLabelText("Balance")).getByTi
 }[short]}$`)).closest("div")!;
 
 describe("Equipos con la fuente real", () => {
-  it("shows the real club with the scope's competition and season, and loads nothing synthetic", async () => {
+  it("keeps the current scope internally without its controls, subtitle or provenance block", async () => {
     render(<TeamsView />);
     await loaded();
     expect(getTeamObservedPerformance).toHaveBeenCalledWith("team-real-jaen", expect.anything());
     expect(screen.queryByRole("combobox", { name: "Competición" })).toBeNull();
-    expect(screen.getByText("Competición").parentElement).toHaveTextContent("CompeticiónPrimera Federación, Grupo 2");
-    const season = screen.getByRole("combobox", { name: "Temporada" });
-    expect([...season.querySelectorAll("option")].map((o) => [o.value, o.textContent])).toEqual([[GROUP_2, "26/27"]]);
-    expect(screen.getByText("Primera Federación, Grupo 2 · 26/27")).toBeVisible();
+    expect(screen.queryByText("Competición")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Temporada" })).toBeNull();
+    expect(screen.queryByText("Primera Federación, Grupo 2 · 26/27")).toBeNull();
+    expect(screen.queryByText("Datos reales")).toBeNull();
+    expect(screen.queryByText(SCOPE)).toBeNull();
+    expect(screen.getByRole("button", { name: "Temporada" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Jornada" })).toBeVisible();
     // The grid keeps its design with the only team with correspondence.
     expect(screen.getAllByRole("radio")).toHaveLength(1);
     for (const synthetic of [getCompetitions, getSeasonTeams, getTeamSeason]) expect(synthetic).not.toHaveBeenCalled();
@@ -120,8 +123,8 @@ describe("Equipos con la fuente real", () => {
     for (const [short, value] of [["PJ", "3"], ["V", "2"], ["E", "1"], ["D", "0"], ["GF", "6"], ["GC", "2"], ["DG", "+4"]]) {
       expect(item(short), short).toHaveTextContent(`${short}${value}`);
     }
-    expect(within(screen.getByLabelText("Casa y fuera")).getByText("Casa").parentElement).toHaveTextContent("Casa1V1E0D");
-    expect(within(screen.getByLabelText("Casa y fuera")).getByText("Fuera").parentElement).toHaveTextContent("Fuera1V0E0D");
+    expect(within(screen.getByLabelText("Local y visitante")).getByText("Local").parentElement).toHaveTextContent("Local1V1E0D");
+    expect(within(screen.getByLabelText("Local y visitante")).getByText("Visitante").parentElement).toHaveTextContent("Visitante1V0E0D");
     const chips = within(screen.getByRole("list", { name: "Resultados por jornada" })).getAllByRole("button");
     expect(chips.map((chip) => chip.getAttribute("aria-label"))).toEqual([
       "Jornada 1: Victoria 3-0 fuera contra CE Europa",
@@ -129,9 +132,8 @@ describe("Equipos con la fuente real", () => {
       "Jornada 3: Victoria 1-0 en casa contra CE Europa",
     ]);
     expect(screen.queryByText(/Clasificación|Puntos/)).toBeNull();
-    expect(screen.getByText("Datos reales")).toBeVisible();
-    expect(screen.getByText(SCOPE)).toBeVisible();
-    expect(screen.getByText("3 partidos finalizados con resultado de 37 partidos observados en esta competición (29 pendientes).")).toBeVisible();
+    expect(screen.queryByText("Datos reales")).toBeNull();
+    expect(screen.queryByText(SCOPE)).toBeNull();
   });
 
   it("shows the source's production and concession with their coverage; a missing value is «—», never 0", async () => {
@@ -151,6 +153,12 @@ describe("Equipos con la fuente real", () => {
     expect(within(value("xg") as HTMLElement).getByTitle("Media de 2 de 3 partidos")).toBeVisible();
     expect(value("possession")).toHaveTextContent(/^52,5 %\*$/);
     expect(screen.getByText(/Media solo de los partidos con dato\./)).toBeVisible();
+    for (const label of ["Goles / partido", "xG / partido", "Tiros / partido", "Tiros a puerta / partido",
+      "Goles encajados / partido", "xG concedidos / partido", "Tiros concedidos / partido",
+      "Tiros a puerta concedidos / partido", "Córners / partido", "Posesión media"]) {
+      expect(screen.getByText(label)).toBeVisible();
+      expect(screen.getByText(label)).not.toHaveAttribute("title");
+    }
   });
 
   it("switches to «Últimos 3» with the source's matches, compared with the season and highlighted in the list", async () => {
@@ -213,7 +221,7 @@ describe("Equipos con la fuente real", () => {
     })]));
     render(<TeamsView />);
     await loaded();
-    expect(screen.getByText(/de 38 partidos observados en esta competición \(35 pendientes\)\. 1 evento sustituido por otro por decisión local se conserva sin contar\./)).toBeVisible();
+    expect(screen.getByText("1 evento sustituido por otro por decisión local se conserva sin contar.")).toBeVisible();
   });
 
   it("tells zero finished matches apart from a failure, which retries", async () => {
@@ -268,8 +276,7 @@ describe("Equipos con la fuente real", () => {
       expect(window.location.search).toBe("?team=sofascore-team-24368");
       await user.click(screen.getByRole("tab", { name: "Jugadores" }));
       expect(window.location.search).toBe("?team=sofascore-team-24368&tab=players");
-      await user.selectOptions(screen.getByRole("combobox", { name: "Temporada" }), GROUP_2);
-      expect(window.location.search).toBe(`?season=${GROUP_2}&team=sofascore-team-24368&tab=players`);
+      expect(screen.queryByRole("combobox", { name: "Temporada" })).toBeNull();
       expect(window.history.length).toBe(entries);
     });
 
@@ -299,7 +306,18 @@ describe("Equipos con la fuente real", () => {
   it("opens the real season from the URL: the one a real profile returns to", async () => {
     render(<TeamsView initialSeasonId={GROUP_2} />);
     await loaded();
-    expect(screen.getByRole("combobox", { name: "Temporada" })).toHaveValue(GROUP_2);
+    expect(screen.queryByRole("combobox", { name: "Temporada" })).toBeNull();
+  });
+
+  it.each([
+    { id: "another-season", season: "27/28" },
+    { id: "another-competition", name: "Copa del Rey" },
+  ])("rejects a URL for another scope even when the API offers it ($id)", async (other) => {
+    vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition(other), competition()]));
+    vi.mocked(getObservedSquad).mockResolvedValue(squad());
+    render(<TeamsView initialSeasonId={other.id} initialTab="players" />);
+    expect(await screen.findByText(/La temporada indicada no corresponde/)).toBeVisible();
+    expect(screen.queryByRole("table")).toBeNull();
   });
 
   it("shows the real observed players, returning to this real season", async () => {
@@ -328,6 +346,10 @@ describe("Equipos con la fuente real", () => {
     it("keeps the original table with the source's figures and personal data, without one request per player", async () => {
       render(<TeamsView initialTab="players" />);
       await table();
+      expect(within(screen.getByRole("table", { name: "Jugadores observados" })).getAllByRole("columnheader")
+        .map((header) => header.textContent)).toEqual([
+        "Jugador", "Posición", "Partidos", "Titularidades", "Minutos", "Goles", "Asistencias", "Estatura", "Pierna",
+      ]);
       // Position, PJ, Tit., Min., Goles, Asist., Estatura, Pierna: clear figures for the matches analysed.
       expect(cells("Marco Siverio")).toEqual(["DelanteroDEL", "7", "6", "504", "6", "0", "184 cm", "Derecha"]);
       // One call-up the service could not resolve: only this player's figures are partial.
@@ -350,15 +372,38 @@ describe("Equipos con la fuente real", () => {
         callUps: { ...squadCompetition().callUps, contradictions: 1, mismatches: 1, duplicateRecords: 1 } })]));
       const { unmount } = render(<TeamsView initialTab="players" />);
       await table();
-      expect(screen.getByText(SQUAD_SCOPE)).toBeVisible();
-      expect(screen.getByText("Convocatorias en 7 de 8 partidos finalizados. Un suplente sin minutos ni entrada registrada cuenta como no utilizado; un gol o asistencia que la fuente omite en una actuación completa, como 0. Dorsal de la última convocatoria observada, no necesariamente el actual.")).toBeVisible();
-      expect(screen.getByText("2 convocatorias sin participación resuelta; 1 dato de goles o asistencias contradice las incidencias; 1 registro duplicado se cuenta una vez; esas cifras llevan * (al ordenar van tras las completas) y «—» es sin datos.")).toBeVisible();
+      expect(screen.queryByText(SQUAD_SCOPE)).toBeNull();
+      expect(screen.queryByText("Datos reales")).toBeNull();
+      expect(screen.getByText("Convocatorias en 7 de 8 partidos finalizados.")).toBeVisible();
+      expect(screen.getByText("1 dato de goles o asistencias contradice las incidencias; 1 registro duplicado se cuenta una vez.")).toBeVisible();
+      const note = screen.getByRole("complementary", { name: "Nota sobre los datos" });
+      expect(note).toHaveTextContent("El asterisco (*) indica que la cifra se basa en datos de solo algunas convocatorias y puede estar incompleta.");
+      const playersTable = screen.getByRole("table", { name: "Jugadores observados" });
+      expect(playersTable.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(playersTable.parentElement).not.toContainElement(note);
+      expect(screen.queryByText(/al ordenar|sin participación resuelta/)).toBeNull();
       unmount();
       // Without uncertainties, no warning beyond the general coverage.
       vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition({ players: [PLAYERS[0]], callUps: { total: 7, played: 7, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 } })]));
       render(<TeamsView initialTab="players" />);
       await table();
       expect(screen.queryByText(/sin participación resuelta|llevan \*/)).toBeNull();
+      expect(screen.queryByRole("complementary", { name: "Nota sobre los datos" })).toBeNull();
+    });
+
+    it("shows the note only while filtered rows contain partial values, including partial goals with known participation", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition({ players: [PLAYERS[2], {
+        ...PLAYERS[0], stats: { ...PLAYERS[0].stats, goals: stat(5, 6, 7) },
+      }], callUps: { ...squadCompetition().callUps, unknown: 0, mismatches: 1 } })]));
+      render(<TeamsView initialTab="players" />);
+      await table();
+      expect(screen.getByRole("complementary", { name: "Nota sobre los datos" })).toBeVisible();
+      expect(within(row("Marco Siverio")).getByTitle("Dato de 6 de 7 convocatorias")).toHaveTextContent("5*");
+      await user.click(screen.getByRole("button", { name: /^Porteros/ }));
+      expect(screen.queryByRole("complementary", { name: "Nota sobre los datos" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: /^Todos/ }));
+      expect(screen.getByRole("complementary", { name: "Nota sobre los datos" })).toBeVisible();
     });
 
     it("sorts complete figures first, then partial ones, then missing ones, in both directions", async () => {
@@ -386,18 +431,16 @@ describe("Equipos con la fuente real", () => {
       expect(names()).toEqual(["Francisco Gallego", "Moha Keita"]);
     });
 
-    it("takes the figures of the competition the real season selector chooses, asking once", async () => {
+    it("keeps the current season even when another one precedes it in the response", async () => {
       const next = "sofascore-scope-94191-99999";
-      vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition(), competition({ id: next, season: "27/28" })]));
+      vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition({ id: next, season: "27/28" }), competition()]));
       vi.mocked(getObservedSquad).mockResolvedValue(squad([squadCompetition(), squadCompetition({ id: next, season: "27/28",
         players: [PLAYERS[3]], callUps: { total: 6, played: 6, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 } })]));
-      const user = userEvent.setup();
       render(<TeamsView initialTab="players" />);
       await table();
       expect(names()).toHaveLength(5);
-      await user.selectOptions(screen.getByRole("combobox", { name: "Temporada" }), next);
-      expect(names()).toEqual(["Moha Keita"]);
-      expect(screen.getByRole("link", { name: "Ver ficha de Moha Keita" })).toHaveAttribute("href", expect.stringContaining(`season=${next}`));
+      expect(screen.queryByRole("combobox", { name: "Temporada" })).toBeNull();
+      expect(screen.getByRole("link", { name: "Ver ficha de Moha Keita" })).toHaveAttribute("href", expect.stringContaining(`season=${GROUP_2}`));
       expect(getObservedSquad).toHaveBeenCalledTimes(1);
     });
 

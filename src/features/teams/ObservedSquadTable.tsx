@@ -1,5 +1,4 @@
 import type { ObservedSquad, ObservedSquadCompetition } from "@/contract";
-import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { playerProfileHref } from "../players/navigation";
 import { TeamPlayersTable, type SquadRow } from "./TeamPlayersTable";
 import css from "./ObservedPlayersList.module.css";
@@ -8,18 +7,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 /** What the figures rest on and how to read them, briefly; only real uncertainties are named. */
 function coverage({ matches, callUps }: ObservedSquadCompetition): string[] {
-  const notes = [
-    `Convocatorias en ${matches.withCallUps} de ${plural(matches.counted, "partido finalizado", "partidos finalizados")}. Un suplente sin minutos ni entrada registrada cuenta como no utilizado; un gol o asistencia que la fuente omite en una actuación completa, como 0. Dorsal de la última convocatoria observada, no necesariamente el actual.`,
-  ];
+  const notes = matches.withCallUps < matches.counted
+    ? [`Convocatorias en ${matches.withCallUps} de ${plural(matches.counted, "partido finalizado", "partidos finalizados")}.`]
+    : [];
   const doubts = [
-    callUps.unknown ? `${plural(callUps.unknown, "convocatoria sin participación resuelta", "convocatorias sin participación resuelta")}` : "",
     callUps.mismatches ? `${plural(callUps.mismatches, "dato de goles o asistencias contradice", "datos de goles o asistencias contradicen")} las incidencias` : "",
     callUps.duplicateRecords ? `${plural(callUps.duplicateRecords, "registro duplicado se cuenta", "registros duplicados se cuentan")} una vez` : "",
     callUps.discardedRecords ? `${plural(callUps.discardedRecords, "registro incoherente se descarta", "registros incoherentes se descartan")}` : "",
   ].filter(Boolean);
-  if (callUps.unknown || callUps.mismatches) {
-    doubts.push("esas cifras llevan * (al ordenar van tras las completas) y «—» es sin datos");
-  }
   if (doubts.length) notes.push(`${doubts.join("; ")}.`.replace(/^./, (c) => c.toUpperCase()));
   return notes;
 }
@@ -43,10 +38,7 @@ export function ObservedSquadTable({ squad, competitionId }: { squad: ObservedSq
   }));
   return (
     <div className={css.observed}>
-      <ProvenanceNotice source={squad.source}>
-        <p>{squad.scope}</p>
-        {coverage(competition).map((note) => <p key={note}>{note}</p>)}
-      </ProvenanceNotice>
+      {coverage(competition).map((note) => <p className={css.note} key={note}>{note}</p>)}
       {rows.length === 0 ? (
         <p className={css.empty}>La fuente no tiene convocatorias de este equipo en esta competición.</p>
       ) : (

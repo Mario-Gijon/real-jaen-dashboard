@@ -20,12 +20,12 @@ test("Equipos: Real Jaén by default, team change, tabs and direct player naviga
     await expect(grid).toBeHidden();
     await change.click();
     await expect(grid).toBeVisible();
-    await expect(grid.getByRole("radio", { name: "Real Jaén" })).toBeFocused();
+    await expect(grid.getByRole("radio", { name: "Real Jaén CF" })).toBeFocused();
   } else {
     await expect(change).toBeHidden();
     await expect(grid).toBeVisible();
   }
-  await expect(grid.getByRole("radio", { name: "Real Jaén" })).toBeChecked();
+  await expect(grid.getByRole("radio", { name: "Real Jaén CF" })).toBeChecked();
   await grid.getByText("Montealto").click();
   await expect(page.getByRole("heading", { level: 2, name: "CD Montealto" })).toBeVisible();
   if (phone) {
