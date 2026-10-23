@@ -17,7 +17,7 @@ const scope = () => new Response(JSON.stringify({ data: { competitions: [
 ], teams_with_own_export: [{ team_id: 2841, name: "Real Jaén", exports: [] }] } }));
 const performance = () => new Response(JSON.stringify({ data: { team_id: 2841, competitions: [{
   name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382,
-  matches: { in_scope: 2, finished: 1, pending: 1, counted: 1, finished_without_valid_score: 0, unknown_status: 0 },
+  matches: { in_scope: 2, finished: 1, pending: 1, counted: 1, finished_without_valid_score: 0, excluded_by_version_conflict: 0, unknown_status: 0 },
   record: { played: 1, wins: 1, draws: 0, losses: 0, goals_for: 3, goals_against: 0, goal_difference: 3 },
   venues: { home: { wins: 0, draws: 0, losses: 0 }, away: { wins: 1, draws: 0, losses: 0 } },
   output: {

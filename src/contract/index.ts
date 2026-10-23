@@ -587,9 +587,16 @@ export type ObservedCompetitionPerformance = {
   /**
    * The team's matches in this competition by state. Only `counted` ones
    * (finished with a valid score) make the record; a finished match without
-   * one is reported here, never read as 0–0.
+   * one is reported here, never read as 0–0, and so is one whose stored
+   * versions contradict each other (`excludedByVersionConflict`).
+   * `inScope` counts the current matches; an event replaced by another by a
+   * local decision (`LocalReplacement`) is kept but counted apart
+   * (`replacedLocally`), neither pending nor current.
    */
-  matches: { inScope: number; finished: number; pending: number; counted: number; finishedWithoutValidScore: number; unknownStatus: number };
+  matches: {
+    inScope: number; finished: number; pending: number; counted: number; finishedWithoutValidScore: number;
+    excludedByVersionConflict: number; unknownStatus: number; replacedLocally: number;
+  };
   record: { played: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number; goalDifference: number };
   venues: Record<Side, Record<MatchResult, number>>;
   /** The counted matches, oldest first, seen from the team. */
@@ -657,6 +664,21 @@ export type ObservedSubstitution = {
 export type ObservedSectionState = "stored" | "empty" | "not_stored" | "error";
 
 /**
+ * A local decision of this installation, never the source's: an event
+ * replaced by another (a postponed match played under a new id; the source
+ * does not link them). Both events are kept whole; the replaced one is no
+ * longer a current match.
+ */
+export type LocalReplacement = {
+  /** The other event: the current one for a replaced event, the replaced one for a current event. */
+  matchId: string;
+  reason: string;
+  decidedBy: string;
+  /** Date of the decision, `YYYY-MM-DD`. */
+  decidedOn: string;
+};
+
+/**
  * `GET /api/v1/matches/{matchId}/observed`: a real match with the team
  * stats and line-ups the source keeps, each section with its own state.
  * Values the source omits are missing, never 0. `fetchedAt` is when the
@@ -665,6 +687,11 @@ export type ObservedSectionState = "stored" | "empty" | "not_stored" | "error";
  */
 export type ObservedMatchDetail = {
   match: ObservedMatch;
+  /**
+   * Present only when a local decision concerns this event: replaced by
+   * another one, or replacing others. Never the source's data.
+   */
+  localReplacement?: { replacedBy: LocalReplacement | null; replaces: LocalReplacement[] };
   statistics:
     | { state: "stored"; fetchedAt: string | null; home: TeamMatchStats; away: TeamMatchStats }
     | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };

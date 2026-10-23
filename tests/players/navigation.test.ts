@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  observedMatchHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch,
+  observedMatchHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, relatedObservedMatchHref, playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch,
   profileOrigin, teamsHref, teamsInitialView,
 } from "@/features/players/navigation";
 
@@ -98,6 +98,16 @@ describe("Player navigation context", () => {
     const href = observedMatchHref("sofascore-match-16599788", { kind: "teams", ...view });
     expect(observedMatchTeamsReturnHref(queryOf(href))).toBe(teams);
     expect(observedMatchReturnHref("sofascore-match-16599788", queryOf(href))).toBeNull();
+  });
+
+  it("opens a related real match with the same origin, so «Volver» still leads there", () => {
+    const fromTeams = queryOf(observedMatchHref("sofascore-match-16599956", { kind: "teams", seasonId: null, teamId: "sofascore-team-24329", tab: "performance" }));
+    expect(relatedObservedMatchHref("sofascore-match-17118209", fromTeams)).toBe("/matches/sofascore-match-17118209?view=observed&from=teams&team=sofascore-team-24329");
+    const fromPlayer = queryOf(observedMatchHref("sofascore-match-1", { playerId: "sofascore-player-7", seasonId: "s", origin: { kind: "team", id: "team-3" } }));
+    expect(relatedObservedMatchHref("sofascore-match-2", fromPlayer))
+      .toBe(observedMatchHref("sofascore-match-2", { playerId: "sofascore-player-7", seasonId: "s", origin: { kind: "team", id: "team-3" } }));
+    expect(relatedObservedMatchHref("sofascore-match-2", {})).toBe("/matches/sofascore-match-2?view=observed");
+    expect(relatedObservedMatchHref("sofascore-match-2", { from: "teams", team: "//example.com" })).toBe("/matches/sofascore-match-2?view=observed&from=teams");
   });
 
   it("drops an «Equipos» origin it did not build", () => {

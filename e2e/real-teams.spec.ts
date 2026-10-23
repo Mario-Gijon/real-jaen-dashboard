@@ -39,7 +39,7 @@ const performance = {
   scope: "Resultados de los partidos finalizados observados en esta competición. No es necesariamente la temporada completa: sin clasificación ni puntos.",
   competitions: [{
     id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27",
-    matches: { inScope: 37, finished: 4, pending: 29, counted: 3, finishedWithoutValidScore: 1, unknownStatus: 0 },
+    matches: { inScope: 37, finished: 4, pending: 29, counted: 3, finishedWithoutValidScore: 1, excludedByVersionConflict: 0, unknownStatus: 0, replacedLocally: 0 },
     record: { played: 3, wins: 1, draws: 1, losses: 1, goalsFor: 5, goalsAgainst: 4, goalDifference: 1 },
     venues: { home: { win: 0, draw: 1, loss: 0 }, away: { win: 1, draw: 0, loss: 1 } },
     results,

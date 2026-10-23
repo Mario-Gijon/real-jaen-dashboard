@@ -2,6 +2,7 @@ import {
   OBSERVED_MATCH_STAT_KEYS,
   OBSERVED_SQUAD_STATS,
   TEAM_STAT_KEYS,
+  type LocalReplacement,
   type MatchStatus,
   type ObservedMatch,
   type ObservedGoal,
@@ -730,7 +731,10 @@ async function parseCompetitionPerformance(
     inScope: count(m.in_scope, at("matches.in_scope")), finished: count(m.finished, at("matches.finished")),
     pending: count(m.pending, at("matches.pending")), counted: count(m.counted, at("matches.counted")),
     finishedWithoutValidScore: count(m.finished_without_valid_score, at("matches.finished_without_valid_score")),
+    excludedByVersionConflict: count(m.excluded_by_version_conflict, at("matches.excluded_by_version_conflict")),
     unknownStatus: count(m.unknown_status, at("matches.unknown_status")),
+    // A source without local replacements may not send it: none.
+    replacedLocally: m.replaced_locally === undefined ? 0 : count(m.replaced_locally, at("matches.replaced_locally")),
   };
   const r = entry.record;
   const record = {
@@ -776,7 +780,7 @@ async function parseCompetitionPerformance(
   }
   const consistent =
     matches.inScope === matches.finished + matches.pending + matches.unknownStatus
-    && matches.counted === matches.finished - matches.finishedWithoutValidScore
+    && matches.counted === matches.finished - matches.finishedWithoutValidScore - matches.excludedByVersionConflict
     && record.played === matches.counted && rows.length === record.played
     && (["win", "draw", "loss"] as const).every((k) => tally[k] === record[RESULT_KEYS[k]]
       && byVenue.home[k] === venues.home[k] && byVenue.away[k] === venues.away[k])
@@ -1139,6 +1143,30 @@ async function matchSection<T extends object>(
  * `null` for an id not derived from this source (a synthetic id is never
  * read as real) or a match the source does not know.
  */
+/** One local decision on a match (`decision: "local"`): the other event, the reason and who decided it, when. */
+function parseReplacementEntry(value: unknown, field: string): LocalReplacement {
+  if (!isRecord(value) || value.decision !== "local") throw invalid(field);
+  const text = (key: string) => {
+    const found = optionalText(value[key], `${field}.${key}`);
+    if (found === null) throw invalid(`${field}.${key}`);
+    return found;
+  };
+  const decidedOn = text("decided_on");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(decidedOn)) throw invalid(`${field}.decided_on`);
+  return { matchId: matchIdFromSource(positiveId(value.match_id, `${field}.match_id`)), reason: text("reason"),
+    decidedBy: text("decided_by"), decidedOn };
+}
+
+/** The local replacement of a match (`replaced_by`, `replaces`), or `undefined` when no local decision concerns it. */
+function parseLocalReplacement(data: Record<string, unknown>, at: (field: string) => string): ObservedMatchDetail["localReplacement"] {
+  if (data.replaced_by === undefined && data.replaces === undefined) return undefined;
+  if (data.replaces !== undefined && !Array.isArray(data.replaces)) throw invalid(at("replaces"));
+  const replacedBy = data.replaced_by === undefined ? null : parseReplacementEntry(data.replaced_by, at("replaced_by"));
+  const replaces = (data.replaces ?? []).map((entry, i) => parseReplacementEntry(entry, at(`replaces[${i}]`)));
+  if (replacedBy !== null && replaces.length) throw invalid(`${at("replaced_by")}: un evento sustituido no sustituye a otro`);
+  return { replacedBy, replaces };
+}
+
 export function createLocalApiMatchDetail(options: Options) {
   return async (matchId: string): Promise<ObservedMatchDetail | null> => {
     const sourceId = sourceMatchId(matchId);
@@ -1153,12 +1181,14 @@ export function createLocalApiMatchDetail(options: Options) {
     const statistics = await matchSection(options, sourceId, "statistics", parseTeamStats);
     const lineups = await matchSection(options, sourceId, "lineups", parseLineups);
     const incidents = await matchSection(options, sourceId, "incidents", parseIncidents);
+    const localReplacement = parseLocalReplacement(body.data, at);
     return {
       match: {
         ...match,
         home: { id: teamIdFromSource(homeId), name: optionalText(body.data.home_team_name, at("home_team_name")) },
         away: { id: teamIdFromSource(awayId), name: optionalText(body.data.away_team_name, at("away_team_name")) },
       },
+      ...(localReplacement ? { localReplacement } : {}),
       statistics,
       lineups,
       incidents,

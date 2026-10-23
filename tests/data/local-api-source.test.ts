@@ -743,6 +743,29 @@ describe("local API adapter: real match detail", () => {
     const result = await detailSource(detailApi(matchBody({ home_team_name: null }), statsBody()))("sofascore-match-16599363");
     expect(result!.match.home).toEqual({ id: "sofascore-team-135672", name: null });
   });
+
+  const local = (matchId: number) => ({ match_id: matchId, decision: "local", reason: "Aplazado y jugado con otro id",
+    decided_by: "Analista", decided_on: "2026-10-22", evidence: "Mismo cruce", note: "Decisión local…" });
+
+  it("reads a local replacement as such, in both directions, and has none when the source sends none", async () => {
+    const replaced = await detailSource(detailApi(matchBody({ ...pending, replaced_by: local(17118209) }), statsBody("not_stored")))("sofascore-match-16599386");
+    expect(replaced!.localReplacement).toEqual({ replacedBy: { matchId: "sofascore-match-17118209", reason: "Aplazado y jugado con otro id",
+      decidedBy: "Analista", decidedOn: "2026-10-22" }, replaces: [] });
+    const current = await detailSource(detailApi(matchBody({ replaces: [local(16599956)] }), statsBody()))("sofascore-match-16599363");
+    expect(current!.localReplacement).toEqual({ replacedBy: null, replaces: [{ matchId: "sofascore-match-16599956",
+      reason: "Aplazado y jugado con otro id", decidedBy: "Analista", decidedOn: "2026-10-22" }] });
+    expect("localReplacement" in (await detailSource(detailApi(matchBody(), statsBody()))("sofascore-match-16599363"))!).toBe(false);
+  });
+
+  it.each([
+    ["not marked as local", { replaced_by: { ...local(1), decision: "source" } }],
+    ["without a reason", { replaced_by: { ...local(1), reason: " " } }],
+    ["with a date that is not one", { replaced_by: { ...local(1), decided_on: "22/10/2026" } }],
+    ["replaced and replacing at once", { replaced_by: local(1), replaces: [local(2)] }],
+    ["replaces that is not a list", { replaces: local(2) }],
+  ])("rejects a local replacement %s", async (_name, fields) => {
+    await expect(detailSource(detailApi(matchBody(fields), statsBody()))("sofascore-match-16599363")).rejects.toBeInstanceOf(UpstreamUnavailableError);
+  });
 });
 
 describe("local API adapter: real line-ups", () => {
@@ -878,7 +901,7 @@ const OUTPUT = {
 const performanceBody = (overrides: Record<string, unknown> = {}, results?: unknown[]) => ({
   data: { team_id: 2841, competitions: [{
     name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382,
-    matches: { in_scope: 4, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, unknown_status: 0 },
+    matches: { in_scope: 4, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, excluded_by_version_conflict: 0, unknown_status: 0 },
     record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: 3, goals_against: 2, goal_difference: 1 },
     venues: { home: { wins: 0, draws: 0, losses: 1 }, away: { wins: 1, draws: 0, losses: 0 } },
     output: OUTPUT,
@@ -903,7 +926,12 @@ describe("local API adapter: team performance", () => {
     const [competition] = result!.competitions;
     expect(competition.id).toBe("sofascore-scope-94191-97382");
     expect([competition.name, competition.season]).toEqual(["Primera Federación, Grupo 2", "26/27"]);
-    expect(competition.matches).toEqual({ inScope: 4, finished: 3, pending: 1, counted: 2, finishedWithoutValidScore: 1, unknownStatus: 0 });
+    expect(competition.matches).toEqual({ inScope: 4, finished: 3, pending: 1, counted: 2, finishedWithoutValidScore: 1, excludedByVersionConflict: 0, unknownStatus: 0, replacedLocally: 0 });
+    // Events replaced by a local decision are counted apart from the current matches.
+    const replacedApi = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/teams/2841/performance")
+      ? new Response(JSON.stringify(performanceBody({ matches: { in_scope: 4, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1,
+        excluded_by_version_conflict: 0, unknown_status: 0, replaced_locally: 1 } }))) : fetch(input));
+    expect((await performanceSource(replacedApi)("team-real-jaen"))!.competitions[0].matches.replacedLocally).toBe(1);
     expect(competition.record).toEqual({ played: 2, wins: 1, draws: 0, losses: 1, goalsFor: 3, goalsAgainst: 2, goalDifference: 1 });
     expect(competition.venues).toEqual({ home: { win: 0, draw: 0, loss: 1 }, away: { win: 1, draw: 0, loss: 0 } });
     expect(competition.results.map((r) => [r.match.id, r.side, r.result, r.goalsFor, r.goalsAgainst, r.match.home.name])).toEqual([
@@ -932,10 +960,11 @@ describe("local API adapter: team performance", () => {
   it.each([
     ["a competition outside the declared scope", performanceBody({ tournament_id: 150, season_id: 104108 })],
     ["another group of the same league", performanceBody({ tournament_id: 94190 })],
-    ["a boolean count", performanceBody({ matches: { in_scope: 4, finished: 3, pending: 1, counted: true, finished_without_valid_score: 1, unknown_status: 0 } })],
+    ["a boolean count", performanceBody({ matches: { in_scope: 4, finished: 3, pending: 1, counted: true, finished_without_valid_score: 1, excluded_by_version_conflict: 0, unknown_status: 0 } })],
     ["a negative goal count", performanceBody({ record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: -3, goals_against: 2, goal_difference: -5 } })],
     ["a wrong goal difference", performanceBody({ record: { played: 2, wins: 1, draws: 0, losses: 1, goals_for: 3, goals_against: 2, goal_difference: 4 } })],
-    ["states that do not add up", performanceBody({ matches: { in_scope: 9, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, unknown_status: 0 } })],
+    ["states that do not add up", performanceBody({ matches: { in_scope: 9, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, excluded_by_version_conflict: 0, unknown_status: 0 } })],
+    ["a boolean count of replaced events", performanceBody({ matches: { in_scope: 4, finished: 3, pending: 1, counted: 2, finished_without_valid_score: 1, excluded_by_version_conflict: 0, unknown_status: 0, replaced_locally: true } })],
     ["a record that does not match its results", performanceBody({ record: { played: 2, wins: 2, draws: 0, losses: 0, goals_for: 3, goals_against: 2, goal_difference: 1 } })],
     ["venues that do not match the results", performanceBody({ venues: { home: { wins: 1, draws: 0, losses: 0 }, away: { wins: 0, draws: 0, losses: 1 } } })],
     ["a result from another competition", performanceBody({}, [
@@ -1002,7 +1031,7 @@ describe("local API adapter: team performance", () => {
   it("keeps zero matches apart from a failure: an empty record is an answer, a failing service is not", async () => {
     const names = teamApi(null);
     const empty = performanceBody({
-      matches: { in_scope: 0, finished: 0, pending: 0, counted: 0, finished_without_valid_score: 0, unknown_status: 0 },
+      matches: { in_scope: 0, finished: 0, pending: 0, counted: 0, finished_without_valid_score: 0, excluded_by_version_conflict: 0, unknown_status: 0 },
       record: { played: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0, goal_difference: 0 },
       venues: { home: { wins: 0, draws: 0, losses: 0 }, away: { wins: 0, draws: 0, losses: 0 } },
       output: { season: averages(0), last3: { match_ids: [], values: averages(0) }, undated: 0 },
@@ -1136,6 +1165,16 @@ describe("local API adapter: teams that can be analysed", () => {
     expect(urls(fetch as unknown as ReturnType<typeof teamApi>)).toEqual([SCOPE_URL]);
     expect(await performanceSource(declaring(undefined, service(performanceBody())))("team-real-jaen")).toBeNull();
     expect(await squadSource(declaring([2841], squadApi(squadBody())))("sofascore-team-24368")).toBeNull();
+  });
+
+  it("keeps a match whose versions contradict each other out of the record, and checks the counts add up", async () => {
+    const body = performanceBody({ matches: { in_scope: 5, finished: 4, pending: 1, counted: 2, finished_without_valid_score: 1,
+      excluded_by_version_conflict: 1, unknown_status: 0 } });
+    const [competition] = (await performanceSource(declaring([2841], service(body)))("team-real-jaen"))!.competitions;
+    expect(competition.matches.excludedByVersionConflict).toBe(1);
+    const wrong = performanceBody({ matches: { in_scope: 5, finished: 4, pending: 1, counted: 3, finished_without_valid_score: 1,
+      excluded_by_version_conflict: 1, unknown_status: 0 } });
+    await expect(performanceSource(declaring([2841], service(wrong)))("team-real-jaen")).rejects.toThrow(UpstreamUnavailableError);
   });
 });
 

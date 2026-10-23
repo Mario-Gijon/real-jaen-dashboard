@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ApiRequestError, getObservedMatchDetail, getSource } from "@/client/api";
-import type { MatchStatus, ObservedMatchDetail, ObservedTeam } from "@/contract";
+import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedTeam } from "@/contract";
 import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "../format";
+import { relatedObservedMatchHref } from "../players/navigation";
 import { useApi } from "../use-api";
 import { TeamStatsComparison } from "./MatchDetailView";
 import { ObservedLineups } from "./ObservedLineups";
@@ -32,8 +33,10 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
  * provenance. Loads nothing synthetic; an id the real source does not know is
  * said so, never looked up among the synthetic matches.
  */
-export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null }: {
+export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null, originQuery = {} }: {
   matchId: string; initialSection?: Section; playerReturnHref?: string | null; teamsReturnHref?: string | null;
+  /** The query this match was opened with: a related match keeps its origin. */
+  originQuery?: Record<string, unknown>;
 }) {
   const source = useApi("source", (signal) => getSource({ signal }));
   const real = source.data?.realSections.includes("matches") ?? false;
@@ -59,7 +62,8 @@ export function RealMatchDetailView({ matchId, initialSection = "summary", playe
       : detail.error ? <Failure title="No se pudo cargar el partido" retry={detail.retry} />
       : !detail.data ? <p role="status" className={css.message}>Cargando partido…</p>
       : <Detail data={detail.data} retry={detail.retry} section={section} setSection={setSection}
-        linkProfiles={source.data.realSections.includes("observedPlayers")} />}
+        linkProfiles={source.data.realSections.includes("observedPlayers")}
+        relatedHref={(id) => relatedObservedMatchHref(id, originQuery)} />}
   </div>;
 }
 
@@ -70,8 +74,9 @@ function Failure({ title, retry }: { title: string; retry: () => void }) {
   </div>;
 }
 
-function Detail({ data, retry, linkProfiles, section, setSection }: {
+function Detail({ data, retry, linkProfiles, section, setSection, relatedHref }: {
   data: ObservedMatchDetail; retry: () => void; linkProfiles: boolean; section: Section; setSection: (section: Section) => void;
+  relatedHref: (matchId: string) => string;
 }) {
   const { match, scope, source } = data;
   const tabs = useRef<HTMLDivElement>(null);
@@ -113,6 +118,9 @@ function Detail({ data, retry, linkProfiles, section, setSection }: {
         <Team team={match.away} side="away" />
       </div>
     </header>
+    {data.localReplacement ? <div className={css.provenance}>
+      <LocalReplacementNotice replacement={data.localReplacement} relatedHref={relatedHref} />
+    </div> : null}
     <div className={css.provenance}><ProvenanceNotice source={source}><p>{scope}</p></ProvenanceNotice></div>
     <div className={css.tabs} role="tablist" aria-label="Secciones del partido" ref={tabs}>
       {SECTIONS.map((id) => <button key={id} type="button" role="tab" id={`match-${id}-tab`} aria-selected={section === id}
@@ -123,6 +131,26 @@ function Detail({ data, retry, linkProfiles, section, setSection }: {
       {section === "summary" ? <Summary data={data} retry={retry} /> : <Lineups data={data} retry={retry} linkProfiles={linkProfiles} />}
     </section>
   </>;
+}
+
+const LOCAL_DECISION = { synthetic: false, label: "Decisión local" } as const;
+const decision = (r: LocalReplacement) => `Decidido por ${r.decidedBy} el ${dateLabel(r.decidedOn)}. No es un dato de la fuente: SofaScore no enlaza los dos eventos.`;
+
+/** A local decision on this event, said as such, with a link to the other event. */
+function LocalReplacementNotice({ replacement: { replacedBy, replaces }, relatedHref }: {
+  replacement: NonNullable<ObservedMatchDetail["localReplacement"]>; relatedHref: (matchId: string) => string;
+}) {
+  return <ProvenanceNotice source={LOCAL_DECISION}>
+    {replacedBy ? <>
+      <p>Este evento está sustituido por otro y no cuenta como encuentro vigente ni pendiente. {replacedBy.reason}</p>
+      <p>{decision(replacedBy)}</p>
+      <p><Link href={relatedHref(replacedBy.matchId)}>Ver el encuentro vigente</Link></p>
+    </> : replaces.map((r) => <div key={r.matchId}>
+      <p>Este encuentro sustituye a un evento anterior, que se conserva sin contar en el calendario. {r.reason}</p>
+      <p>{decision(r)}</p>
+      <p><Link href={relatedHref(r.matchId)}>Ver el evento sustituido</Link></p>
+    </div>)}
+  </ProvenanceNotice>;
 }
 
 function Summary({ data: { match, statistics }, retry }: { data: ObservedMatchDetail; retry: () => void }) {

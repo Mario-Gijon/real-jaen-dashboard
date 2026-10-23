@@ -160,6 +160,34 @@ describe("Real match detail: Resumen", () => {
       "/players/sofascore-player-50?view=profile&from=observedMatch&origin=sofascore-match-16599363&originTab=lineups");
   });
 
+  it("says a local replacement is a local decision and links to the other event with the same origin", async () => {
+    const decided = { reason: "Aplazado y jugado con otro id.", decidedBy: "Analista", decidedOn: "2026-10-22" };
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({}, { id: "sofascore-match-16599956", status: "postponed", score: null }));
+    vi.mocked(getObservedMatchDetail).mockResolvedValueOnce({ ...detail({}, { id: "sofascore-match-16599956", status: "postponed", score: null }),
+      localReplacement: { replacedBy: { matchId: "sofascore-match-17118209", ...decided }, replaces: [] } });
+    const origin = { view: "observed", from: "teams", team: "sofascore-team-24329" };
+    const { unmount } = render(<RealMatchDetailView matchId="sofascore-match-16599956" teamsReturnHref="/teams?team=sofascore-team-24329" originQuery={origin} />);
+    expect(await screen.findByText("Decisión local")).toBeVisible();
+    expect(screen.getByText(/está sustituido por otro y no cuenta como encuentro vigente ni pendiente\. Aplazado y jugado con otro id\./)).toBeVisible();
+    expect(screen.getByText(/No es un dato de la fuente: SofaScore no enlaza los dos eventos\./)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ver el encuentro vigente" }))
+      .toHaveAttribute("href", "/matches/sofascore-match-17118209?view=observed&from=teams&team=sofascore-team-24329");
+    unmount();
+
+    vi.mocked(getObservedMatchDetail).mockResolvedValueOnce({ ...detail(),
+      localReplacement: { replacedBy: null, replaces: [{ matchId: "sofascore-match-16599956", ...decided }] } });
+    const { unmount: second } = render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    expect(await screen.findByText(/sustituye a un evento anterior, que se conserva sin contar en el calendario/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ver el evento sustituido" })).toHaveAttribute("href", "/matches/sofascore-match-16599956?view=observed");
+    second();
+
+    // Without a local decision, nothing is said.
+    vi.mocked(getObservedMatchDetail).mockResolvedValueOnce(detail());
+    render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    expect(await screen.findByText("0 – 3")).toBeVisible();
+    expect(screen.queryByText("Decisión local")).toBeNull();
+  });
+
   it("asks nothing when the real matches are not enabled", async () => {
     vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
     render(<RealMatchDetailView matchId="sofascore-match-16599363" />);

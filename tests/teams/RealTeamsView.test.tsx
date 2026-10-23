@@ -41,7 +41,7 @@ const OUTPUT: ObservedCompetitionPerformance["output"] = {
 };
 const competition = (fields: Partial<ObservedCompetitionPerformance> = {}): ObservedCompetitionPerformance => ({
   id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27",
-  matches: { inScope: 37, finished: 3, pending: 29, counted: 3, finishedWithoutValidScore: 0, unknownStatus: 0 },
+  matches: { inScope: 37, finished: 3, pending: 29, counted: 3, finishedWithoutValidScore: 0, excludedByVersionConflict: 0, unknownStatus: 0, replacedLocally: 0 },
   record: { played: 3, wins: 2, draws: 1, losses: 0, goalsFor: 6, goalsAgainst: 2, goalDifference: 4 },
   venues: { home: { win: 1, draw: 1, loss: 0 }, away: { win: 1, draw: 0, loss: 0 } },
   results: [
@@ -201,18 +201,28 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     expect(within(screen.getByRole("table", { name: "Partidos disputados" })).queryAllByRole("link")).toHaveLength(0);
   });
 
-  it("says what is left out: finished matches without a valid score and unknown states", async () => {
+  it("says what is left out: finished matches without a valid score, with contradictory versions and unknown states", async () => {
     vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition({
-      matches: { inScope: 37, finished: 4, pending: 28, counted: 3, finishedWithoutValidScore: 1, unknownStatus: 1 },
+      matches: { inScope: 38, finished: 5, pending: 28, counted: 3, finishedWithoutValidScore: 1, excludedByVersionConflict: 1, unknownStatus: 1, replacedLocally: 0 },
     })]));
     render(<TeamsView />);
     await loaded();
-    expect(screen.getByText(/1 finalizado sin marcador válido no se incluye\. 1 partido con estado desconocido no se incluye\./)).toBeVisible();
+    expect(screen.getByText(/1 finalizado sin marcador válido no se incluye\. 1 finalizado con versiones contradictorias no se incluye\. 1 partido con estado desconocido no se incluye\./)).toBeVisible();
+    expect(screen.queryByText(/decisión local/)).toBeNull();
+  });
+
+  it("counts an event replaced by a local decision apart from the current matches", async () => {
+    vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance([competition({
+      matches: { inScope: 38, finished: 3, pending: 35, counted: 3, finishedWithoutValidScore: 0, excludedByVersionConflict: 0, unknownStatus: 0, replacedLocally: 1 },
+    })]));
+    render(<TeamsView />);
+    await loaded();
+    expect(screen.getByText(/de 38 partidos observados en esta competición \(35 pendientes\)\. 1 evento sustituido por otro por decisión local se conserva sin contar\./)).toBeVisible();
   });
 
   it("tells zero finished matches apart from a failure, which retries", async () => {
     vi.mocked(getTeamObservedPerformance).mockResolvedValueOnce(performance([competition({
-      matches: { inScope: 29, finished: 0, pending: 29, counted: 0, finishedWithoutValidScore: 0, unknownStatus: 0 },
+      matches: { inScope: 29, finished: 0, pending: 29, counted: 0, finishedWithoutValidScore: 0, excludedByVersionConflict: 0, unknownStatus: 0, replacedLocally: 0 },
       record: { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 },
       venues: { home: { win: 0, draw: 0, loss: 0 }, away: { win: 0, draw: 0, loss: 0 } }, results: [],
     })]));

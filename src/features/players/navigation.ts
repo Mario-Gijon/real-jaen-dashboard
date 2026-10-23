@@ -100,6 +100,24 @@ export function observedMatchReturnHref(matchId: string, query: {
     SAFE_ID.test(matchId) ? matchId : null);
 }
 
+/**
+ * Another real match opened from this one (e.g. the event that replaces it),
+ * keeping the origin this one was opened from, so «Volver» still leads there.
+ */
+export function relatedObservedMatchHref(matchId: string, query: Record<string, unknown>) {
+  const id = (value: unknown) => (typeof value === "string" && SAFE_ID.test(value) ? value : null);
+  if (query.from === "teams") {
+    return observedMatchHref(matchId, { kind: "teams", seasonId: id(query.season), teamId: id(query.team),
+      tab: query.tab === "players" ? "players" : "performance" });
+  }
+  const player = query.from === "player" ? id(query.player) : null;
+  if (player) {
+    return observedMatchHref(matchId, { playerId: player, seasonId: id(query.season),
+      origin: profileOrigin({ from: query.playerFrom, origin: query.playerOrigin, originTab: query.playerOriginTab }) });
+  }
+  return observedMatchHref(matchId);
+}
+
 /** The «Equipos» view to return to from a real match opened there, or null when it was opened elsewhere. */
 export function observedMatchTeamsReturnHref(query: { from?: unknown; season?: unknown; team?: unknown; tab?: unknown }) {
   if (query.from !== "teams") return null;

@@ -261,7 +261,12 @@ reiníciala (`python api.py`), porque lee código y datos al arrancar.
 - Los cálculos los hace el servicio Python: sólo partidos del ámbito, finalizados y con
   marcador válido (enteros no negativos; un booleano no lo es). Un finalizado sin marcador
   válido no cuenta, ni como 0–0, y se dice cuántos quedan fuera; los pendientes, tampoco.
-  El servidor Next comprueba que el agregado está en el ámbito y es coherente (estados,
+  Un finalizado cuyas versiones guardadas se contradicen (estado o identidad del partido,
+  según el importador) tampoco cuenta, y también se dice. Un evento que una decisión local
+  da por sustituido por otro (`api.py --sustituciones`, ver el README del servicio) no es
+  encuentro vigente ni pendiente: se cuenta aparte y se dice; su ficha sigue accesible, avisa
+  de que es una decisión local (no un dato de SofaScore) y enlaza al vigente, y la del vigente
+  enlaza al sustituido. El servidor Next comprueba que el agregado está en el ámbito y es coherente (estados,
   balance, Casa / Fuera y cada resultado con su marcador); si no, 503.
 - Un aviso «Datos reales» dice que son los partidos finalizados observados, cuántos de
   cuántos, y que no es necesariamente la temporada completa. Cero partidos finalizados se

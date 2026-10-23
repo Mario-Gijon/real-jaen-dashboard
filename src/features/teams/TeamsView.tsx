@@ -361,8 +361,14 @@ function coverage({ matches, output }: ObservedCompetitionPerformance): string {
   if (matches.finishedWithoutValidScore) {
     parts.push(`${plural(matches.finishedWithoutValidScore, "finalizado sin marcador válido no se incluye", "finalizados sin marcador válido no se incluyen")}.`);
   }
+  if (matches.excludedByVersionConflict) {
+    parts.push(`${plural(matches.excludedByVersionConflict, "finalizado con versiones contradictorias no se incluye", "finalizados con versiones contradictorias no se incluyen")}.`);
+  }
   if (matches.unknownStatus) {
     parts.push(`${plural(matches.unknownStatus, "partido con estado desconocido no se incluye", "partidos con estado desconocido no se incluyen")}.`);
+  }
+  if (matches.replacedLocally) {
+    parts.push(`${plural(matches.replacedLocally, "evento sustituido por otro por decisión local se conserva", "eventos sustituidos por otros por decisión local se conservan")} sin contar.`);
   }
   if (output?.undated) {
     parts.push(`${plural(output.undated, "partido sin fecha no entra", "partidos sin fecha no entran")} en «Últimos 3».`);
