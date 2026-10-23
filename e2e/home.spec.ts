@@ -22,7 +22,7 @@ test("Home changes preparation context by keyboard and opens a recent match", as
   await page.reload();
   await expect(page.getByRole("region", { name: "Encuentro de preparación" }).getByText(opponent, { exact: true })).toBeVisible();
   await expect(page).toHaveURL(url);
-  await expect(page.getByRole("heading", { name: "Últimos 5 partidos", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: `Últimos 5 partidos del ${opponent}` })).toBeVisible();
   await expect(page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link")).toHaveCount(5);
   await expect(page.getByText(/Partidos anteriores|Material complementario/)).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -42,7 +42,7 @@ test("Home changes preparation context by keyboard and opens a recent match", as
 
 test("Ver todos preserves season and opens all rounds for the selected rival", async ({ page }) => {
   await page.goto("/");
-  const link = page.getByRole("region", { name: "Últimos 5 partidos" }).getByRole("link", { name: "Ver todos" });
+  const link = page.getByRole("region", { name: /^Últimos 5 partidos del / }).getByRole("link", { name: "Ver todos" });
   await expect(link).toBeVisible();
   const context = new URL((await link.getAttribute("href"))!, page.url());
   await link.click();

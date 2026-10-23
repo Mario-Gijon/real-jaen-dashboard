@@ -41,7 +41,7 @@ export function SyntheticHomeView({ seasonId, matchId, now }: Props) {
                 empty={matchId ? { text: "El encuentro seleccionado no es un próximo partido válido del Real Jaén. Elige otro encuentro.", alert: true }
                   : { text: "No hay próximos encuentros con fecha disponible para preparar.", alert: false }} />
               {target && rival ? team.error ? <LoadError message="No se pudieron cargar los partidos del rival." retry={team.retry} />
-                : team.data ? <SyntheticHistory matches={team.data.matches} target={target} seasonId={season.id}
+                : team.data ? <SyntheticHistory team={rival.name} matches={team.data.matches} target={target} seasonId={season.id}
                   allHref={`/matches?${new URLSearchParams({ season: season.id, team: rival.id, round: "all" })}`} />
                   : <p role="status" className={css.message}>Cargando partidos del rival…</p> : null}
             </>;
@@ -50,13 +50,13 @@ export function SyntheticHomeView({ seasonId, matchId, now }: Props) {
 const fixture = (match: MatchSummary): Fixture =>
   ({ id: match.id, round: match.round, kickoff: match.kickoff!, home: match.home, away: match.away });
 
-function SyntheticHistory({ matches, target, seasonId, allHref }: {
-  matches: readonly TeamMatch[]; target: MatchSummary; seasonId: string; allHref: string;
+function SyntheticHistory({ team, matches, target, seasonId, allHref }: {
+  team: string; matches: readonly TeamMatch[]; target: MatchSummary; seasonId: string; allHref: string;
 }) {
   const recent = preparationHistory(matches, target);
   const { xg, opponentXg, ...summary } = preparationSummary(recent);
   // A match opened from here returns to this season and target.
   const rows: HistoryRow[] = recent.map(({ match }) => ({ ...fixture(match), score: match.score,
     href: matchHref(match.id, { kind: "home", seasonId, matchId: target.id }) }));
-  return <HistorySection rows={rows} summary={summary} expectation={{ xg, opponentXg }} allHref={allHref} />;
+  return <HistorySection team={team} rows={rows} summary={summary} expectation={{ xg, opponentXg }} allHref={allHref} />;
 }

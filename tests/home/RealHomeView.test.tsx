@@ -54,18 +54,21 @@ describe("Inicio con la fuente real", () => {
     expect(within(header).getByText("Jornada 9 · 25 oct 2026 · Primera Federación, Grupo 2 · 26/27")).toBeVisible();
     expect(within(header).getByText("Atlético Madrileño").parentElement).toHaveTextContent("Local");
     expect(screen.getByRole("link", { name: "Analizar Atlético Madrileño" })).toHaveAttribute("href", "/teams?team=sofascore-team-24326");
-    expect(screen.getByText("Datos reales")).toBeVisible();
+    // Inicio carries no provenance block of its own.
+    expect(screen.queryByText("Datos reales")).toBeNull();
     // By date, not by round; the target and the match after it are left out.
     expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(
       ["107", "108", "104", "103", "102"].map((id) => `/matches/sofascore-match-${id}?view=observed&from=home&match=sofascore-match-9`));
-    expect(screen.getByRole("region", { name: "Últimos 5 partidos" })).toBeVisible();
-    expect(within(screen.getByRole("region", { name: "Últimos 5 partidos" })).getByRole("link", { name: "Ver todos" }))
+    expect(screen.getByRole("heading", { level: 2, name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
+    expect(within(screen.getByRole("region", { name: "Últimos 5 partidos del Atlético Madrileño" })).getByRole("link", { name: "Ver todos" }))
       .toHaveAttribute("href", "/matches?team=sofascore-team-24326");
     expect(summary("Forma")).toHaveTextContent("0 V · 3 E · 2 D");
     expect(summary("Goles")).toHaveTextContent("9 GF · 11 GC");
     // xG oriented to the rival's side in each match: (0.39 + 2.15 + 1.74 + 1.32 + 1.27) / 5 = 1.374 and (1.56 + 3.13 + 2.33 + 3.81 + 0) / 5.
     expect(await screen.findByText("1,37", {}, WAIT)).toBeVisible();
     expect(screen.getByText("2,17")).toBeVisible();
+    // From the analysed rival's side: its own xG, and its opponents'.
+    expect(summary("Expectativa")).toHaveTextContent("1,37 xG a favor · 2,17 xG en contra");
     expect(getObservedMatchDetail).toHaveBeenCalledTimes(5);
     expect(getCompetitions).not.toHaveBeenCalled();
     expect(getSeasonMatches).not.toHaveBeenCalled();
@@ -86,7 +89,7 @@ describe("Inicio con la fuente real", () => {
     const list = await recent();
     expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href")))
       .toEqual(["/matches/sofascore-match-201?view=observed&from=home&match=sofascore-match-10"]);
-    expect(screen.getByRole("region", { name: "Último partido" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Último partido del Algeciras CF" })).toBeVisible();
     expect(screen.getByText(/1 de 5: son todos los partidos finalizados del rival antes del encuentro/)).toBeVisible();
   });
 
@@ -150,7 +153,7 @@ describe("Inicio con la fuente real", () => {
       detailOf(uncounted.find((m) => m.id === id)!, id === "sofascore-match-107" ? [0, null] : "not_stored"));
     render(<HomeView now={NOW} />);
     const list = await recent();
-    expect(screen.getByRole("region", { name: "Últimos 3 partidos" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Últimos 3 partidos del Atlético Madrileño" })).toBeVisible();
     expect(screen.getByText(/^3 de 5: son todos/)).toBeVisible();
     expect(screen.getByText("1 partido sin resultado contabilizado (marcador no válido o versiones contradictorias) queda fuera de la síntesis.")).toBeVisible();
     expect(screen.getByText("1 partido del rival con fecha ya pasada sigue sin resultado en los datos importados (aplazado o sin actualizar) y no se incluye.")).toBeVisible();

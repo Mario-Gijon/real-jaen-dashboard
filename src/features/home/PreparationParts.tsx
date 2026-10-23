@@ -98,13 +98,15 @@ export type Expectation = { xg: SeasonStat; opponentXg: SeasonStat } | { loading
 
 /**
  * The rival's previous matches and their summary. `rows` are at most five,
- * named by their real count; `coverage` says what the window leaves out.
+ * named by their real count and by the analysed team (`team`); `coverage`
+ * says what the window leaves out. The summary is from that team's side: its
+ * xG is «a favor», its rivals' «en contra».
  */
-export function HistorySection({ rows, summary, expectation, allHref, coverage }: {
-  rows: readonly HistoryRow[]; summary: FormSummary | null; expectation: Expectation; allHref: string; coverage?: ReactNode;
+export function HistorySection({ team, rows, summary, expectation, allHref, coverage }: {
+  team: string; rows: readonly HistoryRow[]; summary: FormSummary | null; expectation: Expectation; allHref: string; coverage?: ReactNode;
 }) {
   // Fewer than five previous matches are named by their real count.
-  const title = rows.length === 1 ? "Último partido" : `Últimos ${rows.length || 5} partidos`;
+  const title = `${rows.length === 1 ? "Último partido" : `Últimos ${rows.length || 5} partidos`} del ${team}`;
   return <div className={css.history}>
     <section aria-labelledby="home-recent-title">
       <div className={css.sectionHeader}>
@@ -118,7 +120,7 @@ export function HistorySection({ rows, summary, expectation, allHref, coverage }
           <div><dt>Goles</dt><dd><SummaryValue label="GF" stat={summary.goalsFor} /><span aria-hidden="true"> · </span><SummaryValue label="GC" stat={summary.goalsAgainst} /></dd></div>
           <div><dt>Expectativa</dt><dd>{"loading" in expectation ? <span role="status">Cargando xG…</span>
             : "error" in expectation ? <span className={css.inlineError} role="alert">No se pudo cargar el xG <Button size="sm" onClick={expectation.retry}>Reintentar</Button></span>
-              : <><SummaryValue label="xG" stat={expectation.xg} decimals={2} /><span aria-hidden="true"> · </span><SummaryValue label="xG rival" stat={expectation.opponentXg} decimals={2} /></>}</dd></div>
+              : <><SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} /><span aria-hidden="true"> · </span><SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} /></>}</dd></div>
         </dl> : null}
         <PreparationMatches rows={rows} label="Últimos partidos del rival" />
       </> : <p className={css.message}>Todavía no hay partidos finalizados con fecha anterior al encuentro objetivo.</p>}

@@ -68,13 +68,14 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   const header = page.getByRole("region", { name: "Encuentro de preparación" });
   await expect(header.getByText("Atlético Madrileño", { exact: true })).toBeVisible();
   await expect(header.getByText(/aplazado, pendiente de disputar sin nueva fecha confirmada/)).toBeVisible();
-  await expect(page.getByText("Datos reales", { exact: true })).toBeVisible();
+  await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 2, name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
   const list = page.getByRole("list", { name: "Últimos partidos del rival" });
   await expect(list.getByRole("link")).toHaveCount(5);
   await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-106?view=observed&from=home&match=sofascore-match-9");
   // xG from each match's detail, from the rival's side: (0.5 + 1.25 + 0.5 + 1.25 + 0.5) / 5 and (1.25 · 3 + 0.5 · 2) / 5.
   const expectation = page.getByRole("term").filter({ hasText: "Expectativa" }).locator("xpath=following-sibling::dd");
-  await expect(expectation).toHaveText(/0,80\s*xG\s*·\s*0,95\s*xG rival/);
+  await expect(expectation).toHaveText(/0,80\s*xG a favor\s*·\s*0,95\s*xG en contra/);
   expect(await noHorizontalOverflow(page)).toBe(true);
 
   // A match opened here returns to this target.

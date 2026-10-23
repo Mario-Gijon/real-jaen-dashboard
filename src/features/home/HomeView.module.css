@@ -15,6 +15,8 @@
 .primaryLink, .secondaryLink { display: inline-flex; align-items: center; min-height: 40px; color: var(--rj-purple-900); text-decoration: none; font-size: var(--rj-text-sm); }
 .primaryLink { font-weight: 700; padding: 6px 14px; border: 1px solid var(--rj-purple-300); border-radius: var(--rj-radius-sm); }
 .primaryLink:hover, .secondaryLink:hover { background: var(--rj-bg-hover); }
+/* «Ver todos» stays whole next to a long heading, which wraps instead. */
+.secondaryLink { flex-shrink: 0; white-space: nowrap; }
 .options { display: grid; margin-top: var(--rj-space-5); gap: 4px; }
 .options button { display: flex; align-items: center; gap: var(--rj-space-3); padding: 10px; border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); background: var(--rj-bg-card); color: var(--rj-text-primary); font: inherit; font-size: var(--rj-text-sm); text-align: left; cursor: pointer; min-width: 0; }
 .options button:hover { border-color: var(--rj-purple-500); }
@@ -42,7 +44,6 @@
 .score { text-align: center; font-size: var(--rj-text-lg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .shortName { display: none; }
 .message { color: var(--rj-text-secondary); font-size: var(--rj-text-sm); padding-block: var(--rj-space-3); }
-.provenance { margin-bottom: var(--rj-space-3); }
 .notes { display: grid; gap: 2px; margin-block: var(--rj-space-3); color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .inlineError { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--rj-space-2); }
 .error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rj-space-3); padding-block: var(--rj-space-4); }

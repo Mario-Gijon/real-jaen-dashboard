@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiRequestError, getObservedMatchDetail, getTeamObservedMatches, getTeamObservedPerformance } from "@/client/api";
 import type { ObservedMatch, ObservedTeam } from "@/contract";
-import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { CLUB_ID } from "../club";
 import { homeHref, observedMatchHref, teamsHref } from "../players/navigation";
 import { observedCrest } from "../team-crests";
@@ -13,9 +12,6 @@ import { daysUntil, preparationChoices, preparationSummary, upcomingMatches } fr
 import { fixtureLabel, HistorySection, LoadError, TargetSection, type Expectation, type Fixture, type HistoryRow } from "./PreparationParts";
 import { orientedTeamStats, rivalHistory, unconfirmedClubMatches } from "./real-preparation";
 import css from "./HomeView.module.css";
-
-const SCOPE = "Próximo encuentro vigente del Real Jaén y últimos partidos finalizados del rival antes de esa fecha, "
-  + "ordenados por fecha, en el ámbito de la fuente. No es necesariamente el calendario completo.";
 
 const crestTeam = (team: ObservedTeam) => ({ id: team.id, ...observedCrest(team) });
 /** Only dated matches become fixtures (`upcomingMatches` and `preparationHistory` keep no other). */
@@ -74,7 +70,6 @@ function RealPreparation({ matchId, now }: { matchId?: string; now: number }) {
   ];
 
   return <>
-    <div className={css.provenance}><ProvenanceNotice source={club.data.source}><p>{SCOPE}</p></ProvenanceNotice></div>
     <TargetSection context={context} target={target ? fixture(target) : null}
       choices={preparationChoices(future, target).map(fixture)}
       onChoose={choice => router.push(homeHref({ matchId: choice.id }), { scroll: false })}
@@ -88,12 +83,12 @@ function RealPreparation({ matchId, now }: { matchId?: string; now: number }) {
         : performance.error || rivalMatches.error ? <LoadError message="No se pudieron cargar los partidos del rival."
           retry={() => { if (performance.error) performance.retry(); if (rivalMatches.error) rivalMatches.retry(); }} />
           : !history ? <p role="status" className={css.message}>Cargando partidos del rival…</p>
-            : <RealHistory history={history} details={details} targetId={target.id} rivalId={rival.id} />}
+            : <RealHistory history={history} details={details} targetId={target.id} rival={crestTeam(rival)} />}
   </>;
 }
 
-function RealHistory({ history, details, targetId, rivalId }: {
-  history: ReturnType<typeof rivalHistory>; targetId: string; rivalId: string;
+function RealHistory({ history, details, targetId, rival }: {
+  history: ReturnType<typeof rivalHistory>; targetId: string; rival: { id: string; name: string };
   details: { data: Awaited<ReturnType<typeof getObservedMatchDetail>>[] | null; error: unknown; retry: () => void };
 }) {
   const { recent, counted, upcomingBefore, overdueBefore, unknownStatus, undatedFinished } = history;
@@ -126,7 +121,7 @@ function RealHistory({ history, details, targetId, rivalId }: {
       "partidos del rival con estado desconocido en la fuente no se consideran")}: no se sabe si se disputó.` : null,
     undatedFinished ? `${plural(undatedFinished, "partido finalizado sin fecha no se incluye", "partidos finalizados sin fecha no se incluyen")}: no se puede situar antes del encuentro.` : null,
   ].filter((line): line is string => line !== null);
-  return <HistorySection rows={rows} summary={counted.length ? form : null} expectation={expectation}
-    allHref={`/matches?${new URLSearchParams({ team: rivalId })}`}
+  return <HistorySection team={rival.name} rows={rows} summary={counted.length ? form : null} expectation={expectation}
+    allHref={`/matches?${new URLSearchParams({ team: rival.id })}`}
     coverage={coverage.length ? <div className={css.notes}>{coverage.map(line => <p key={line}>{line}</p>)}</div> : null} />;
 }
