@@ -151,6 +151,10 @@ describe("Real match detail: Resumen", () => {
     expect(screen.getByRole("link", { name: "‹ Volver al jugador" })).toHaveAttribute("href", profile);
     expect(screen.queryByRole("link", { name: "‹ Volver a partidos" })).toBeNull();
     unmount2();
+    const { unmount: unmount3 } = render(<RealMatchDetailView matchId="sofascore-match-16599363" homeReturnHref="/?match=sofascore-match-16599973" />);
+    expect(screen.getByRole("link", { name: "‹ Volver a Inicio" })).toHaveAttribute("href", "/?match=sofascore-match-16599973");
+    expect(screen.queryByRole("link", { name: "‹ Volver a partidos" })).toBeNull();
+    unmount3();
     render(<RealMatchDetailView matchId="sofascore-match-16599363" teamsReturnHref="/teams?team=sofascore-team-24265" />);
     expect(screen.getByRole("link", { name: "‹ Volver al equipo" })).toHaveAttribute("href", "/teams?team=sofascore-team-24265");
     expect(screen.queryByRole("link", { name: "‹ Volver a partidos" })).toBeNull();

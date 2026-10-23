@@ -1,8 +1,36 @@
 import { describe, expect, it } from "vitest";
 import {
-  observedMatchHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, relatedObservedMatchHref, playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch,
-  profileOrigin, teamsHref, teamsInitialView,
+  homeHref, homeReturnHref, matchHref, observedMatchHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, relatedObservedMatchHref,
+  playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch, profileOrigin, teamsHref, teamsInitialView,
 } from "@/features/players/navigation";
+
+describe("«Inicio» as the origin of a match", () => {
+  it("returns from a synthetic match to the season and target it was opened from", () => {
+    const href = matchHref("played-10", { kind: "home", seasonId: "s1", matchId: "target" });
+    expect(href).toBe("/matches/played-10?from=home&season=s1&match=target");
+    expect(homeReturnHref(queryOf(href))).toBe("/?season=s1&match=target");
+    expect(matchHref("played-10")).toBe("/matches/played-10");
+    expect(homeReturnHref(queryOf(matchHref("played-10")))).toBeNull();
+  });
+
+  it("returns from a real match to its target, with no season (a real Inicio has none), and keeps it in a related match", () => {
+    const href = observedMatchHref("sofascore-match-16599934", { kind: "home", seasonId: null, matchId: "sofascore-match-16599973" });
+    expect(href).toBe("/matches/sofascore-match-16599934?view=observed&from=home&match=sofascore-match-16599973");
+    expect(homeReturnHref(queryOf(href))).toBe("/?match=sofascore-match-16599973");
+    expect(observedMatchTeamsReturnHref(queryOf(href))).toBeNull();
+    expect(observedMatchReturnHref("sofascore-match-16599934", queryOf(href))).toBeNull();
+    expect(relatedObservedMatchHref("sofascore-match-1", queryOf(href)))
+      .toBe("/matches/sofascore-match-1?view=observed&from=home&match=sofascore-match-16599973");
+  });
+
+  it("leaves the origins of Equipos and of a player as they were, and drops what it did not build", () => {
+    const teams = queryOf(observedMatchHref("sofascore-match-1", { kind: "teams", seasonId: null, teamId: "sofascore-team-24329", tab: "performance" }));
+    expect(homeReturnHref(teams)).toBeNull();
+    expect(observedMatchTeamsReturnHref(teams)).toBe("/teams?team=sofascore-team-24329");
+    expect(homeReturnHref({ from: "home", season: "//example.com", match: "../x" })).toBe("/");
+    expect(homeHref({})).toBe("/");
+  });
+});
 
 describe("teamsHref", () => {
   it("keeps season, team and the players tab; the default tab and missing values are left out", () => {

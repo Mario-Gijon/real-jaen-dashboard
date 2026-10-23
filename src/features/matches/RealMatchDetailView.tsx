@@ -25,16 +25,16 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
 });
 
 /**
- * Detail of a real match (reached from the real match list, a real profile
- * or a team in «Equipos», to which «Volver» then returns), organised like
+ * Detail of a real match (reached from the real match list, a real profile,
+ * a team in «Equipos» or «Inicio», to which «Volver» then returns), organised like
  * the synthetic detail: header, then «Resumen» (team stats) and
  * «Alineaciones» (line-ups marked with the recorded goals, assists and
  * substitutions). Each section keeps its own state and retry, with
  * provenance. Loads nothing synthetic; an id the real source does not know is
  * said so, never looked up among the synthetic matches.
  */
-export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null, originQuery = {} }: {
-  matchId: string; initialSection?: Section; playerReturnHref?: string | null; teamsReturnHref?: string | null;
+export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null, homeReturnHref = null, originQuery = {} }: {
+  matchId: string; initialSection?: Section; playerReturnHref?: string | null; teamsReturnHref?: string | null; homeReturnHref?: string | null;
   /** The query this match was opened with: a related match keeps its origin. */
   originQuery?: Record<string, unknown>;
 }) {
@@ -49,6 +49,7 @@ export function RealMatchDetailView({ matchId, initialSection = "summary", playe
     {playerReturnHref
       ? <Link href={playerReturnHref} className={css.back}>‹ Volver al jugador</Link>
       : teamsReturnHref ? <Link href={teamsReturnHref} className={css.back}>‹ Volver al equipo</Link>
+      : homeReturnHref ? <Link href={homeReturnHref} className={css.back}>‹ Volver a Inicio</Link>
       : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
     {source.error ? <Failure title="No se pudo determinar la fuente de los partidos" retry={source.retry} />
       : !source.data ? <p role="status" className={css.message}>Cargando partido…</p>

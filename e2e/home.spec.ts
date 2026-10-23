@@ -32,9 +32,12 @@ test("Home changes preparation context by keyboard and opens a recent match", as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
+  // A match opened from Inicio returns to the same season and target.
   await page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link").first().click();
-  await expect(page).toHaveURL(/\/matches\/[^/?]+$/);
-  await expect(page.getByRole("link", { name: "Volver a partidos" })).toBeVisible();
+  await expect(page).toHaveURL(/\/matches\/[^/?]+\?from=home&season=[^&]+&match=[^&]+$/);
+  await page.getByRole("link", { name: "Volver a Inicio" }).click();
+  await expect(page).toHaveURL(url);
+  await expect(page.getByRole("region", { name: "Encuentro de preparación" }).getByText(opponent, { exact: true })).toBeVisible();
 });
 
 test("Ver todos preserves season and opens all rounds for the selected rival", async ({ page }) => {

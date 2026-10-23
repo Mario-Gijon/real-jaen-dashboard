@@ -28,7 +28,10 @@ const METRICS: readonly { key: TeamStatKey; label: string; decimals?: number }[]
   { key: "redCards", label: "Rojas" },
 ];
 
-export function MatchDetailView({ matchId, initialSection = "summary" }: { matchId: string; initialSection?: (typeof SECTIONS)[number] }) {
+/** `homeReturnHref`: the «Inicio» this match was opened from, to which «Volver» returns; otherwise Partidos. */
+export function MatchDetailView({ matchId, initialSection = "summary", homeReturnHref = null }: {
+  matchId: string; initialSection?: (typeof SECTIONS)[number]; homeReturnHref?: string | null;
+}) {
   const [section, setSection] = useState<(typeof SECTIONS)[number]>(initialSection);
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
@@ -49,7 +52,8 @@ export function MatchDetailView({ matchId, initialSection = "summary" }: { match
   const notFound = detail.error instanceof ApiRequestError && detail.error.status === 404;
 
   return <div className={css.page}>
-    <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>
+    {homeReturnHref ? <Link href={homeReturnHref} className={css.back}>‹ Volver a Inicio</Link>
+      : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
     {detail.error ? <div role="alert" className={css.message}>
       <h1>{notFound ? "Partido no encontrado" : "No se pudo cargar el partido"}</h1>
       {!notFound ? <Button size="sm" onClick={detail.retry}>Reintentar</Button> : null}

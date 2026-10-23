@@ -1,26 +1,42 @@
-import { seasonStat, type MatchSummary, type Stat, type TeamMatch } from "@/contract";
-import { average } from "../teams/performance";
+import { seasonStat, type MatchStatus, type Stat, type TeamMatch } from "@/contract";
+import { average, type OrientedMatch } from "../teams/performance";
 
 export const CLUB_ID = "team-real-jaen";
-const timestamp = (value: string | null) => value ? Date.parse(value) : NaN;
+export const timestamp = (value: string | null) => value ? Date.parse(value) : NaN;
+
+/**
+ * What the derivations read from a match: a synthetic `MatchSummary` and a
+ * real `ObservedMatch` both are one (a real round or status may be unknown).
+ */
+export type DatedMatch = {
+  id: string; kickoff: string | null; status: MatchStatus | null; round: number | null;
+  home: { id: string }; away: { id: string };
+};
 
 /** Only dated, scheduled club matches ahead of the current time are suggestions. */
-export function upcomingMatches(matches: readonly MatchSummary[], now: number) {
+export function upcomingMatches<T extends DatedMatch>(matches: readonly T[], now: number): T[] {
   return matches.filter(match => (match.home.id === CLUB_ID || match.away.id === CLUB_ID)
     && match.status === "scheduled" && timestamp(match.kickoff) > now)
     .sort((a, b) => timestamp(a.kickoff) - timestamp(b.kickoff) || a.id.localeCompare(b.id));
 }
 
+/** The next six fixtures for the selector; a chosen target further ahead takes the sixth place. */
+export function preparationChoices<T extends DatedMatch>(future: readonly T[], target: T | undefined): T[] {
+  return target && !future.slice(0, 6).some(match => match.id === target.id)
+    ? [...future.slice(0, 5), target].sort((a, b) => timestamp(a.kickoff) - timestamp(b.kickoff)) : future.slice(0, 6);
+}
+
 /** The five latest finished matches before the target; unknown dates cannot establish that a match preceded it. */
-export function preparationHistory(matches: readonly TeamMatch[], target: MatchSummary) {
+export function preparationHistory<T extends { match: DatedMatch }>(matches: readonly T[], target: Pick<DatedMatch, "kickoff">): T[] {
   const ordered = matches.filter(({ match }) => match.status === "finished"
     && timestamp(match.kickoff) < timestamp(target.kickoff))
     .sort((a, b) => timestamp(b.match.kickoff) - timestamp(a.match.kickoff)
-      || b.match.round - a.match.round || a.match.id.localeCompare(b.match.id));
+      || (b.match.round ?? 0) - (a.match.round ?? 0) || a.match.id.localeCompare(b.match.id));
   return ordered.slice(0, 5);
 }
 
-export function preparationSummary(matches: readonly TeamMatch[]) {
+/** Form, goals and xG of some matches from the analysed team's side; each figure with its coverage. */
+export function preparationSummary(matches: readonly (OrientedMatch & Pick<TeamMatch, "result">)[]) {
   const goals = (conceded: boolean) => seasonStat(matches.map(({ match, side }): Stat =>
     match.score ? { value: match.score[conceded ? side === "home" ? "away" : "home" : side] }
       : { value: null, reason: "not_available" }));

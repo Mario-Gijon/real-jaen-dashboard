@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { MatchDetailView } from "@/features/matches/MatchDetailView";
 import { RealMatchDetailView } from "@/features/matches/RealMatchDetailView";
-import { observedMatchReturnHref, observedMatchTeamsReturnHref } from "@/features/players/navigation";
+import { homeReturnHref, observedMatchReturnHref, observedMatchTeamsReturnHref } from "@/features/players/navigation";
 
 export const metadata: Metadata = { title: "Detalle de partido" };
 
@@ -11,7 +11,8 @@ export default async function MatchPage({ params, searchParams }: { params: Prom
   if (query.view === "observed") {
     return <RealMatchDetailView matchId={matchId} initialSection={query.tab === "lineups" ? "lineups" : "summary"}
       playerReturnHref={observedMatchReturnHref(matchId, query)} teamsReturnHref={observedMatchTeamsReturnHref(query)}
-      originQuery={query} />;
+      homeReturnHref={homeReturnHref(query)} originQuery={query} />;
   }
-  return <MatchDetailView matchId={matchId} initialSection={query.tab === "timeline" || query.tab === "lineups" ? query.tab : "summary"} />;
+  return <MatchDetailView matchId={matchId} initialSection={query.tab === "timeline" || query.tab === "lineups" ? query.tab : "summary"}
+    homeReturnHref={homeReturnHref(query)} />;
 }

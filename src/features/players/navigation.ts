@@ -68,10 +68,43 @@ export type ObservedMatchOrigin = { playerId: string; seasonId: string | null; o
 /** «Equipos» on the team, season and tab a real match was opened from, as its URL had them (`teamsHref`). */
 export type ObservedMatchTeamsOrigin = { kind: "teams"; seasonId: string | null; teamId: string | null; tab: "performance" | "players" };
 
+/** «Inicio» on the season and target match a match was opened from (`homeHref`); a real Inicio has no season. */
+export type HomeOrigin = { kind: "home"; seasonId: string | null; matchId: string };
+
+/** «Inicio» on a season and target match: what the page keeps in its URL and what links back to it build. */
+export function homeHref({ seasonId = null, matchId = null }: { seasonId?: string | null; matchId?: string | null }) {
+  const query = new URLSearchParams();
+  if (seasonId) query.set("season", seasonId);
+  if (matchId) query.set("match", matchId);
+  return query.size ? `/?${query}` : "/";
+}
+
+/** The «Inicio» to return to from a match opened there, or null when it was opened elsewhere. */
+export function homeReturnHref(query: { from?: unknown; season?: unknown; match?: unknown }) {
+  if (query.from !== "home") return null;
+  const id = (value: unknown) => (typeof value === "string" && SAFE_ID.test(value) ? value : null);
+  return homeHref({ seasonId: id(query.season), matchId: id(query.match) });
+}
+
+/** Synthetic match detail; opened from «Inicio», it returns there. */
+export function matchHref(matchId: string, from?: HomeOrigin) {
+  const query = new URLSearchParams();
+  if (from) setHomeOrigin(query, from);
+  return query.size ? `/matches/${encodeURIComponent(matchId)}?${query}` : `/matches/${encodeURIComponent(matchId)}`;
+}
+
+function setHomeOrigin(query: URLSearchParams, from: HomeOrigin) {
+  query.set("from", "home");
+  if (from.seasonId) query.set("season", from.seasonId);
+  query.set("match", from.matchId);
+}
+
 /** Real match detail, always explicitly real (`view=observed`), never the synthetic one. */
-export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin | ObservedMatchTeamsOrigin) {
+export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin | ObservedMatchTeamsOrigin | HomeOrigin) {
   const query = new URLSearchParams({ view: "observed" });
-  if (from && "kind" in from) {
+  if (from && "kind" in from && from.kind === "home") {
+    setHomeOrigin(query, from);
+  } else if (from && "kind" in from) {
     query.set("from", "teams");
     if (from.seasonId) query.set("season", from.seasonId);
     if (from.teamId) query.set("team", from.teamId);
@@ -106,6 +139,8 @@ export function observedMatchReturnHref(matchId: string, query: {
  */
 export function relatedObservedMatchHref(matchId: string, query: Record<string, unknown>) {
   const id = (value: unknown) => (typeof value === "string" && SAFE_ID.test(value) ? value : null);
+  const homeMatch = query.from === "home" ? id(query.match) : null;
+  if (homeMatch) return observedMatchHref(matchId, { kind: "home", seasonId: id(query.season), matchId: homeMatch });
   if (query.from === "teams") {
     return observedMatchHref(matchId, { kind: "teams", seasonId: id(query.season), teamId: id(query.team),
       tab: query.tab === "players" ? "players" : "performance" });

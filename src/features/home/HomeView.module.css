@@ -42,6 +42,9 @@
 .score { text-align: center; font-size: var(--rj-text-lg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .shortName { display: none; }
 .message { color: var(--rj-text-secondary); font-size: var(--rj-text-sm); padding-block: var(--rj-space-3); }
+.provenance { margin-bottom: var(--rj-space-3); }
+.notes { display: grid; gap: 2px; margin-block: var(--rj-space-3); color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
+.inlineError { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--rj-space-2); }
 .error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rj-space-3); padding-block: var(--rj-space-4); }
 @media (max-width: 640px) {
   .context { align-items: flex-start; }

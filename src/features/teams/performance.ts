@@ -46,11 +46,18 @@ export function venueRecord(matches: readonly TeamMatch[]): VenueRecord {
   return record;
 }
 
+/**
+ * What the output figures need from a match, seen from one team: its side,
+ * the final score and the team stats oriented to it (`own`, `opponent`).
+ * A synthetic `TeamMatch` is one; a real match oriented by its caller too.
+ */
+export type OrientedMatch = Pick<TeamMatch, "side" | "teamStats"> & { match: { score: TeamMatch["match"]["score"] } };
+
 /** Goals of the team first, as the result reads from its side. */
-export function goalsFor({ match, side }: TeamMatch): number {
+export function goalsFor({ match, side }: OrientedMatch): number {
   return side === "home" ? match.score!.home : match.score!.away;
 }
-export function goalsAgainst({ match, side }: TeamMatch): number {
+export function goalsAgainst({ match, side }: OrientedMatch): number {
   return side === "home" ? match.score!.away : match.score!.home;
 }
 
@@ -59,7 +66,7 @@ export type Indicator = TeamOutputIndicator;
 const NO_STATS: Stat = { value: null, reason: "not_available" };
 
 /** One indicator in one match: from the score, the team's stats or its rival's. */
-function matchValue(m: TeamMatch, indicator: Indicator): Stat {
+function matchValue(m: OrientedMatch, indicator: Indicator): Stat {
   if (indicator === "goals") return { value: goalsFor(m) };
   if (indicator === "goalsAgainst") return { value: goalsAgainst(m) };
   const conceded: Partial<Record<Indicator, TeamStatKey>> = {
@@ -78,7 +85,7 @@ function matchValue(m: TeamMatch, indicator: Indicator): Stat {
  * the average uses only the matches that have the value (`matches`), out of
  * `of`. `value` is unrounded; `null` when no match had it.
  */
-export function average(matches: readonly TeamMatch[], indicator: Indicator): SeasonStat {
+export function average(matches: readonly OrientedMatch[], indicator: Indicator): SeasonStat {
   const values = matches.map((m) => matchValue(m, indicator));
   // seasonStat gives the coverage (and why a value is missing) with the shared rule.
   const coverage = seasonStat(values);

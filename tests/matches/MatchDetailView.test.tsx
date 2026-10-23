@@ -47,6 +47,12 @@ describe("Match quick summary", () => {
     expect(screen.getByRole("link", { name: /Volver a partidos/ })).toHaveAttribute("href", "/matches");
   });
 
+  it("returns to the «Inicio» it was opened from, with its season and target", async () => {
+    render(<MatchDetailView matchId="match-test" homeReturnHref="/?season=s1&match=target" />);
+    expect(await screen.findByRole("link", { name: "‹ Volver a Inicio" })).toHaveAttribute("href", "/?season=s1&match=target");
+    expect(screen.queryByRole("link", { name: /Volver a partidos/ })).toBeNull();
+  });
+
   it("switches all sections by keyboard and restores summary", async () => {
     const user = userEvent.setup();
     render(<MatchDetailView matchId={match.id} />);

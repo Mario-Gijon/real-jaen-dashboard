@@ -29,7 +29,7 @@ it("suggests the next fixture and links the rival and only its last five matches
   expect(within(section).getByRole("link", { name: "Ver todos" })).toHaveAttribute("href", "/matches?season=s1&team=rival&round=all");
   expect(screen.getAllByRole("link", { name: /Ver todos|Sus partidos/ })).toHaveLength(1);
   expect(within(recent).getAllByRole("link").map(link => link.getAttribute("href")))
-    .toEqual([10, 9, 8, 7, 6].map(i => `/matches/played-${i}`));
+    .toEqual([10, 9, 8, 7, 6].map(i => `/matches/played-${i}?from=home&season=s1&match=target`));
   expect(screen.getByText("Forma", { selector: "dt" }).nextElementSibling).toHaveTextContent("5 V · 0 E · 0 D");
   expect(screen.getAllByRole("list", { name: /del rival/ })).toHaveLength(1);
   expect(screen.queryByText(/Partidos anteriores|Material complementario/)).toBeNull();
