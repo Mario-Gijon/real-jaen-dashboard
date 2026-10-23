@@ -17,7 +17,7 @@ Interfaz (src/app, src/features, src/ui)
   ▼
 /api/v1  (src/app/api/v1: route handlers)
   ▼
-DataSource (src/server)  ──►  fuente de datos (hoy: sintética)
+DataSource (src/server)  ──►  API local de datos (modo real) o temporada de demostración (DATA_MODE=demo)
 ```
 
 | Carpeta | Responsabilidad |
@@ -25,15 +25,48 @@ DataSource (src/server)  ──►  fuente de datos (hoy: sintética)
 | `src/contract` | Tipos del contrato `/api/v1`: lo que ve el analista, no lo que devuelve un proveedor |
 | `src/app` | Páginas y route handlers de `/api/v1` |
 | `src/client` | Cliente tipado: la única vía de las pantallas hacia los datos |
-| `src/server` | Interfaz `DataSource` y sus adaptadores (`synthetic/`) |
+| `src/server` | Interfaz `DataSource`, su selección por `DATA_MODE` y sus adaptadores (`local-api/` real, `synthetic/` demostración) |
 | `src/ui` | Tokens visuales, base y componentes compartidos |
 | `src/features/{matches,teams,players}` | Componentes de cada área |
-| `data/synthetic` | Temporada ficticia (sólo la lee el adaptador sintético) |
-| `scripts` | Generador de la temporada sintética (`npm run data:generate`) |
+| `data/synthetic` | Temporada ficticia de la demostración (sólo la lee el adaptador sintético) |
+| `scripts` | Generador de la temporada de demostración (`npm run data:generate`) |
 
 **Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
 ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture.test.ts`.
 Sin base de datos, Docker, workers ni autenticación.
+
+## Modo de datos
+
+`DATA_MODE` decide qué datos sirve `/api/v1` (en `.env.local`, ver `.env.example`; reinicia el
+servidor Next al cambiarlo):
+
+| `DATA_MODE` | Datos |
+|---|---|
+| `real` (o sin definir) | Todas las pantallas desde la API local de datos en `LOCAL_DATA_API_URL`, obligatoria. Cada sección lo indica con «Datos reales». |
+| `demo` | La temporada inventada de `data/synthetic`, señalada en la cabecera con «Demostración · datos sintéticos». No se consulta la API local. |
+
+- Nunca se pasa de un modo al otro. Un `DATA_MODE` distinto de `real` o `demo`, o el modo real
+  sin `LOCAL_DATA_API_URL`, hacen que toda ruta responda `503 UPSTREAM_UNAVAILABLE` con el
+  motivo (también en el log del servidor), y las pantallas muestran ese error. Si la API local
+  falla o no responde, 503 y error con reintento.
+- En modo real ninguna ruta sirve la temporada de demostración, ni desde un enlace antiguo:
+  `/competitions` devuelve una lista vacía y una temporada, partido o jugador de la
+  demostración, 404. En demostración, las rutas reales responden 404.
+- Cada pantalla pregunta el modo a `GET /api/v1/source` y elige su vista real o la de
+  demostración. Los parámetros `view=observed` y `view=profile` de los enlaces se aceptan pero
+  no cambian el modo: un ID del otro modo simplemente no se encuentra.
+- `OBSERVED_PLAYERS_SOURCE`, `MATCHES_SOURCE`, `TEAMS_SOURCE` y `DATA_SOURCE` (los selectores
+  anteriores, por sección) ya no se leen; si siguen definidos, el servidor lo advierte una vez
+  en el log.
+- La llamada a la API local la hace el servidor Next (`src/server/local-api`), nunca el
+  navegador: `127.0.0.1` debe ser la máquina donde corre `next dev`/`next start`.
+
+En el código, cada pantalla tiene un selector de modo (`HomeView`, `MatchesView`, `TeamsView`,
+`MatchView`, `PlayerView`) y una vista por modo (`Real…`/`Synthetic…`, `PlayerProfileView`/
+`PlayerDetailView`). Lo que ambas dibujan igual (`PreparationParts`, `TeamShell`,
+`TeamPerformanceParts`, `TeamStatsComparison`, `TeamPlayersTable`…) y las funciones puras no
+cargan datos. `tests/architecture` comprueba que sólo los selectores llevan a datos de los dos
+modos y que los módulos compartidos no llevan a los de ninguno.
 
 ## Independencia de la fuente de datos
 
@@ -57,21 +90,10 @@ equipo: `own` (lo que hizo) y `opponent` (lo que hizo el rival, es decir, lo que
 
 ## Jugadores observados desde la API local
 
-«Equipos › Jugadores» puede leer los jugadores observados en convocatorias, y sus fichas
-personales, desde una API local de datos (servicio independiente). Por defecto todo es
-sintético. Para activarla, en `.env.local` (ver `.env.example`) y reiniciando el servidor:
+En modo real, «Equipos › Jugadores» y las fichas de jugador leen de la API local de datos
+(servicio independiente) los jugadores observados en convocatorias, con sus acumulados (ver
+«Acumulados de jugadores») y sus datos personales.
 
-```
-OBSERVED_PLAYERS_SOURCE=local
-LOCAL_DATA_API_URL=http://127.0.0.1:8001
-```
-
-- La llamada la hace el servidor Next (`src/server/local-api`), nunca el navegador:
-  `127.0.0.1` debe ser la máquina donde corre `next dev`/`next start`.
-- En la página sintética de Equipos sólo se muestran nombre y posición, con su procedencia
-  («Datos reales») y su alcance: el listado no depende de la temporada sintética
-  seleccionada y no lleva estadísticas. Con `TEAMS_SOURCE=local`, la tabla lleva los
-  acumulados reales (ver «Acumulados de jugadores»).
 - Hay correspondencia explícita para el Real Jaén (`team-real-jaen` ↔ equipo `2841`) y para
   los otros 19 equipos de Primera Federación, Grupo 2, 26/27 (`sofascore-team-{id}` ↔ `{id}`,
   el id que ya usan las listas de partidos; ids comprobados en el catálogo del scraper), en
@@ -87,7 +109,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   personales: posición, nacimiento, estatura, pierna dominante y país, tal como los da la
   fuente; lo desconocido se muestra «—». Sin temporada, equipo actual ni estadísticas. El
   servidor traduce el ID derivado al de la fuente; la fecha de descarga (`fetched_at`) no
-  se usa como fecha de actualización. En modo sintético no hay fichas de este tipo (404).
+  se usa como fecha de actualización. En la demostración no hay fichas de este tipo (404).
 - La ficha real añade «Partidos», con la presentación de la ficha sintética: a la izquierda
   las convocatorias que registra la fuente (`GET /api/v1/players/{id}/matches` de la API
   local), de la más reciente a la más antigua, con su propia competición y temporada (la
@@ -122,10 +144,10 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   | Paradas (portero) | `saves` |
   | Valoración de SofaScore | `rating` |
 
-- Con `MATCHES_SOURCE=local` el detalle ofrece «Ver partido completo», que abre el detalle
+- El detalle ofrece «Ver partido completo», que abre el detalle
   real (`/matches/{id}?view=observed&from=player&player=…`); su «Volver al jugador» regresa
   a la ficha con ese partido seleccionado y su propio origen (equipo o alineaciones de un
-  partido real). Sin partidos reales no hay enlace, nunca una ficha sintética. El contexto
+  partido real); nunca una ficha de la demostración. El contexto
   tiene un solo nivel: un jugador abierto desde las alineaciones de ese partido vuelve a
   ellas, y de ahí a la lista de partidos. Un retorno o una selección manipulados se
   descartan y se usa un destino interno.
@@ -146,17 +168,9 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 
 ## Partidos reales desde la API local
 
-«Partidos» puede mostrar el calendario y los resultados reales del Real Jaén con un
-selector propio, independiente de `OBSERVED_PLAYERS_SOURCE` y sintético por defecto:
+En modo real, «Partidos» muestra el calendario y los resultados reales del Real Jaén.
 
-```
-MATCHES_SOURCE=local
-LOCAL_DATA_API_URL=http://127.0.0.1:8001
-```
-
-- La pantalla sabe qué mostrar por `GET /api/v1/source` (`realSections`); partidos reales
-  y sintéticos nunca se mezclan en una lista. Si la fuente real falla, error y reintento,
-  sin volver a los sintéticos.
+- Si la fuente real falla, error y reintento, nunca los partidos de la demostración.
 - Ámbito: esta versión sólo sirve **Primera Federación, Grupo 2** (26/27). Lo decide el
   servicio de datos (`ambito.json` de la API local, que filtra partidos, convocatorias,
   jugadores y secciones de detalle) y lo declara en `GET /api/v1/scope`. El servidor Next
@@ -204,7 +218,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 - Estadísticas, alineaciones e incidencias tienen cada una su estado (guardada, vacía, no
   guardada, error con reintento). Si fallan las incidencias se ven igual alineaciones y
   estadísticas, sin marcas; el reintento conserva la pestaña. Los nombres enlazan a la
-  ficha real sólo si `OBSERVED_PLAYERS_SOURCE=local`; desde ella «Volver» regresa a la
+  ficha real; desde ella «Volver» regresa a la
   pestaña «Alineaciones» del partido real. No se consulta ninguna ficha por jugador.
 - Un aviso indica que la muestra no es necesariamente un calendario completo.
 - Un enlace con `?season=` (temporada sintética) o `?team=` de un equipo sin
@@ -213,15 +227,7 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
 
 ## Equipos reales desde la API local
 
-«Equipos» puede leer de la API local con su propio selector, independiente de los otros
-dos y sintético por defecto:
-
-```
-TEAMS_SOURCE=local
-LOCAL_DATA_API_URL=http://127.0.0.1:8001
-```
-
-Reinicia el servidor Next tras cambiar `.env.local`. La API local debe ser una versión con
+En modo real, «Equipos» lee de la API local. La API local debe ser una versión con
 `GET /api/v1/teams/{id}/performance` (y `/api/v1/scope`): si está en marcha una anterior,
 reiníciala (`python api.py`), porque lee código y datos al arrancar.
 
@@ -271,26 +277,17 @@ reiníciala (`python api.py`), porque lee código y datos al arrancar.
 - Un aviso «Datos reales» dice que son los partidos finalizados observados, cuántos de
   cuántos, y que no es necesariamente la temporada completa. Cero partidos finalizados se
   dice como tal; un error de la fuente, con reintento.
-- Los partidos disputados abren su detalle real sólo con `MATCHES_SOURCE=local`; si no,
-  se muestran sin enlace.
-- «Jugadores» muestra los jugadores reales con sus acumulados si
-  `OBSERVED_PLAYERS_SOURCE=local` (ver abajo; su ficha vuelve a esta temporada real); si
-  no, dice que la fuente real de jugadores no está activada, nunca la plantilla sintética.
+- Los partidos disputados abren su detalle real.
+- «Jugadores» muestra los jugadores reales con sus acumulados (ver abajo; su ficha vuelve a
+  esta temporada real), nunca la plantilla de la demostración.
 
 ### Acumulados de jugadores
 
-Con `TEAMS_SOURCE=local` y `OBSERVED_PLAYERS_SOURCE=local`, «Equipos › Jugadores» usa la
+En modo real, «Equipos › Jugadores» usa la
 tabla original (nombre y posición, PJ, Tit., Min., Goles, Asist., estatura y pierna) con
 los acumulados reales de la competición que elige el selector de temporada. La API local
 debe tener `GET /api/v1/teams/{id}/player-stats`; si está en marcha una versión anterior,
 reiníciala.
-
-| `TEAMS_SOURCE` | `OBSERVED_PLAYERS_SOURCE` | «Equipos › Jugadores» |
-|---|---|---|
-| `synthetic` | `synthetic` | Plantilla sintética con sus acumulados |
-| `synthetic` | `local` | Lista real (nombre y posición), sin acumulados: la temporada es sintética y no se mezcla con cifras reales |
-| `local` | `synthetic` | «La fuente real de jugadores no está activada» |
-| `local` | `local` | Tabla con los acumulados reales de la competición elegida |
 
 - Los calcula el servicio Python (`GET /api/v1/teams/{id}/player-stats`, una petición para
   todas las competiciones del ámbito, con estatura y pierna incluidas; ninguna por jugador)
@@ -370,7 +367,7 @@ entrada en `src/features/team-crests.ts` y anota en esta tabla la URL de origen 
 
 | Endpoint | Devuelve |
 |---|---|
-| `GET /api/v1/source` | Si los datos son sintéticos y qué secciones sirve la fuente real (`realSections`) |
+| `GET /api/v1/source` | El modo de datos: en modo real `synthetic: false`, «Datos reales» y todas las secciones en `realSections`; en demostración `synthetic: true`, «Demostración · datos sintéticos» y `realSections` vacío. 503 con el motivo si la configuración no es válida |
 | `GET /api/v1/competitions` | Competiciones con sus temporadas |
 | `GET /api/v1/seasons/{seasonId}/matches?round=&team=` | Partidos, filtrables por jornada y equipo |
 | `GET /api/v1/matches/{matchId}` | Ficha: alineaciones, eventos, estadísticas de equipo y jugador |
@@ -382,19 +379,23 @@ entrada en `src/features/team-crests.ts` y anota en esta tabla la URL de origen 
 | `GET /api/v1/players/{playerId}/profile` | Datos personales de un jugador de la fuente real (sin temporada ni equipo), con alcance y procedencia; 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/players/{playerId}/observed-matches` | Partidos en los que la fuente real registra al jugador, del más reciente al más antiguo, con su posición en el partido y sus estadísticas individuales; lista vacía si no hay, 404 si no existe, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 | `GET /api/v1/teams/{teamId}/observed-performance` | Resultados del equipo en cada competición del ámbito real (`ObservedTeamPerformance`): recuentos por estado, balance con diferencia, Casa / Fuera y partidos contados; 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente o su agregado no es coherente |
-| `GET /api/v1/teams/{teamId}/observed-squad` | Jugadores observados del equipo con sus acumulados en cada competición del ámbito real (`ObservedSquad`, sólo con `OBSERVED_PLAYERS_SOURCE=local`); 404 sin fuente real o sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente o su agregado no es coherente |
+| `GET /api/v1/teams/{teamId}/observed-squad` | Jugadores observados del equipo con sus acumulados en cada competición del ámbito real (`ObservedSquad`); 404 en la demostración o sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente o su agregado no es coherente |
 | `GET /api/v1/teams/{teamId}/observed-matches` | Partidos del equipo en la fuente real (calendario y resultados), por fecha, y las competiciones de su ámbito (`competitions`); lista vacía si no hay, 404 sin correspondencia, `503 UPSTREAM_UNAVAILABLE` si falla la fuente |
 
 Los tipos están en `src/contract`; las pantallas usan las funciones de `src/client/api.ts`
 (`getSeasonMatches`, `getMatch`…) y nunca construyen URLs. Los errores tienen la forma
-`{ error: { code, message } }`, con `BAD_REQUEST` (400) o `NOT_FOUND` (404).
+`{ error: { code, message } }`, con `BAD_REQUEST` (400), `NOT_FOUND` (404) o
+`UPSTREAM_UNAVAILABLE` (503: fuente real no disponible o configuración de datos no válida).
+Las rutas de temporada (`/competitions`, `/seasons/…`, `/matches/{id}`, `/players/{id}`)
+sólo tienen datos en la demostración.
 
-## Datos sintéticos
+## Modo demostración (datos sintéticos)
 
-En desarrollo la aplicación usa una temporada inventada (`DATA_SOURCE=synthetic`,
-valor por defecto). El Real Jaén CF es el club principal; la competición («Liga de
-Demostración»), rivales, jugadores, resultados y estadísticas son ficticios, y la
-interfaz lo indica con el aviso «Datos sintéticos».
+Con `DATA_MODE=demo` la aplicación usa una temporada inventada, para demostraciones y para
+las pruebas E2E (que la activan en `playwright.config.ts`). El Real Jaén CF es el club
+principal; la competición («Liga de Demostración»), rivales, jugadores, resultados y
+estadísticas son ficticios, y la cabecera lo indica con «Demostración · datos sintéticos».
+Los datos de prueba que no son de la demostración viven en `tests/` y `e2e/`.
 
 - 20 equipos de 24 jugadores y un calendario de 38 jornadas a doble vuelta.
 - Jornadas 1–14 disputadas (el Real Jaén – rival de la 9 está aplazado); el resto, programadas.

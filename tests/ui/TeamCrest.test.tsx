@@ -1,7 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { observedCrest } from "@/features/matches/ObservedMatchList";
-import { crestUrlOf } from "@/features/team-crests";
+import { crestUrlOf, observedCrest } from "@/features/team-crests";
 import { TeamCrest } from "@/ui/TeamCrest";
 
 describe("crests of real teams", () => {

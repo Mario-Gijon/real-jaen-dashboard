@@ -18,8 +18,8 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run build && npx next start -p 3100",
-    // Always the synthetic data, whatever a local .env.local selects.
-    env: { OBSERVED_PLAYERS_SOURCE: "synthetic", MATCHES_SOURCE: "synthetic", TEAMS_SOURCE: "synthetic" },
+    // Always the demonstration, whatever a local .env.local selects; the real-data specs simulate the API themselves.
+    env: { DATA_MODE: "demo" },
     url: "http://127.0.0.1:3100/api/v1/source",
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,

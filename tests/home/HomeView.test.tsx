@@ -5,6 +5,7 @@ import { getCompetitions, getSeasonMatches, getTeamSeason, getSeasonTeams, getSo
 import { HomeView } from "@/features/home/HomeView";
 import { MatchesView } from "@/features/matches/MatchesView";
 import { NOW, season, target, second, rival, other, teamSeason, history } from "./fixtures";
+import { DEMO_SOURCE } from "../shared/sources";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -15,7 +16,7 @@ beforeEach(() => {
   vi.mocked(getSeasonMatches).mockResolvedValue([target, second]);
   vi.mocked(getTeamSeason).mockImplementation(async (_, id) => ({ ...teamSeason, team: id === other.id ? other : rival }));
   vi.mocked(getSeasonTeams).mockResolvedValue([{ ...teamSeason.standing, team: rival }]);
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
+  vi.mocked(getSource).mockResolvedValue(DEMO_SOURCE);
 });
 
 it("suggests the next fixture and links the rival and only its last five matches", async () => {

@@ -1,0 +1,35 @@
+"use client";
+
+import Link from "next/link";
+import { getSource } from "@/client/api";
+import { Button } from "@/ui/Button";
+import { failureReason, useApi } from "../use-api";
+import { MatchDetailView } from "./MatchDetailView";
+import { RealMatchDetailView } from "./RealMatchDetailView";
+import css from "./MatchDetailView.module.css";
+
+/**
+ * A match page: the real detail, or the demonstration's when the API says it
+ * is one. The mode is the API's, never the link's: an old `view=observed`
+ * only keeps its return context, so a real link in the demonstration (or an
+ * old synthetic one in real mode) finds no match instead of switching data.
+ */
+export function MatchView({ matchId, tab, playerReturnHref, teamsReturnHref, homeReturnHref, originQuery }: {
+  matchId: string; tab: unknown; playerReturnHref: string | null; teamsReturnHref: string | null; homeReturnHref: string | null;
+  originQuery: Record<string, unknown>;
+}) {
+  const source = useApi("source", (signal) => getSource({ signal }));
+  if (source.error) return <div className={css.page}>
+    <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>
+    <div role="alert" className={css.message}>
+      <h1>No se pudo determinar la fuente de los datos</h1>
+      <p>{failureReason(source.error)}</p>
+      <Button size="sm" onClick={source.retry}>Reintentar</Button>
+    </div>
+  </div>;
+  if (!source.data) return <div className={css.page}><p role="status" className={css.message}>Cargando partido…</p></div>;
+  return source.data.synthetic
+    ? <MatchDetailView matchId={matchId} initialSection={tab === "timeline" || tab === "lineups" ? tab : "summary"} homeReturnHref={homeReturnHref} />
+    : <RealMatchDetailView matchId={matchId} initialSection={tab === "lineups" ? "lineups" : "summary"}
+      playerReturnHref={playerReturnHref} teamsReturnHref={teamsReturnHref} homeReturnHref={homeReturnHref} originQuery={originQuery} />;
+}

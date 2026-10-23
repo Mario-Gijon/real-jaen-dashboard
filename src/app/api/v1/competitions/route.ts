@@ -1,8 +1,8 @@
 import type { Competition } from "@/contract";
 import { getDataSource } from "@/server/data-source";
-import { json } from "@/server/http";
+import { guarded, json } from "@/server/http";
 
 /** Competitions with their seasons, newest first. */
 export async function GET() {
-  return json<Competition[]>(await getDataSource().competitions());
+  return guarded(async () => json<Competition[]>(await getDataSource().competitions()));
 }

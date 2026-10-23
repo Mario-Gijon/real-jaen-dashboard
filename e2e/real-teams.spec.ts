@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { REAL_SOURCE } from "./sources";
 
 /*
  * «Equipos» with the real source (TEAMS_SOURCE=local). The e2e server is
@@ -47,9 +48,9 @@ const performance = {
   }],
 };
 
-async function serveReal(page: Page, realSections: string[] = ["teams", "matches"], { down = false } = {}) {
+async function serveReal(page: Page, { down = false } = {}) {
   await page.route("**/api/v1/source", (route) =>
-    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections } }));
+    route.fulfill({ json: REAL_SOURCE }));
   await page.route("**/api/v1/teams/*/observed-performance", (route) => down
     ? route.fulfill({ status: 503, json: { error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." } } })
     : route.fulfill({ json: performance }));
@@ -100,20 +101,12 @@ test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, si
   expect(synthetic).toEqual([]);
 });
 
-test("Equipos reales: sin partidos reales no hay enlaces; jugadores reales desactivados lo dicen", async ({ page }) => {
-  await serveReal(page, ["teams"]);
-  await page.goto("/teams");
-  await expect(page.getByRole("table", { name: "Partidos disputados" }).getByRole("link")).toHaveCount(0);
-  await page.getByRole("tab", { name: "Jugadores" }).click();
-  await expect(page.getByText("La fuente real de jugadores no está activada.")).toBeVisible();
-});
-
 test("Equipos reales: un error tiene reintento y una temporada sintética no se sustituye", async ({ page }) => {
-  await serveReal(page, ["teams"], { down: true });
+  await serveReal(page, { down: true });
   await page.goto("/teams");
   await expect(page.locator("main").getByRole("alert")).toContainText("No se pudieron cargar los datos reales del equipo.");
   await page.unroute("**/api/v1/teams/*/observed-performance");
-  await serveReal(page, ["teams"]);
+  await serveReal(page);
   await page.getByRole("button", { name: "Reintentar" }).click();
   await expect(page.getByLabel("Balance")).toContainText("DG+1");
 
@@ -152,7 +145,7 @@ const realProfile = {
 };
 
 test("Equipos reales: jugadores con acumulados reales, orden, filtro, ficha y vuelta", async ({ page }, testInfo) => {
-  await serveReal(page, ["teams", "observedPlayers"]);
+  await serveReal(page);
   await page.route("**/api/v1/teams/*/observed-squad", (route) => route.fulfill({ json: squad }));
   await page.route("**/api/v1/players/*/profile", (route) => route.fulfill({ json: realProfile }));
   await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: {
@@ -198,7 +191,7 @@ test("Equipos reales: jugadores con acumulados reales, orden, filtro, ficha y vu
 });
 
 test("Equipos reales: un fallo de los acumulados tiene reintento, sin jugadores sintéticos", async ({ page }) => {
-  await serveReal(page, ["teams", "observedPlayers"]);
+  await serveReal(page);
   let down = true;
   await page.route("**/api/v1/teams/*/observed-squad", (route) => down
     ? route.fulfill({ status: 503, json: { error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." } } })
@@ -213,7 +206,7 @@ test("Equipos reales: un fallo de los acumulados tiene reintento, sin jugadores 
 
 test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la URL", async ({ page }, testInfo) => {
   const ibiza = { id: "sofascore-team-24368", name: "UD Ibiza" };
-  await serveReal(page, ["teams", "matches", "observedPlayers"]);
+  await serveReal(page);
   await page.route("**/api/v1/teams/*/observed-performance", (route) => {
     const teamId = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
     return teamId === "team-montealto"

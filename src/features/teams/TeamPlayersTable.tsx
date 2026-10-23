@@ -1,12 +1,10 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { getPlayer } from "@/client/api";
 import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { playerHref } from "../players/navigation";
-import { useApi } from "../use-api";
 import type { PlayerPosition, PlayerRef, PlayerSeasonStats, PreferredFoot, SeasonStat } from "@/contract";
 import {
   POSITION_LABEL,
@@ -104,18 +102,21 @@ function callUpsNote(key: StatKey) {
  * With `observed`, the rows are a real source's observed players: figures are
  * over call-ups (a call-up without resolved participation makes them
  * partial), the shirt is the last one observed and each name opens the real
- * profile through `href`.
+ * profile through `href`. The table loads nothing: a row without its
+ * personal data gets them from `personalCells` (its height and foot cells).
  */
 export function TeamPlayersTable({
   squad,
   seasonId,
   teamId,
   observed,
+  personalCells,
 }: {
   squad: readonly SquadRow[];
   seasonId: string;
   teamId: string;
   observed?: { href: (playerId: string) => string };
+  personalCells?: (playerId: string) => ReactNode;
 }) {
   const [line, setLine] = useState<PlayerPosition | "all">("all");
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "ascending" });
@@ -262,7 +263,7 @@ export function TeamPlayersTable({
                     <td>{row.personal.heightCm !== null ? `${row.personal.heightCm} cm` : "—"}</td>
                     <td>{footLabel(row.personal.preferredFoot)}</td>
                   </>
-                ) : <PersonalCells playerId={row.player.id} seasonId={seasonId} />}
+                ) : personalCells?.(row.player.id) ?? <><td>—</td><td>—</td></>}
               </LinkedTableRow>
             ))}
           </tbody>
@@ -271,14 +272,4 @@ export function TeamPlayersTable({
       {rows.length === 0 ? <p className={css.empty}>No hay jugadores en esta posición.</p> : null}
     </div>
   );
-}
-
-function PersonalCells({ playerId, seasonId }: { playerId: string; seasonId: string }) {
-  const profile = useApi(`personal|${playerId}|${seasonId}`, signal => getPlayer(playerId, seasonId, { signal }));
-  const player = profile.data?.player;
-  const note = profile.error ? "No se pudieron cargar los datos personales" : profile.loading ? "Cargando datos personales" : undefined;
-  return <>
-    <td aria-busy={profile.loading || undefined} title={note}>{profile.loading ? "…" : player?.heightCm != null ? `${player.heightCm} cm` : "—"}</td>
-    <td aria-busy={profile.loading || undefined} title={note}>{profile.loading ? "…" : footLabel(player?.preferredFoot ?? null)}</td>
-  </>;
 }

@@ -1,10 +1,10 @@
 import { getDataSource } from "@/server/data-source";
-import { jsonOrNotFound } from "@/server/http";
+import { guarded, jsonOrNotFound } from "@/server/http";
 
 type Context = { params: Promise<{ matchId: string }> };
 
 /** Full match sheet: line-ups, events and team and player stats. */
 export async function GET(_request: Request, { params }: Context) {
   const { matchId } = await params;
-  return jsonOrNotFound(await getDataSource().match(matchId), "Partido no encontrado.");
+  return guarded(async () => jsonOrNotFound(await getDataSource().match(matchId), "Partido no encontrado."));
 }

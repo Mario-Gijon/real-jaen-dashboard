@@ -7,7 +7,7 @@ test("Partidos: current round, combined filters and full calendar without horizo
   await expect(round).toHaveValue("14");
   const list = page.getByRole("list", { name: "Partidos de la temporada" });
   await expect(list.getByRole("link")).toHaveCount(10);
-  await expect(page.getByText("Datos sintéticos")).toBeVisible();
+  await expect(page.getByText("Demostración · datos sintéticos", { exact: true })).toBeVisible();
   await expect(page.getByRole("option", { name: "Real Jaén CF", exact: true })).toBeAttached();
   await team.selectOption("team-real-jaen");
   await expect(list.getByRole("link")).toHaveCount(1);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { REAL_SOURCE } from "./sources";
 
 /*
  * «Partidos» with the real source. The e2e server is synthetic, so these tests
@@ -28,7 +29,7 @@ const body = {
 
 async function serveReal(page: Page, { down = false } = {}) {
   await page.route("**/api/v1/source", (route) =>
-    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches"] } }));
+    route.fulfill({ json: REAL_SOURCE }));
   await page.route("**/api/v1/teams/*/observed-matches", (route) => down
     ? route.fulfill({ status: 503, json: { error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." } } })
     : route.fulfill({ json: body }));
@@ -177,7 +178,7 @@ test("Alineaciones reales: tab with once inicial and banquillo, recorded marks, 
   await serveDetail(page, DETAIL.statistics, LINEUPS, INCIDENTS);
   // Real profiles enabled too, so names link to them; the profile itself is simulated as well.
   await page.route("**/api/v1/source", (route) =>
-    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] } }));
+    route.fulfill({ json: REAL_SOURCE }));
   await page.route("**/api/v1/players/*/profile", (route) => route.fulfill({ json: {
     player: { id: "sofascore-player-966303", name: "Moha Keita", position: "midfielder", birthDate: "1999-09-18", heightCm: 165, preferredFoot: null, country: "Senegal" },
     scope: "Datos personales según la fuente. No indican equipo actual.", source: { synthetic: false, label: "Datos reales" } } }));

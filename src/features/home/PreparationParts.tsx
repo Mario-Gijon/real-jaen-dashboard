@@ -6,7 +6,7 @@ import type { Score, SeasonStat, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel, formatNumber } from "../format";
-import { CLUB_ID } from "./preparation";
+import { CLUB_ID } from "../club";
 import css from "./HomeView.module.css";
 
 /**

@@ -16,7 +16,6 @@ const scope = (teams = [2841]) => new Response(JSON.stringify({ data: { competit
 
 /** Simulated local API: the real service is not reached by these tests. */
 function localApi(response: () => Response | Promise<Response>, teams?: number[]) {
-  vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "local");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
   const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope(teams) : response());
   vi.stubGlobal("fetch", fetch);
@@ -30,16 +29,17 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/teams/{teamId}/players", () => {
-  it("is synthetic by default: the synthetic squad, labelled as such", async () => {
+  it("in the demonstration, the synthetic squad, labelled as such", async () => {
+    vi.stubEnv("DATA_MODE", "demo");
     const response = await call("team-real-jaen");
     expect(response.status).toBe(200);
     const body = (await response.json()) as ObservedPlayers;
-    expect(body.source).toEqual({ synthetic: true, label: "Datos sintéticos" });
+    expect(body.source).toEqual({ synthetic: true, label: "Demostración · datos sintéticos" });
     expect(body.players.length).toBeGreaterThan(0);
     expect((await call("team-x")).status).toBe(404);
   });
 
-  it("with the local source, returns only real players and says so", async () => {
+  it("in real mode, returns only real players and says so", async () => {
     const fetch = localApi(
       () =>
         new Response(
@@ -60,7 +60,7 @@ describe("GET /api/v1/teams/{teamId}/players", () => {
       "http://127.0.0.1:8001/api/v1/teams/2841/players",
       expect.anything(),
     );
-    expect(((await source().json()) as SourceInfo).label).toBe("Datos sintéticos y reales");
+    expect(((await source().json()) as SourceInfo).label).toBe("Datos reales");
   });
 
   it("answers 503 when the real source fails, never synthetic players", async () => {
@@ -85,11 +85,13 @@ describe("GET /api/v1/teams/{teamId}/players", () => {
     expect(fetch.mock.calls.map((c) => String(c[0]))).toEqual(["http://127.0.0.1:8001/api/v1/scope"]);
   });
 
-  it("refuses a local source without its URL, and unknown sources", async () => {
-    vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "local");
+  it("answers 503 with the reason for a real mode without URL or an invalid DATA_MODE, never synthetic players", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubEnv("LOCAL_DATA_API_URL", "");
-    await expect(call("team-real-jaen")).rejects.toThrow("LOCAL_DATA_API_URL");
-    vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "otra");
-    await expect(call("team-real-jaen")).rejects.toThrow("no disponible");
+    const withoutUrl = await call("team-real-jaen");
+    expect(withoutUrl.status).toBe(503);
+    expect(((await withoutUrl.json()) as ApiError).error.message).toContain("LOCAL_DATA_API_URL");
+    vi.stubEnv("DATA_MODE", "otra");
+    expect((await call("team-real-jaen")).status).toBe(503);
   });
 });

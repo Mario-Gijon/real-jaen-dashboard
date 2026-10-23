@@ -5,6 +5,7 @@ import { getCompetitions, getSeasonMatches, getSeasonTeams, getSource } from "@/
 import type { MatchSummary, Season, TeamRef } from "@/contract";
 import { MatchesView } from "@/features/matches/MatchesView";
 import { MatchList } from "@/features/matches/MatchList";
+import { DEMO_SOURCE } from "../shared/sources";
 
 vi.mock("@/client/api", () => ({
   getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getSeasonTeams: vi.fn(), getSource: vi.fn(),
@@ -30,7 +31,7 @@ beforeEach(() => {
     { rank: 1, team: jaen, record: { played: 13, wins: 6, draws: 3, losses: 4, goalsFor: 20, goalsAgainst: 15, points: 21 } },
   ]);
   vi.mocked(getSeasonMatches).mockResolvedValue([match]);
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
+  vi.mocked(getSource).mockResolvedValue(DEMO_SOURCE);
 });
 
 describe("Matches explorer", () => {

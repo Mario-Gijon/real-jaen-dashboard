@@ -10,7 +10,6 @@ const call = (playerId: string) =>
 
 /** Simulated local API: the real service is not reached by these tests. */
 function localApi(response: () => Response | Promise<Response>) {
-  vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "local");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
   const fetch = vi.fn(async () => response());
   vi.stubGlobal("fetch", fetch);
@@ -24,12 +23,13 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/players/{playerId}/profile", () => {
-  it("has no profiles in the synthetic default, not even for synthetic players", async () => {
+  it("has no profiles in the demonstration, not even for its synthetic players", async () => {
+    vi.stubEnv("DATA_MODE", "demo");
     expect((await call("player-0001")).status).toBe(404);
     expect((await call("sofascore-player-966303")).status).toBe(404);
   });
 
-  it("with the local source, asks the API for the provider id and returns only personal data", async () => {
+  it("in real mode, asks the API for the provider id and returns only personal data", async () => {
     const fetch = localApi(
       () =>
         new Response(

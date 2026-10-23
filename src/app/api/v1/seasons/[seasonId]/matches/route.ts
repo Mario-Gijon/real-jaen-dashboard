@@ -1,6 +1,6 @@
 import type { MatchFilter } from "@/contract";
 import { getDataSource } from "@/server/data-source";
-import { badRequest, jsonOrNotFound } from "@/server/http";
+import { badRequest, guarded, jsonOrNotFound } from "@/server/http";
 
 type Context = { params: Promise<{ seasonId: string }> };
 
@@ -16,15 +16,16 @@ export async function GET(request: Request, { params }: Context) {
     filter.round = Number(round);
   }
 
-  const source = getDataSource();
-  const teamId = query.get("team");
-  if (teamId !== null) {
-    const teams = await source.seasonTeams(seasonId);
-    if (teams && !teams.some((row) => row.team.id === teamId)) {
-      return badRequest("`team` no es un equipo de esta temporada.");
+  return guarded(async () => {
+    const source = getDataSource();
+    const teamId = query.get("team");
+    if (teamId !== null) {
+      const teams = await source.seasonTeams(seasonId);
+      if (teams && !teams.some((row) => row.team.id === teamId)) {
+        return badRequest("`team` no es un equipo de esta temporada.");
+      }
+      filter.teamId = teamId;
     }
-    filter.teamId = teamId;
-  }
-
-  return jsonOrNotFound(await source.seasonMatches(seasonId, filter), "Temporada no encontrada.");
+    return jsonOrNotFound(await source.seasonMatches(seasonId, filter), "Temporada no encontrada.");
+  });
 }

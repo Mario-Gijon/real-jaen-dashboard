@@ -11,6 +11,7 @@ import {
   afterTarget, clubMatches, detailOf, jaen, later, next, NOW, observed, other, postponed, rival, rivalMatches, rivalPerformance,
   rivalPlayed, target,
 } from "./real-fixtures";
+import { DEMO_SOURCE, REAL_SOURCE } from "../shared/sources";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -31,7 +32,7 @@ const algecirasPlayed = observed(201, "2026-10-04T17:00:00Z", "finished", later,
 beforeEach(() => {
   vi.resetAllMocks();
   window.history.replaceState(null, "", "/");
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches", "teams"] });
+  vi.mocked(getSource).mockResolvedValue(REAL_SOURCE);
   vi.mocked(getTeamObservedMatches).mockImplementation(async (teamId) =>
     teamId === jaen.id ? clubMatches() : teamId === later.id ? rivalMatches([algecirasPlayed, next], later) : rivalMatches());
   vi.mocked(getTeamObservedPerformance).mockImplementation(async (teamId) =>
@@ -171,16 +172,17 @@ describe("Inicio con la fuente real", () => {
     expect(await screen.findByText("1,37", {}, WAIT)).toBeVisible();
   });
 
-  it("says a synthetic season in the URL does not belong to the real source, and a half-real source cannot prepare", async () => {
+  it("says a synthetic season in the URL does not belong to the real source, and the demonstration never asks the real one", async () => {
     const { unmount } = render(<HomeView now={NOW} seasonId="season-demo-2026-27" matchId="sofascore-match-9" />);
     expect(await screen.findByText(/La temporada indicada no corresponde a la fuente real/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Ver la preparación con datos reales" })).toHaveAttribute("href", "/");
     expect(getTeamObservedMatches).not.toHaveBeenCalled();
     unmount();
-    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches"] });
+    vi.mocked(getSource).mockResolvedValue(DEMO_SOURCE);
+    vi.mocked(getCompetitions).mockResolvedValue([]);
     render(<HomeView now={NOW} />);
-    expect(await screen.findByText(/necesita la fuente real de partidos y la de equipos/)).toBeVisible();
-    expect(getCompetitions).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(getCompetitions).toHaveBeenCalled());
     expect(getTeamObservedMatches).not.toHaveBeenCalled();
+    expect(getTeamObservedPerformance).not.toHaveBeenCalled();
   });
 });

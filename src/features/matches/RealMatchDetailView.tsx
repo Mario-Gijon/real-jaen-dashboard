@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
-import { ApiRequestError, getObservedMatchDetail, getSource } from "@/client/api";
+import { ApiRequestError, getObservedMatchDetail } from "@/client/api";
 import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedTeam } from "@/contract";
 import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
@@ -10,9 +10,9 @@ import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "../format";
 import { relatedObservedMatchHref } from "../players/navigation";
 import { useApi } from "../use-api";
-import { TeamStatsComparison } from "./MatchDetailView";
+import { TeamStatsComparison } from "./TeamStatsComparison";
 import { ObservedLineups } from "./ObservedLineups";
-import { observedCrest } from "./ObservedMatchList";
+import { observedCrest } from "../team-crests";
 import css from "./MatchDetailView.module.css";
 
 const STATUS: Record<MatchStatus, string> = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };
@@ -38,9 +38,7 @@ export function RealMatchDetailView({ matchId, initialSection = "summary", playe
   /** The query this match was opened with: a related match keeps its origin. */
   originQuery?: Record<string, unknown>;
 }) {
-  const source = useApi("source", (signal) => getSource({ signal }));
-  const real = source.data?.realSections.includes("matches") ?? false;
-  const detail = useApi(real ? `observed-match|${matchId}` : null, (signal) => getObservedMatchDetail(matchId, { signal }));
+  const detail = useApi(`observed-match|${matchId}`, (signal) => getObservedMatchDetail(matchId, { signal }));
   const notFound = detail.error instanceof ApiRequestError && detail.error.status === 404;
   // Kept here so a section retry, which reloads the detail, stays on the same tab.
   const [section, setSection] = useState<Section>(initialSection);
@@ -51,20 +49,13 @@ export function RealMatchDetailView({ matchId, initialSection = "summary", playe
       : teamsReturnHref ? <Link href={teamsReturnHref} className={css.back}>‹ Volver al equipo</Link>
       : homeReturnHref ? <Link href={homeReturnHref} className={css.back}>‹ Volver a Inicio</Link>
       : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
-    {source.error ? <Failure title="No se pudo determinar la fuente de los partidos" retry={source.retry} />
-      : !source.data ? <p role="status" className={css.message}>Cargando partido…</p>
-      : !real ? <div role="status" className={css.message}>
-        <h1>La fuente real de partidos no está activada</h1>
-        <p>Este enlace corresponde a un partido real.</p>
-      </div>
-      : notFound ? <div role="alert" className={css.message}>
+    {notFound ? <div role="alert" className={css.message}>
         <h1>Partido no encontrado en la fuente real</h1>
       </div>
       : detail.error ? <Failure title="No se pudo cargar el partido" retry={detail.retry} />
       : !detail.data ? <p role="status" className={css.message}>Cargando partido…</p>
       : <Detail data={detail.data} retry={detail.retry} section={section} setSection={setSection}
-        linkProfiles={source.data.realSections.includes("observedPlayers")}
-        relatedHref={(id) => relatedObservedMatchHref(id, originQuery)} />}
+        linkProfiles relatedHref={(id) => relatedObservedMatchHref(id, originQuery)} />}
   </div>;
 }
 

@@ -35,7 +35,6 @@ const performance = () => new Response(JSON.stringify({ data: { team_id: 2841, c
 
 /** Simulated local API: the real service is not reached by these tests. */
 function localApi(handler: (url: string) => Response) {
-  vi.stubEnv("TEAMS_SOURCE", "local");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
   const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope() : handler(String(input)));
   vi.stubGlobal("fetch", fetch);
@@ -53,14 +52,15 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/teams/{teamId}/observed-performance", () => {
-  it("is synthetic by default: no real section, and no real performance", async () => {
+  it("has no real section nor real performance in the demonstration", async () => {
+    vi.stubEnv("DATA_MODE", "demo");
     expect((await sourceInfo()).realSections).toEqual([]);
     expect((await call("team-real-jaen")).status).toBe(404);
   });
 
-  it("with TEAMS_SOURCE=local, returns the real results and says the section is real, independently of the other sections", async () => {
+  it("in real mode, returns the real results and says the data are real", async () => {
     localApi(realTeams);
-    expect((await sourceInfo()).realSections).toEqual(["teams"]);
+    expect((await sourceInfo()).synthetic).toBe(false);
     const response = await call("team-real-jaen");
     expect(response.status).toBe(200);
     const body = (await response.json()) as ObservedTeamPerformance;
@@ -89,11 +89,11 @@ describe("GET /api/v1/teams/{teamId}/observed-performance", () => {
     expect((await call("team-real-jaen")).status).toBe(503);
   });
 
-  it("refuses an unknown TEAMS_SOURCE and a local one without URL", async () => {
-    vi.stubEnv("TEAMS_SOURCE", "otra");
-    await expect(call("team-real-jaen")).rejects.toThrow("TEAMS_SOURCE");
-    vi.stubEnv("TEAMS_SOURCE", "local");
+  it("answers 503 with the reason for a real mode without URL", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubEnv("LOCAL_DATA_API_URL", "");
-    await expect(call("team-real-jaen")).rejects.toThrow("LOCAL_DATA_API_URL");
+    const response = await call("team-real-jaen");
+    expect(response.status).toBe(503);
+    expect(((await response.json()) as ApiError).error.message).toContain("DATA_MODE=real requiere LOCAL_DATA_API_URL");
   });
 });

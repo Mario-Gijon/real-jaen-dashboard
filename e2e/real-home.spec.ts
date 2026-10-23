@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { REAL_SOURCE } from "./sources";
 
 /*
  * «Inicio» with the real source. The e2e server is synthetic, so these tests
@@ -34,7 +35,7 @@ const stats = (xg: number) => ({ possession: missing, shots: missing, shotsOnTar
 
 async function serveReal(page: Page) {
   await page.route("**/api/v1/source", (route) =>
-    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches", "teams"] } }));
+    route.fulfill({ json: REAL_SOURCE }));
   await page.route("**/api/v1/teams/*/observed-matches", (route) => {
     const teamId = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
     return route.fulfill({ json: teamId === jaen.id ? listing(teamId, [postponed, target, second], jaen)

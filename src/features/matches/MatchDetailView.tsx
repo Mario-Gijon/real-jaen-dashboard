@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ApiRequestError, getCompetitions, getMatch } from "@/client/api";
-import type { MatchDetail, Stat, TeamMatchStats, TeamRef, TeamStatKey } from "@/contract";
+import type { MatchDetail, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
-import { dateLabel, statText } from "../format";
+import { dateLabel } from "../format";
 import { useApi } from "../use-api";
 import { MatchTimeline } from "./MatchTimeline";
+import { TeamStatsComparison } from "./TeamStatsComparison";
 import { MatchLineups } from "./MatchLineups";
 import css from "./MatchDetailView.module.css";
 
@@ -17,16 +18,6 @@ const SECTIONS = ["summary", "timeline", "lineups"] as const;
 const timeFormat = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
 });
-const METRICS: readonly { key: TeamStatKey; label: string; decimals?: number }[] = [
-  { key: "xg", label: "xG", decimals: 2 },
-  { key: "shots", label: "Tiros" },
-  { key: "shotsOnTarget", label: "Tiros a puerta" },
-  { key: "possession", label: "Posesión" },
-  { key: "corners", label: "Córners" },
-  { key: "fouls", label: "Faltas" },
-  { key: "yellowCards", label: "Amarillas" },
-  { key: "redCards", label: "Rojas" },
-];
 
 /** `homeReturnHref`: the «Inicio» this match was opened from, to which «Volver» returns; otherwise Partidos. */
 export function MatchDetailView({ matchId, initialSection = "summary", homeReturnHref = null }: {
@@ -121,47 +112,3 @@ function Summary({ match }: { match: MatchDetail }) {
   </>;
 }
 
-type StatsSide = { label: string; name: string; stats: TeamMatchStats };
-
-/** Home and away team stats face to face; a missing value reads «—», a real 0 reads «0». */
-export function TeamStatsComparison({ home: homeSide, away: awaySide }: { home: StatsSide; away: StatsSide }) {
-  return <>
-    <div className={css.legend} aria-hidden="true">
-      <span>{homeSide.label} · Local</span><span>{awaySide.label} · Visitante</span>
-    </div>
-    <dl className={css.metrics}>
-      {METRICS.map(({ key, label, decimals = 0 }) => {
-        const home = homeSide.stats[key];
-        const away = awaySide.stats[key];
-        const maximum = home.value !== null && away.value !== null ? Math.max(home.value, away.value) : 0;
-        const comparable = home.value !== null && away.value !== null && maximum > 0;
-        return <div className={css.metric} key={key}>
-          <dt>{label}</dt>
-          <dd className={css.homeValue}><Value stat={home} decimals={decimals}
-            team={homeSide.name} percent={key === "possession"} /></dd>
-          <dd className={css.awayValue}><Value stat={away} decimals={decimals}
-            team={awaySide.name} percent={key === "possession"} /></dd>
-          <dd className={css.comparison} aria-hidden="true" data-comparison={comparable || undefined}>
-            <span className={css.homeHalf}>
-              {comparable && home.value! > 0 ? <span data-bar="home" style={{ width: `${home.value! / maximum * 100}%` }} /> : null}
-            </span>
-            <span className={css.awayHalf}>
-              {comparable && away.value! > 0 ? <span data-bar="away" style={{ width: `${away.value! / maximum * 100}%` }} /> : null}
-            </span>
-          </dd>
-        </div>;
-      })}
-    </dl>
-  </>;
-}
-
-function Value({ stat, decimals, team, percent }: {
-  stat: Stat; decimals: number; team: string; percent: boolean;
-}) {
-  const missing = stat.value === null;
-  const text = missing ? "—" : stat.value === 0 ? "0" : statText(stat, decimals);
-  const reason = missing ? stat.reason === "not_collected" ? "Dato no recogido" : "Dato no disponible" : null;
-  return <span aria-label={`${team}: ${reason ?? `${text}${percent ? " %" : ""}`}`} title={reason ?? undefined}>
-    {text}{!missing && percent ? " %" : ""}
-  </span>;
-}

@@ -14,7 +14,6 @@ const scope = () => new Response(JSON.stringify({ data: { competitions: [
 
 /** Simulated local API: the real service is not reached by these tests. */
 function localApi(handler: (url: string) => Response) {
-  vi.stubEnv("MATCHES_SOURCE", "local");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
   const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope() : handler(String(input)));
   vi.stubGlobal("fetch", fetch);
@@ -34,14 +33,15 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/matches/{matchId}/observed", () => {
-  it("has no real matches in the synthetic default, and the synthetic detail is untouched", async () => {
+  it("has no real matches in the demonstration, and the demonstration's detail is untouched", async () => {
+    vi.stubEnv("DATA_MODE", "demo");
     expect((await call("sofascore-match-16599386")).status).toBe(404);
     const matches = await import("@/server/data-source").then(({ getDataSource }) => getDataSource().seasonMatches("season-demo-2026-27", {}));
     const synthetic = await syntheticMatch(new Request("http://localhost"), { params: Promise.resolve({ matchId: matches![0].id }) });
     expect(((await synthetic.json()) as MatchDetail).id).toBe(matches![0].id);
   });
 
-  it("with MATCHES_SOURCE=local, returns the real match and the state of its statistics", async () => {
+  it("in real mode, returns the real match and the state of its statistics", async () => {
     localApi(realMatch);
     const response = await call("sofascore-match-16599386");
     expect(response.status).toBe(200);

@@ -6,6 +6,7 @@ import {
 } from "@/client/api";
 import type { ObservedMatch, ObservedTeamMatches } from "@/contract";
 import { MatchesView } from "@/features/matches/MatchesView";
+import { REAL_SOURCE } from "../shared/sources";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
@@ -35,7 +36,7 @@ const strange = match("m5", { kickoff: "2026-11-01T10:00:00Z", status: null, sco
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches"] });
+  vi.mocked(getSource).mockResolvedValue(REAL_SOURCE);
   vi.mocked(getTeamObservedMatches).mockResolvedValue(real([finished, goalless, cup, strange, undated]));
 });
 

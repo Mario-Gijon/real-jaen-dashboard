@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ApiRequestError } from "@/client/api";
 
 type Result<T> = { key: string; data: T } | { key: string; error: unknown };
+
+/** Why a request failed, for the analyst: the API's own message, or a connection error. */
+export function failureReason(error: unknown): string {
+  return error instanceof ApiRequestError ? error.message : "Error de conexión.";
+}
 
 /**
  * Loads `load(signal)` whenever `key` changes (`null` loads nothing), cancels

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   Competition,
   MatchDetail,
@@ -24,7 +24,25 @@ async function body<T>(response: Response, status = 200): Promise<T> {
   return (await response.json()) as T;
 }
 
-describe("/api/v1 (read-only, synthetic source)", () => {
+describe("/api/v1 in real mode: nothing synthetic, not even through an old link", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("finds neither the demonstration's season, nor its teams, matches or players", async () => {
+    vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
+    expect(await body<Competition[]>(await competitions())).toEqual([]);
+    expect((await seasonMatches(request(`/seasons/${SEASON}/matches`), params({ seasonId: SEASON }))).status).toBe(404);
+    expect((await seasonTeams(request(`/seasons/${SEASON}/teams`), params({ seasonId: SEASON }))).status).toBe(404);
+    expect((await teamSeason(request(""), params({ seasonId: SEASON, teamId: "team-real-jaen" }))).status).toBe(404);
+    const anyMatch = "match-r01-01";
+    expect((await match(request(`/matches/${anyMatch}`), params({ matchId: anyMatch }))).status).toBe(404);
+    expect((await player(request(`/players/player-0001?season=${SEASON}`), params({ playerId: "player-0001" }))).status).toBe(404);
+  });
+});
+
+describe("/api/v1 (read-only, demonstration)", () => {
+  beforeEach(() => vi.stubEnv("DATA_MODE", "demo"));
+  afterEach(() => vi.unstubAllEnvs());
+
   it("GET /competitions", async () => {
     const [competition] = await body<Competition[]>(await competitions());
     expect(competition.seasons[0].id).toBe(SEASON);

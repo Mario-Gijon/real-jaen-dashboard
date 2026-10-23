@@ -8,7 +8,7 @@ test("Match detail: full-row keyboard navigation and responsive summary", async 
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/matches\/match-r01-01$/);
   await expect(page.getByText("2 – 1", { exact: true })).toBeVisible();
-  await expect(page.getByText("Datos sintéticos")).toBeVisible();
+  await expect(page.getByText("Demostración · datos sintéticos", { exact: true })).toBeVisible();
   await expect(page.getByRole("tabpanel", { name: "Resumen" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Cronología" })).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

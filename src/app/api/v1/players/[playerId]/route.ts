@@ -1,5 +1,5 @@
 import { getDataSource } from "@/server/data-source";
-import { badRequest, jsonOrNotFound } from "@/server/http";
+import { badRequest, guarded, jsonOrNotFound } from "@/server/http";
 
 type Context = { params: Promise<{ playerId: string }> };
 
@@ -8,8 +8,8 @@ export async function GET(request: Request, { params }: Context) {
   const { playerId } = await params;
   const seasonId = new URL(request.url).searchParams.get("season");
   if (!seasonId) return badRequest("Falta el parámetro `season`.");
-  return jsonOrNotFound(
+  return guarded(async () => jsonOrNotFound(
     await getDataSource().player(playerId, seasonId),
     "Jugador no encontrado en esa temporada.",
-  );
+  ));
 }

@@ -7,7 +7,7 @@ import { Button } from "@/ui/Button";
 import { dateLabel, positionLabel, statText } from "../format";
 import { GoalIcon } from "../matches/GoalIcon";
 import { AssistIcon } from "../matches/AssistIcon";
-import { revealMatch } from "./PlayerMatches";
+import { revealMatch } from "./reveal-match";
 import shared from "./PlayerDetailView.module.css";
 import css from "./PlayerMatches.module.css";
 

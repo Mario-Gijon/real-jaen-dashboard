@@ -1,7 +1,7 @@
 import { seasonStat, type MatchStatus, type Stat, type TeamMatch } from "@/contract";
+import { CLUB_ID } from "../club";
 import { average, type OrientedMatch } from "../teams/performance";
 
-export const CLUB_ID = "team-real-jaen";
 export const timestamp = (value: string | null) => value ? Date.parse(value) : NaN;
 
 /**

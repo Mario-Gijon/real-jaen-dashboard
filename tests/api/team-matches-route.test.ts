@@ -1,8 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ApiError, ObservedPlayers, ObservedTeamMatches, SourceInfo } from "@/contract";
+import type { ApiError, ObservedTeamMatches, SourceInfo } from "@/contract";
 import { GET as source } from "@/app/api/v1/source/route";
-import { GET as observedPlayers } from "@/app/api/v1/teams/[teamId]/players/route";
 import { GET } from "@/app/api/v1/teams/[teamId]/observed-matches/route";
 import { clearTeamNameCache } from "@/server/local-api/local-api-source";
 
@@ -18,8 +17,7 @@ const scope = () => new Response(JSON.stringify({ data: { competitions: [
 ] } }));
 
 /** Simulated local API: the real service is not reached by these tests. */
-function localApi(handler: (url: string) => Response, env: Record<string, string> = { MATCHES_SOURCE: "local" }) {
-  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+function localApi(handler: (url: string) => Response) {
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
   const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope() : handler(String(input)));
   vi.stubGlobal("fetch", fetch);
@@ -41,12 +39,13 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/teams/{teamId}/observed-matches", () => {
-  it("is synthetic by default: no real section, and no real matches", async () => {
+  it("has no real section nor real matches in the demonstration", async () => {
+    vi.stubEnv("DATA_MODE", "demo");
     expect((await sourceInfo()).realSections).toEqual([]);
     expect((await call("team-real-jaen")).status).toBe(404);
   });
 
-  it("with MATCHES_SOURCE=local, returns the real matches and says the section is real", async () => {
+  it("in real mode, returns the real matches and says every section is real", async () => {
     localApi(realMatches);
     const response = await call("team-real-jaen");
     expect(response.status).toBe(200);
@@ -54,19 +53,7 @@ describe("GET /api/v1/teams/{teamId}/observed-matches", () => {
     expect(body.matches.map((row) => [row.match.id, row.side, row.match.score])).toEqual([
       ["sofascore-match-1", "away", { home: 0, away: 3 }],
     ]);
-    expect(await sourceInfo()).toEqual({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches"] });
-  });
-
-  it("keeps the two switches independent", async () => {
-    localApi(realMatches);
-    // Observed players stay synthetic while only the matches are real.
-    const players = (await (await observedPlayers(new Request("http://localhost"), { params: Promise.resolve({ teamId: "team-real-jaen" }) })).json()) as ObservedPlayers;
-    expect(players.source.synthetic).toBe(true);
-
-    vi.stubEnv("MATCHES_SOURCE", "synthetic");
-    vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "local");
-    expect((await sourceInfo()).realSections).toEqual(["observedPlayers"]);
-    expect((await call("team-real-jaen")).status).toBe(404);
+    expect(await sourceInfo()).toEqual({ synthetic: false, label: "Datos reales", realSections: ["observedPlayers", "matches", "teams"] });
   });
 
   it("answers 404 for a team without correspondence and 503 when the source fails", async () => {
@@ -87,11 +74,20 @@ describe("GET /api/v1/teams/{teamId}/observed-matches", () => {
     expect((await call("team-real-jaen")).status).toBe(503);
   });
 
-  it("refuses an unknown MATCHES_SOURCE and a local one without URL", async () => {
-    vi.stubEnv("MATCHES_SOURCE", "otra");
-    await expect(call("team-real-jaen")).rejects.toThrow("MATCHES_SOURCE");
-    vi.stubEnv("MATCHES_SOURCE", "local");
+  it("answers 503 with the reason for an invalid DATA_MODE or a real mode without URL, never the demonstration", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("DATA_MODE", "otra");
+    vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
+    const invalid = await call("team-real-jaen");
+    expect(invalid.status).toBe(503);
+    expect(((await invalid.json()) as ApiError).error.message).toContain("DATA_MODE=otra no es válido");
+    vi.stubEnv("DATA_MODE", "real");
     vi.stubEnv("LOCAL_DATA_API_URL", "");
-    await expect(call("team-real-jaen")).rejects.toThrow("LOCAL_DATA_API_URL");
+    const withoutUrl = await call("team-real-jaen");
+    expect(withoutUrl.status).toBe(503);
+    expect(((await withoutUrl.json()) as ApiError).error.message).toContain("LOCAL_DATA_API_URL");
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

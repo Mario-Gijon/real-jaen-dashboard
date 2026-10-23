@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import { describe, expect, it } from "vitest";
@@ -70,5 +70,84 @@ describe("architecture boundary", { timeout: 30_000 }, () => {
         'import { AppShell } from "@/ui/AppShell";',
       ),
     ).toHaveLength(1);
+  });
+});
+
+/*
+ * Real data and the demonstration never meet in a screen. Each module is
+ * known by the client functions it imports: real (the local API's sections)
+ * or demonstration (the synthetic season). Following its imports, only a
+ * mode switch (it asks `getSource` and loads nothing itself) may lead to both;
+ * a module that loads nothing (shared presentation, pure functions) leads to
+ * neither.
+ */
+const REAL_DATA = ["getObservedPlayers", "getObservedSquad", "getPlayerProfile", "getPlayerObservedMatches",
+  "getTeamObservedMatches", "getTeamObservedPerformance", "getObservedMatchDetail"];
+const DEMO_DATA = ["getCompetitions", "getSeasonMatches", "getSeasonTeams", "getTeamSeason", "getMatch", "getPlayer"];
+
+type Module = { real: boolean; demo: boolean; switch: boolean; imports: string[] };
+
+function uiModules(): Map<string, Module> {
+  const files = [...sourceFiles("src/features"), ...sourceFiles("src/ui")].map((file) => relative(root, file).replaceAll("\\", "/"));
+  const modules = new Map<string, Module>();
+  for (const file of files) {
+    const text = readFileSync(join(root, file), "utf8");
+    const client = [...text.matchAll(/import\s*{([^}]*)}\s*from\s*"@\/client\/api"/g)]
+      .flatMap((match) => match[1].split(",").map((name) => name.trim().replace(/^type\s+/, "")));
+    const imports = [...text.matchAll(/from\s*"((?:\.{1,2}\/|@\/(?:features|ui)\/)[^"]+)"/g)]
+      .map((match) => match[1]).filter((path) => !path.endsWith(".css"))
+      .map((path) => {
+        const base = path.startsWith("@/") ? join("src", path.slice(2)) : join(dirname(file), path);
+        const found = [".ts", ".tsx"].map((ext) => base + ext).find((candidate) => existsSync(join(root, candidate)));
+        return found?.replaceAll("\\", "/");
+      })
+      .filter((path): path is string => path !== undefined);
+    modules.set(file, { real: client.some((name) => REAL_DATA.includes(name)), demo: client.some((name) => DEMO_DATA.includes(name)),
+      switch: client.includes("getSource"), imports });
+  }
+  return modules;
+}
+
+/** The data modes a module leads to, itself or through what it imports. */
+function reach(modules: Map<string, Module>, file: string, seen = new Set<string>()): { real: boolean; demo: boolean } {
+  const entry = modules.get(file)!;
+  seen.add(file);
+  return entry.imports.filter((dep) => modules.has(dep) && !seen.has(dep)).reduce((acc, dep) => {
+    const sub = reach(modules, dep, seen);
+    return { real: acc.real || sub.real, demo: acc.demo || sub.demo };
+  }, { real: entry.real, demo: entry.demo });
+}
+
+describe("real data and the demonstration stay apart", () => {
+  const modules = uiModules();
+
+  it("finds the modes in the screens: real and demonstration modules, and their switches", () => {
+    const named = (predicate: (entry: Module) => boolean) => [...modules].filter(([, entry]) => predicate(entry)).map(([file]) => file);
+    expect(named((m) => m.real)).toContain("src/features/teams/RealTeamsView.tsx");
+    expect(named((m) => m.demo)).toContain("src/features/teams/SyntheticTeamsView.tsx");
+    expect(named((m) => m.switch)).toEqual(expect.arrayContaining(["src/features/teams/TeamsView.tsx", "src/features/home/HomeView.tsx",
+      "src/features/matches/MatchesView.tsx", "src/features/matches/MatchView.tsx", "src/features/players/PlayerView.tsx"]));
+  });
+
+  it("lets only a mode switch lead to both, and a switch loads no data itself", () => {
+    const both = [...modules.keys()].filter((file) => { const r = reach(modules, file); return r.real && r.demo; });
+    for (const file of both) expect(modules.get(file)!.switch, `${file} lleva a datos reales y de demostración`).toBe(true);
+    for (const [file, entry] of modules) if (entry.switch) expect(entry.real || entry.demo, `${file} carga datos`).toBe(false);
+  });
+
+  it("keeps shared presentation and pure functions free of either mode's data", () => {
+    for (const [file, entry] of modules) {
+      if (entry.switch || entry.real || entry.demo) continue;
+      const r = reach(modules, file);
+      expect(r.real || r.demo, `${file} no carga datos pero lleva a los de un modo`).toBe(false);
+    }
+  });
+
+  it("keeps the real adapter and the synthetic one independent on the server", () => {
+    const crossing = (dir: string, other: string) => sourceFiles(dir)
+      .filter((file) => [...readFileSync(file, "utf8").matchAll(/from\s*"([^"]*)"/g)].some(([, path]) => path.split("/").includes(other)))
+      .map((file) => relative(root, file));
+    expect(crossing("src/server/local-api", "synthetic")).toEqual([]);
+    expect(crossing("src/server/synthetic", "local-api")).toEqual([]);
   });
 });

@@ -12,6 +12,7 @@ import { GoalIcon } from "../matches/GoalIcon";
 import { AssistIcon } from "../matches/AssistIcon";
 import { FIELD_GROUPS, KEEPER_GROUPS } from "./player-metrics";
 import shared from "./PlayerDetailView.module.css";
+import { revealMatch } from "./reveal-match";
 import css from "./PlayerMatches.module.css";
 
 /** `initialMatchId` comes from navigation (e.g. a match context); it is selected only if it is a finished team match. */
@@ -75,20 +76,6 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
   </div>;
 }
 
-/** Moves only the history viewport, never the page. */
-export function revealMatch(history: HTMLElement | null, matchId: string) {
-  const row = history && [...history.querySelectorAll<HTMLElement>("[data-match-id]")]
-    .find(element => element.dataset.matchId === matchId);
-  if (!history || !row || history.scrollHeight <= history.clientHeight) return;
-  const bounds = history.getBoundingClientRect();
-  const rowBounds = row.getBoundingClientRect();
-  const visibleTop = Math.max(bounds.top, 0);
-  const visibleBottom = Math.min(bounds.bottom, document.documentElement.clientHeight);
-  const top = visibleBottom > visibleTop ? visibleTop : bounds.top;
-  const bottom = visibleBottom > visibleTop ? visibleBottom : bounds.bottom;
-  if (rowBounds.top < top) history.scrollTop += rowBounds.top - top;
-  else if (rowBounds.bottom > bottom) history.scrollTop += rowBounds.bottom - bottom;
-}
 
 function MatchValue({ stat, percent = false }: { stat: Stat; percent?: boolean }) {
   if (stat.value === null) {

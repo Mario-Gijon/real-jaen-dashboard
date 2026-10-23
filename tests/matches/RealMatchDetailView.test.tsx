@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiRequestError, getCompetitions, getMatch, getObservedMatchDetail, getSource } from "@/client/api";
+import { ApiRequestError, getCompetitions, getMatch, getObservedMatchDetail } from "@/client/api";
 import type { ObservedGoal, ObservedLineupPlayer, ObservedMatchDetail, PlayerRef, TeamMatchStats } from "@/contract";
 import { RealMatchDetailView } from "@/features/matches/RealMatchDetailView";
 
@@ -58,8 +58,7 @@ const incidents: ObservedMatchDetail["incidents"] = {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["matches"] });
-  vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ statistics, lineups, incidents }));
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ statistics, lineups, incidents }));
 });
 
 const metric = (label: string) => screen.getByText(label, { selector: "dt" }).parentElement!;
@@ -145,7 +144,6 @@ describe("Real match detail: Resumen", () => {
     const { unmount } = render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
     expect(screen.getByRole("link", { name: "‹ Volver a partidos" })).toHaveAttribute("href", "/matches");
     unmount();
-    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
     const profile = "/players/sofascore-player-7?view=profile&from=team&origin=team-real-jaen";
     const { unmount: unmount2 } = render(<RealMatchDetailView matchId="sofascore-match-16599363" playerReturnHref={profile} />);
     expect(screen.getByRole("link", { name: "‹ Volver al jugador" })).toHaveAttribute("href", profile);
@@ -192,12 +190,6 @@ describe("Real match detail: Resumen", () => {
     expect(screen.queryByText("Decisión local")).toBeNull();
   });
 
-  it("asks nothing when the real matches are not enabled", async () => {
-    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] });
-    render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
-    expect(await screen.findByRole("heading", { name: "La fuente real de partidos no está activada" })).toBeVisible();
-    expect(getObservedMatchDetail).not.toHaveBeenCalled();
-  });
 });
 
 describe("Real match detail: Alineaciones", () => {
@@ -209,8 +201,8 @@ describe("Real match detail: Alineaciones", () => {
     expect(within(home).getByRole("list", { name: "Banquillo de CE Europa" }).children).toHaveLength(3);
     expect(row(panel, "Titular 1")).toHaveTextContent("1Titular 1MED");
     expect(within(panel).queryByText(/4-4-2|Formación/)).toBeNull();
-    // Real profiles are not enabled here: names without links.
-    expect(within(panel).queryAllByRole("link")).toHaveLength(0);
+    // Every listed player opens their real profile, never a synthetic season.
+    expect(within(panel).getAllByRole("link").every((link) => link.getAttribute("href")!.startsWith("/players/sofascore-player-"))).toBe(true);
   });
 
   it("marks goals by kind, named assists and recorded substitutions, never from minutes", async () => {
@@ -266,7 +258,6 @@ describe("Real match detail: Alineaciones", () => {
   });
 
   it("links names to the real profile, returning to this match's line-ups, only when real profiles are enabled", async () => {
-    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
     const panel = await openLineups({ initialSection: "lineups" });
     expect(within(panel).getByRole("link", { name: "Titular 1" })).toHaveAttribute("href",
       "/players/sofascore-player-1?view=profile&from=observedMatch&origin=sofascore-match-16599363&originTab=lineups");

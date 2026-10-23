@@ -38,6 +38,9 @@ import type {
   RawTeamStats,
 } from "./raw";
 
+/** How the demonstration labels itself on every screen. */
+export const DEMO_LABEL = "Demostración · datos sintéticos";
+
 /** Only this adapter knows where the synthetic season lives and how it is laid out. */
 const DATA_DIR = join(process.cwd(), "data", "synthetic");
 
@@ -57,7 +60,7 @@ export function loadSyntheticDataset(dir = DATA_DIR): RawDataset {
 export function createSyntheticSource(data: RawDataset): DataSource {
   const index = buildIndex(data);
   return {
-    info: () => ({ synthetic: true, label: "Datos sintéticos", realSections: [] }),
+    info: () => ({ synthetic: true, label: DEMO_LABEL, realSections: [] }),
     competitions: async () => index.competitions(),
     seasonMatches: async (seasonId, filter) =>
       seasonId === data.season.season.id ? index.matchList(filter) : null,
@@ -89,9 +92,9 @@ export function createSyntheticSource(data: RawDataset): DataSource {
 
 let loaded: DataSource | null = null;
 
-/** The development source: invented season read lazily from `data/synthetic`. */
+/** The demonstration source (`DATA_MODE=demo`): invented season read lazily from `data/synthetic`. */
 export const syntheticSource: DataSource = {
-  info: () => ({ synthetic: true, label: "Datos sintéticos", realSections: [] }),
+  info: () => ({ synthetic: true, label: DEMO_LABEL, realSections: [] }),
   competitions: () => lazy().competitions(),
   seasonMatches: (seasonId, filter) => lazy().seasonMatches(seasonId, filter),
   match: (matchId) => lazy().match(matchId),
@@ -413,7 +416,7 @@ function buildIndex(data: RawDataset) {
       ({ playerId }) => playerRef(playerId),
     ),
     scope: "Plantilla de la temporada sintética.",
-    source: { synthetic: true, label: "Datos sintéticos" },
+    source: { synthetic: true, label: DEMO_LABEL },
   });
 
   return {

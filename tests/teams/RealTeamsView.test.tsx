@@ -7,9 +7,10 @@ import {
 } from "@/client/api";
 import {
   TEAM_OUTPUT_INDICATORS, type ObservedCompetitionPerformance, type ObservedMatch, type ObservedSquad, type ObservedSquadCompetition,
-  type ObservedSquadPlayer, type ObservedTeamPerformance, type RealSection, type SeasonStat, type TeamOutputIndicator,
+  type ObservedSquadPlayer, type ObservedTeamPerformance, type SeasonStat, type TeamOutputIndicator,
 } from "@/contract";
 import { TeamsView } from "@/features/teams/TeamsView";
+import { DEMO_SOURCE, REAL_SOURCE } from "../shared/sources";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
@@ -85,12 +86,11 @@ const squad = (competitions = [squadCompetition()]): ObservedSquad => ({
   teamId: "team-real-jaen", competitions, scope: SQUAD_SCOPE, source: { synthetic: false, label: "Datos reales" },
 });
 const ibiza = { id: "sofascore-team-24368", name: "UD Ibiza" };
-const sections = (realSections: RealSection[]) =>
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections });
+const real = () => vi.mocked(getSource).mockResolvedValue(REAL_SOURCE);
 
 beforeEach(() => {
   vi.resetAllMocks();
-  sections(["teams"]);
+  real();
   vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance());
 });
 
@@ -99,7 +99,7 @@ const item = (short: string) => within(screen.getByLabelText("Balance")).getByTi
   PJ: "Partidos jugados", V: "Victorias", E: "Empates", D: "Derrotas", GF: "Goles a favor", GC: "Goles en contra", DG: "Diferencia de goles",
 }[short]}$`)).closest("div")!;
 
-describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
+describe("Equipos con la fuente real", () => {
   it("shows the real club with the scope's competition and season, and loads nothing synthetic", async () => {
     render(<TeamsView />);
     await loaded();
@@ -182,8 +182,8 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     expect(screen.getByText(/1 partido sin fecha no entra en «Últimos 3»\./)).toBeVisible();
   });
 
-  it("lists the played matches newest first, linked to their real detail only when real matches are enabled", async () => {
-    sections(["teams", "matches"]);
+  it("lists the played matches newest first, linked to their real detail", async () => {
+    real();
     const { unmount } = render(<TeamsView />);
     await loaded();
     const table = screen.getByRole("table", { name: "Partidos disputados" });
@@ -195,10 +195,6 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     expect(within(table).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
       ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?view=observed&from=teams`));
     unmount();
-    sections(["teams"]);
-    render(<TeamsView />);
-    await loaded();
-    expect(within(screen.getByRole("table", { name: "Partidos disputados" })).queryAllByRole("link")).toHaveLength(0);
   });
 
   it("says what is left out: finished matches without a valid score, with contradictory versions and unknown states", async () => {
@@ -258,6 +254,7 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     beforeEach(() => {
       window.history.replaceState(null, "", "/teams");
       vi.mocked(getTeamObservedPerformance).mockImplementation(async (teamId) => ({ ...performance(), teamId, teams: [jaen, ibiza] }));
+      vi.mocked(getObservedSquad).mockImplementation(async (teamId) => ({ ...squad(), teamId }));
     });
 
     it("leaves the default club out, then writes each chosen team, season and tab, without new history entries", async () => {
@@ -305,26 +302,20 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     expect(screen.getByRole("combobox", { name: "Temporada" })).toHaveValue(GROUP_2);
   });
 
-  it("shows the real observed players when enabled, returning to this real season; otherwise says they are not enabled", async () => {
-    sections(["teams", "observedPlayers"]);
+  it("shows the real observed players, returning to this real season", async () => {
+    real();
     vi.mocked(getObservedSquad).mockResolvedValue(squad());
     const { unmount } = render(<TeamsView initialTab="players" />);
     const link = await screen.findByRole("link", { name: "Ver ficha de Moha Keita" });
     expect(link).toHaveAttribute("href", `/players/sofascore-player-966303?view=profile&season=${GROUP_2}&from=team&origin=team-real-jaen`);
     expect(getObservedPlayers).not.toHaveBeenCalled();
-    unmount();
-
-    sections(["teams"]);
-    vi.mocked(getObservedSquad).mockClear();
-    render(<TeamsView initialTab="players" />);
-    expect(await screen.findByText("La fuente real de jugadores no está activada.")).toBeVisible();
-    expect(getObservedSquad).not.toHaveBeenCalled();
     expect(getTeamSeason).not.toHaveBeenCalled();
+    unmount();
   });
 
-  describe("Jugadores con acumulados reales (OBSERVED_PLAYERS_SOURCE=local)", () => {
+  describe("Jugadores con acumulados reales", () => {
     beforeEach(() => {
-      sections(["teams", "observedPlayers"]);
+      real();
       vi.mocked(getObservedSquad).mockResolvedValue(squad());
     });
     const table = () => screen.findByRole("table", { name: "Jugadores observados" });
@@ -434,14 +425,14 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     });
   });
 
-  it("asks nothing when the source cannot be determined, and stays synthetic without TEAMS_SOURCE", async () => {
-    vi.mocked(getSource).mockRejectedValueOnce(new ApiRequestError(503, "X", "No"));
+  it("asks nothing when the source cannot be determined, saying why, and never asks the real source in the demonstration", async () => {
+    vi.mocked(getSource).mockRejectedValueOnce(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "Configuración de datos no válida: DATA_MODE=x no es válido: usa real o demo."));
     const { unmount } = render(<TeamsView />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo determinar la fuente de los equipos.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo determinar la fuente de los equipos. Configuración de datos no válida: DATA_MODE=x no es válido");
     expect(getTeamObservedPerformance).not.toHaveBeenCalled();
     expect(getCompetitions).not.toHaveBeenCalled();
     unmount();
-    sections(["matches", "observedPlayers"]);
+    vi.mocked(getSource).mockResolvedValue(DEMO_SOURCE);
     vi.mocked(getCompetitions).mockResolvedValue([]);
     render(<TeamsView />);
     await vi.waitFor(() => expect(getCompetitions).toHaveBeenCalled());

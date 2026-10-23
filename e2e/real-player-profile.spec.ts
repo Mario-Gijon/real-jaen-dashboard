@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { REAL_SOURCE } from "./sources";
 
 /*
  * Navigation from the real observed players to a real profile. The e2e server
@@ -7,6 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 const SCOPE = "Jugadores observados en convocatorias; no es una plantilla completa ni necesariamente actual.";
+const REAL_DATA = { synthetic: false, label: "Datos reales" };
 const observed = {
   teamId: "team-real-jaen",
   players: [
@@ -59,8 +61,28 @@ const MOHA_MATCHES = observedMatches("sofascore-player-966303", [
     side: "home", role: "substitute", position: "midfielder", participation: "unknown", stats: stats() },
 ]);
 
+/** Real «Equipos» of the club, only as the way in: a competition without played matches and the observed squad. */
+const GROUP_2 = "sofascore-scope-94191-97382";
+const zero = { value: 0, coverage: "complete", matches: 1, of: 1 };
+const teamPerformance = {
+  teamId: "team-real-jaen", teams: [{ id: "team-real-jaen", name: "Real Jaén" }], source: REAL_DATA, scope: "Resultados observados.",
+  competitions: [{ id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27",
+    matches: { inScope: 0, finished: 0, pending: 0, counted: 0, finishedWithoutValidScore: 0, excludedByVersionConflict: 0, unknownStatus: 0, replacedLocally: 0 },
+    record: { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 },
+    venues: { home: { win: 0, draw: 0, loss: 0 }, away: { win: 0, draw: 0, loss: 0 } }, results: [], output: null }],
+};
+const teamSquad = {
+  teamId: "team-real-jaen", source: REAL_DATA, scope: SCOPE,
+  competitions: [{ id: GROUP_2, name: "Primera Federación, Grupo 2", season: "26/27", matches: { counted: 1, withCallUps: 1 },
+    callUps: { total: 3, played: 0, unused: 3, unknown: 0, contradictions: 0, mismatches: 0, teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 },
+    players: observed.players.map((player) => ({ player, heightCm: null, preferredFoot: null, lastShirtNumber: null, callUps: 1,
+      stats: { appearances: zero, starts: zero, minutes: zero, goals: zero, assists: zero } })) }],
+};
+
 async function serveReal(page: Page, { profileDown = false, matchesDown = false } = {}) {
-  await page.route("**/api/v1/teams/team-real-jaen/players", (route) => route.fulfill({ json: observed }));
+  await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));
+  await page.route("**/api/v1/teams/team-real-jaen/observed-performance", (route) => route.fulfill({ json: teamPerformance }));
+  await page.route("**/api/v1/teams/team-real-jaen/observed-squad", (route) => route.fulfill({ json: teamSquad }));
   await page.route("**/api/v1/players/*/observed-matches", (route) => {
     const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
     if (matchesDown) {
@@ -105,8 +127,8 @@ test("Real players: list to profile, personal data with provenance and back", as
   await expect(history.getByRole("button").nth(0)).toContainText("Real Jaén · Rayo Majadahonda");
   await expect(history.getByRole("button").nth(0)).toHaveAttribute("aria-pressed", "true");
   await expect(history.getByRole("button").nth(2)).toContainText("Suplente · Participación no confirmada");
-  // Synthetic source: no real match detail to link.
-  await expect(page.getByRole("link", { name: "Ver partido completo" })).toHaveCount(0);
+  // The selected match opens its real detail, never a synthetic one.
+  await expect(page.getByRole("link", { name: "Ver partido completo" }).first()).toHaveAttribute("href", /^\/matches\/sofascore-match-\d+\?view=observed&from=player&/);
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-profile.png"), fullPage: true });
   // The real profile never asks for a synthetic season profile.
@@ -174,7 +196,7 @@ const RAYO_DETAIL = {
 async function serveRealWithMatches(page: Page) {
   await serveReal(page);
   await page.route("**/api/v1/source", (route) =>
-    route.fulfill({ json: { synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] } }));
+    route.fulfill({ json: REAL_SOURCE }));
   await page.route("**/api/v1/matches/*/observed", (route) => {
     const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
     return id === RAYO.id || id === ANTEQUERA.id

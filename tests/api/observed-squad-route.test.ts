@@ -23,8 +23,7 @@ const playerStats = () => new Response(JSON.stringify({ data: { team_id: 2841, c
 }] } }));
 
 /** Simulated local API: the real service is not reached by these tests. */
-function localApi(section: "OBSERVED_PLAYERS_SOURCE" | "TEAMS_SOURCE", handler: () => Response) {
-  vi.stubEnv(section, "local");
+function localApi(handler: () => Response) {
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
   const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope() : handler());
   vi.stubGlobal("fetch", fetch);
@@ -38,17 +37,13 @@ afterEach(() => {
 });
 
 describe("GET /api/v1/teams/{teamId}/observed-squad", () => {
-  it("has nothing synthetic: 404 by default", async () => {
+  it("has nothing synthetic: 404 in the demonstration", async () => {
+    vi.stubEnv("DATA_MODE", "demo");
     expect((await call("team-real-jaen")).status).toBe(404);
   });
 
-  it("follows OBSERVED_PLAYERS_SOURCE, not TEAMS_SOURCE", async () => {
-    const teamsOnly = localApi("TEAMS_SOURCE", playerStats);
-    expect((await call("team-real-jaen")).status).toBe(404);
-    expect(teamsOnly).not.toHaveBeenCalled();
-    vi.unstubAllEnvs();
-
-    const fetch = localApi("OBSERVED_PLAYERS_SOURCE", playerStats);
+  it("in real mode, returns the real figures of each competition", async () => {
+    const fetch = localApi(playerStats);
     const response = await call("team-real-jaen");
     expect(response.status).toBe(200);
     const body = (await response.json()) as ObservedSquad;
@@ -60,7 +55,7 @@ describe("GET /api/v1/teams/{teamId}/observed-squad", () => {
 
   it("answers 404 without correspondence and 503 when the source fails, never synthetic figures", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    localApi("OBSERVED_PLAYERS_SOURCE", () => {
+    localApi(() => {
       throw new TypeError("fetch failed");
     });
     expect((await call("team-montealto")).status).toBe(404);

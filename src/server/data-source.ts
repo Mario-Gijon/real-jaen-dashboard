@@ -81,53 +81,75 @@ export interface DataSource {
   matchObservedDetail(matchId: string): Promise<ObservedMatchDetail | null>;
 }
 
-/** `synthetic` (default) or `local`, from the variable `name`; anything else is refused. */
-function sectionSource(name: "OBSERVED_PLAYERS_SOURCE" | "MATCHES_SOURCE" | "TEAMS_SOURCE"): "synthetic" | "local" {
-  const value = process.env[name] || "synthetic";
-  if (value !== "synthetic" && value !== "local") {
-    throw new Error(`${name}: fuente no disponible: ${value}`);
+/** A configuration that leaves no usable source: said as such, never replaced by other data. */
+export class DataConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DataConfigurationError";
+  }
+}
+
+export type DataMode = "real" | "demo";
+
+/** `DATA_MODE`: `real` when absent, `demo` only when set; anything else is refused. */
+export function dataMode(): DataMode {
+  const value = process.env.DATA_MODE || "real";
+  if (value !== "real" && value !== "demo") {
+    throw new DataConfigurationError(`DATA_MODE=${value} no es válido: usa real o demo.`);
   }
   return value;
 }
 
-/**
- * The configured source. `DATA_SOURCE` will select real adapters later. Two
- * independent switches take one section each from the local API at
- * `LOCAL_DATA_API_URL`, everything else staying synthetic:
- * `OBSERVED_PLAYERS_SOURCE=local` (observed players, their figures per
- * competition, their profiles and matches), `MATCHES_SOURCE=local` (Partidos: the team's real matches) and
- * `TEAMS_SOURCE=local` (Equipos: real teams and their results).
- */
-export function getDataSource(): DataSource {
-  const kind = process.env.DATA_SOURCE ?? "synthetic";
-  if (kind !== "synthetic") {
-    throw new Error(`Fuente de datos no disponible: ${kind}`);
-  }
-  const real: RealSection[] = [];
-  if (sectionSource("OBSERVED_PLAYERS_SOURCE") === "local") real.push("observedPlayers");
-  if (sectionSource("MATCHES_SOURCE") === "local") real.push("matches");
-  if (sectionSource("TEAMS_SOURCE") === "local") real.push("teams");
-  if (real.length === 0) return syntheticSource;
+/** Former per-section switches: no longer read, only reported once if still set. */
+const RETIRED = ["DATA_SOURCE", "OBSERVED_PLAYERS_SOURCE", "MATCHES_SOURCE", "TEAMS_SOURCE"] as const;
+let retiredReported = false;
+function reportRetired() {
+  const set = RETIRED.filter((name) => process.env[name] !== undefined);
+  if (retiredReported || !set.length) return;
+  retiredReported = true;
+  console.warn(`[config] ${set.join(", ")} ya no se usan y se ignoran: el modo lo decide DATA_MODE (real por defecto, o demo).`);
+}
 
-  const baseUrl = process.env.LOCAL_DATA_API_URL;
-  if (!baseUrl) {
-    throw new Error("OBSERVED_PLAYERS_SOURCE=local, MATCHES_SOURCE=local o TEAMS_SOURCE=local requieren LOCAL_DATA_API_URL.");
-  }
+const REAL_SECTIONS: RealSection[] = ["observedPlayers", "matches", "teams"];
+
+/**
+ * The real source: every section from the local API at `baseUrl`. The
+ * synthetic season does not exist here: its methods find nothing, so no
+ * route, not even an old link, can serve invented data in real mode.
+ */
+export function createRealSource(baseUrl: string): DataSource {
   const local = { baseUrl };
   return {
-    ...syntheticSource,
-    info: () => ({ synthetic: true, label: "Datos sintéticos y reales", realSections: real }),
-    ...(real.includes("observedPlayers")
-      ? {
-          observedPlayers: createLocalApiObservedPlayers(local),
-          observedSquad: createLocalApiObservedSquad(local),
-          playerProfile: createLocalApiPlayerProfile(local),
-          playerObservedMatches: createLocalApiObservedMatches(local),
-        }
-      : {}),
-    ...(real.includes("matches")
-      ? { teamObservedMatches: createLocalApiTeamMatches(local), matchObservedDetail: createLocalApiMatchDetail(local) }
-      : {}),
-    ...(real.includes("teams") ? { teamObservedPerformance: createLocalApiTeamPerformance(local) } : {}),
+    info: () => ({ synthetic: false, label: "Datos reales", realSections: REAL_SECTIONS }),
+    competitions: async () => [],
+    seasonMatches: async () => null,
+    match: async () => null,
+    seasonTeams: async () => null,
+    teamSeason: async () => null,
+    player: async () => null,
+    observedPlayers: createLocalApiObservedPlayers(local),
+    observedSquad: createLocalApiObservedSquad(local),
+    playerProfile: createLocalApiPlayerProfile(local),
+    playerObservedMatches: createLocalApiObservedMatches(local),
+    teamObservedMatches: createLocalApiTeamMatches(local),
+    teamObservedPerformance: createLocalApiTeamPerformance(local),
+    matchObservedDetail: createLocalApiMatchDetail(local),
   };
+}
+
+/**
+ * The configured source, by `DATA_MODE`: `real` (the default) reads the local
+ * API at `LOCAL_DATA_API_URL`, which it requires; `demo`, set on purpose,
+ * serves only the synthetic season and never asks the local API. A wrong
+ * configuration throws `DataConfigurationError`: it never falls back to the
+ * other mode.
+ */
+export function getDataSource(): DataSource {
+  reportRetired();
+  if (dataMode() === "demo") return syntheticSource;
+  const baseUrl = process.env.LOCAL_DATA_API_URL;
+  if (!baseUrl) {
+    throw new DataConfigurationError("DATA_MODE=real requiere LOCAL_DATA_API_URL (la URL de la API local de datos).");
+  }
+  return createRealSource(baseUrl);
 }

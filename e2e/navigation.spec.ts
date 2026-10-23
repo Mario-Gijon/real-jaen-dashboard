@@ -4,7 +4,7 @@ test("opens on Inicio and moves to Equipos with the synthetic-data notice", asyn
   await page.goto("/");
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("heading", { level: 1, name: "Preparación de rival" })).toBeVisible();
-  await expect(page.getByText("Datos sintéticos")).toBeVisible();
+  await expect(page.getByText("Demostración · datos sintéticos", { exact: true })).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Secciones" });
   await expect(nav.getByRole("link")).toHaveText(["Inicio", "Partidos", "Equipos"]);

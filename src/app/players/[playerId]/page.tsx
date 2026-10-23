@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { PlayerDetailView } from "@/features/players/PlayerDetailView";
-import { PlayerProfileView } from "@/features/players/PlayerProfileView";
+import { PlayerView } from "@/features/players/PlayerView";
 import { playerInitialView, playerReturnHref, profileInitialMatch, profileOrigin } from "@/features/players/navigation";
 
 export const metadata: Metadata = { title: "Ficha de jugador" };
@@ -11,12 +10,8 @@ export default async function PlayerPage({ params, searchParams }: {
 }) {
   const [{ playerId }, query] = await Promise.all([params, searchParams]);
   const seasonId = typeof query.season === "string" && query.season ? query.season : null;
-  // A real player's profile (linked from the observed players) belongs to no season.
-  if (query.view === "profile") {
-    return <PlayerProfileView playerId={playerId} returnHref={playerReturnHref(seasonId, query)}
-      context={{ seasonId, origin: profileOrigin(query) }} initialMatchId={profileInitialMatch(query)} />;
-  }
   const initial = playerInitialView(query);
-  return <PlayerDetailView playerId={playerId} seasonId={seasonId} returnHref={playerReturnHref(seasonId, query)}
-    initialTab={initial.tab} initialMatchId={initial.matchId} />;
+  // The data mode is the API's; `view=profile` in older links decides nothing.
+  return <PlayerView playerId={playerId} returnHref={playerReturnHref(seasonId, query)} seasonId={seasonId}
+    origin={profileOrigin(query)} profileMatchId={profileInitialMatch(query)} initialTab={initial.tab} seasonMatchId={initial.matchId} />;
 }

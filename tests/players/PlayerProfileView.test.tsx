@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiRequestError, getMatch, getPlayer, getPlayerObservedMatches, getPlayerProfile, getSeasonMatches, getSource } from "@/client/api";
+import { ApiRequestError, getMatch, getPlayer, getPlayerObservedMatches, getPlayerProfile, getSeasonMatches } from "@/client/api";
 import { OBSERVED_MATCH_STAT_KEYS, type ObservedPlayerMatch, type ObservedPlayerMatches, type PlayerProfile } from "@/contract";
 import { PlayerProfileView } from "@/features/players/PlayerProfileView";
 
@@ -29,7 +29,6 @@ const noMatches: ObservedPlayerMatches = {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getPlayerObservedMatches).mockResolvedValue(noMatches);
-  vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers"] });
 });
 
 async function load(data: PlayerProfile = moha) {
@@ -230,23 +229,11 @@ describe("Partidos (real)", () => {
     expect(getPlayerProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("links «Ver partido completo» to the real detail when real matches are enabled, carrying this profile's return", async () => {
-    vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
+  it("links «Ver partido completo» to the real detail, carrying this profile's return, never a synthetic detail", async () => {
     await loadMatches([played, benched], { context: { seasonId: "s", origin: { kind: "team", id: "team-real-jaen" } } });
     const link = await within(detail()).findByRole("link", { name: "Ver partido completo" });
     expect(link).toHaveAttribute("href",
       "/matches/sofascore-match-1?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen");
-    expect(getMatch).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["real matches are not enabled", () => vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos", realSections: [] })],
-    ["the source cannot be determined", () => vi.mocked(getSource).mockRejectedValue(new ApiRequestError(503, "X", "No"))],
-  ])("offers no match link when %s, never a synthetic detail", async (_, setSource) => {
-    setSource();
-    await loadMatches([played]);
-    await vi.waitFor(() => expect(getSource).toHaveBeenCalled());
-    expect(screen.queryByRole("link", { name: "Ver partido completo" })).toBeNull();
     expect(getMatch).not.toHaveBeenCalled();
   });
 });

@@ -7,9 +7,10 @@ import type { SourceInfo } from "@/contract";
 import css from "./AppShell.module.css";
 
 /**
- * Discreet, permanent notice while the API serves invented data, so no result
- * can pass for real sporting information. It asks the API, never the source.
- * A section with real data labels itself, so the notice never claims otherwise.
+ * Discreet, permanent notice while the API serves the demonstration
+ * (`DATA_MODE=demo`), so no invented result can pass for real sporting
+ * information. It asks the API, never the source. With real data there is no
+ * notice here: each section labels itself «Datos reales».
  */
 export function SourceBadge() {
   const [source, setSource] = useState<SourceInfo | null>(null);
@@ -26,7 +27,7 @@ export function SourceBadge() {
   return (
     <p
       className={css.badge}
-      title="Competición, rivales, jugadores, resultados y estadísticas son inventados, salvo donde se indique «Datos reales»."
+      title="Modo demostración: competición, rivales, jugadores, resultados y estadísticas son inventados."
     >
       <FlaskConical aria-hidden="true" size={15} />
       {source.label}

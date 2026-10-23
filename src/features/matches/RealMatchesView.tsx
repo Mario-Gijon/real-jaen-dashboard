@@ -8,7 +8,7 @@ import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { Select } from "@/ui/Select";
-import { CLUB_ID } from "../home/preparation";
+import { CLUB_ID } from "../club";
 import { useApi } from "../use-api";
 import { ObservedMatchList } from "./ObservedMatchList";
 import css from "./MatchesView.module.css";

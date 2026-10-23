@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile, getSource } from "@/client/api";
+import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile } from "@/client/api";
 import type { PlayerProfile } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
@@ -28,10 +28,7 @@ export function PlayerProfileView({ playerId, returnHref, context = { seasonId: 
 }) {
   const profile = useApi(`profile|${playerId}`, (signal) => getPlayerProfile(playerId, { signal }));
   const matches = useApi(`observed-matches|${playerId}`, (signal) => getPlayerObservedMatches(playerId, { signal }));
-  const source = useApi("source", (signal) => getSource({ signal }));
-  const matchHref = source.data?.realSections.includes("matches")
-    ? (matchId: string) => observedMatchHref(matchId, { playerId, ...context })
-    : null;
+  const matchHref = (matchId: string) => observedMatchHref(matchId, { playerId, ...context });
   function rememberMatch(matchId: string) {
     // Same URL with the new selection: no navigation, no history entry.
     const query = new URLSearchParams(window.location.search);
