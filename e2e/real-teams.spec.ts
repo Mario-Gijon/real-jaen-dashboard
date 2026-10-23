@@ -290,6 +290,50 @@ test("Equipos reales: jugadores con acumulados reales, orden, filtro, ficha y vu
   expect(perPlayer).toEqual([]);
 });
 
+/** Partial goals and assists far to the right of a phone: their screen-reader notes must scroll with the table. */
+const partialSquad = {
+  ...squad,
+  competitions: [{
+    ...squad.competitions[0],
+    players: [
+      { player: { id: "sofascore-player-1", name: "Francisco Javier Gómez de la Torre", position: "midfielder" }, heightCm: 178,
+        preferredFoot: "left", lastShirtNumber: 7, callUps: 8, stats: { appearances: figure(5, 7, 8), starts: figure(4, 8, 8),
+          minutes: figure(410, 7, 8), goals: figure(2, 7, 8), assists: figure(1, 7, 8) } },
+      { player: { id: "sofascore-player-2", name: "Mohamed Abdelkader Benali", position: "forward" }, heightCm: null,
+        preferredFoot: null, lastShirtNumber: 9, callUps: 8, stats: { appearances: figure(6, 6, 8), starts: figure(3, 8, 8),
+          minutes: figure(380, 8, 8), goals: figure(3, 6, 8), assists: figure(0, 5, 8) } },
+    ],
+  }],
+};
+
+test("Equipos reales: las cifras parciales de goles y asistencias no ensanchan la página en el móvil", async ({ page }) => {
+  await serveReal(page);
+  await page.route("**/api/v1/teams/*/observed-squad", (route) => route.fulfill({ json: partialSquad }));
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/teams?tab=players");
+    const table = page.getByRole("table", { name: "Jugadores observados" });
+    await expect(table).toBeVisible();
+    const row = table.getByRole("row").filter({ has: page.getByRole("link", { name: "Ver ficha de Francisco Javier Gómez de la Torre" }) });
+    // Goals and assists keep their partial mark and the note read by screen readers.
+    await expect(row.locator("td").nth(4)).toContainText("2*");
+    await expect(row.locator("td").nth(4)).toContainText("(dato de 7 de 8 convocatorias)");
+    await expect(row.locator("td").nth(5)).toContainText("(dato de 7 de 8 convocatorias)");
+    const note = row.locator("td").nth(5).getByText("(dato de 7 de 8 convocatorias)");
+    expect((await note.boundingBox())!.x, `${width} px: the note starts beyond the screen`).toBeGreaterThan(width);
+
+    // Against the chosen width: in phone emulation the layout viewport (innerWidth) grows with an overflowing page.
+    const pageWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
+    expect(await pageWidth(), `${width} px: the page does not scroll sideways`).toBeLessThanOrEqual(width);
+    const box = table.locator("xpath=..");
+    expect(await box.evaluate((el) => el.scrollWidth > el.clientWidth), `${width} px: the table scrolls inside its box`).toBe(true);
+    await box.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+    expect(await box.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    await expect(row.locator("td").nth(7)).toBeInViewport();
+    expect(await pageWidth(), `${width} px: still no page scroll after scrolling the table`).toBeLessThanOrEqual(width);
+  }
+});
+
 test("Equipos reales: un fallo de los acumulados tiene reintento, sin jugadores sintéticos", async ({ page }) => {
   await serveReal(page);
   let down = true;

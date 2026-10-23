@@ -38,7 +38,9 @@
 .filters button[aria-pressed="true"] span {
   color: rgb(255 255 255 / 0.8);
 }
+/* Positioned so the absolute screen-reader notes of the cells scroll with the table instead of widening the page. */
 .scroll {
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
 }
