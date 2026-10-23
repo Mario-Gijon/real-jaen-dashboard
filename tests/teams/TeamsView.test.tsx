@@ -121,7 +121,7 @@ describe("Equipos", () => {
     const alto = within(grid()).getByRole("radio", { name: "Montealto" }).closest("label")!;
     expect(rj.querySelector('[data-crest="image"] img')).toHaveAttribute(
       "src",
-      "/real-jaen-crest.png",
+      "/crests/real-jaen.webp",
     );
     expect(alto.querySelector('[data-crest="fallback"]')).toHaveTextContent("MON");
     expect(alto.querySelector("img")).toBeNull();

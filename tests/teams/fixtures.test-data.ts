@@ -29,7 +29,7 @@ const team = (
   colors: { primary: "#123456", secondary: "#ffffff" },
 });
 
-export const RJ = team("team-real-jaen", "Real Jaén CF", "Real Jaén", "/real-jaen-crest.png");
+export const RJ = team("team-real-jaen", "Real Jaén CF", "Real Jaén", "/crests/real-jaen.webp");
 export const ALTO = team("team-alto", "CD Montealto", "Montealto");
 export const VEGA = team("team-vega", "UD Vegaclara", "Vegaclara");
 export const BRAVO = team("team-bravo", "Atlético Bravo", "Bravo");

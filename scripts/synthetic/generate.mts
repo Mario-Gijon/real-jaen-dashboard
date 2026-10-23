@@ -134,7 +134,7 @@ function createTeams(rng: Rng): GenTeam[] {
     id: REAL_JAEN_ID,
     name: "Real Jaén CF",
     shortName: "Real Jaén",
-    crestUrl: "/real-jaen-crest.png",
+    crestUrl: "/crests/real-jaen.webp",
     colors: { primary: "#592888", secondary: "#ffffff" },
     strength: 1.1,
     formation: "4-2-3-1",

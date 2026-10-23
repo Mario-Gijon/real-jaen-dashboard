@@ -15,3 +15,6 @@ playwright-report/
 !.env.example
 .DS_Store
 desktop.ini
+
+# Material de trabajo local (capturas, importaciones): nunca en Git
+/artifacts/

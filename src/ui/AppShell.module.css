@@ -42,9 +42,11 @@
   outline: 3px solid var(--rj-gold-300);
   outline-offset: 2px;
 }
+/* The crest file is square with transparent sides; the logo keeps its 28×44 box and the shield fills its height. */
 .crest {
   width: 28px;
-  height: auto;
+  height: 44px;
+  object-fit: cover;
 }
 .brandText {
   display: grid;

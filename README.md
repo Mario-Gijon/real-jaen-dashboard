@@ -337,21 +337,26 @@ y colores). Por eso un escudo es un archivo local en `public/`, servido por el p
 dashboard; el navegador nunca lo pide a un proveedor.
 
 - `src/features/team-crests.ts` es el único registro: identificador público del equipo → archivo.
-  Lo usan todas las vistas reales (cuadrícula y cabecera de Equipos, rendimiento, lista y
-  detalle de partidos) a través de `observedCrest`. Las vistas sintéticas toman el escudo de sus
+  Lo usan todas las vistas reales (Inicio, cuadrícula y cabecera de Equipos, rendimiento, lista
+  y detalle de partidos) a través de `observedCrest`. Las vistas sintéticas toman el escudo de sus
   datos.
 - Sin entrada en el registro, o si el archivo no carga, `TeamCrest` dibuja el escudo neutro con
   las iniciales.
 
 | Equipo | Archivo | Procedencia |
 |---|---|---|
-| Real Jaén (`team-real-jaen`) | `public/real-jaen-crest.png` (439×703 PNG) | Recurso del proyecto desde su creación (commit `af3ba28`, 2026-10-05); origen no registrado |
-| UD Ibiza (`sofascore-team-24368`) | — (escudo neutro) | Intento de descarga el 2026-10-22 16:11:22 UTC de `https://api.sofascore.app/api/v1/team/24368/image`: HTTP 403 Forbidden. Sin archivo |
+| Los 20 equipos del Grupo 2, 26/27, Real Jaén incluido (ver `team-crests.ts`) | `public/crests/{nombre-del-club}.webp` (150×150 WebP) | Descargados por el analista e importados el 2026-10-23 desde `artifacts/crest-import/` (WebP guardados con extensión `.png`), copiados sin convertir. Cada uno comprobado contra el club que nombra su escudo y el nombre del equipo en la fuente; los filiales llevan el escudo de su club |
+
+El Real Jaén usa el mismo archivo (`public/crests/real-jaen.webp`) en la cabecera, en el modo real
+y en la demostración (`data/synthetic/season.json` y su generador). Sustituye al escudo anterior,
+`public/real-jaen-crest.png` (recurso del proyecto desde el commit `af3ba28`), ya eliminado.
 
 Para añadir el escudo de un equipo con correspondencia: obtén la imagen de un origen adecuado
 (el club o una descarga autorizada; es una marca del club, uso interno), compruébala (tipo,
-tamaño y que sea ese club), guárdala como `public/crests/{id-público}.{png|webp|svg}`, añade la
-entrada en `src/features/team-crests.ts` y anota en esta tabla la URL de origen y la fecha.
+tamaño y que sea ese club), guárdala como `public/crests/{nombre-del-club}.{png|webp|svg}` (nombre
+normalizado del club, nunca su id del proveedor), añade la entrada en `src/features/team-crests.ts`
+y anota en esta tabla el origen y la fecha. La aplicación sólo usa `public/`: `artifacts/` es
+material local, fuera de Git.
 
 ## Goles y tarjetas
 

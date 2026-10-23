@@ -23,8 +23,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               className={css.crest}
               height={44}
               priority
-              src="/real-jaen-crest.png"
-              width={28}
+              src="/crests/real-jaen.webp"
+              width={44}
             />
             <span className={css.brandText}>
               <strong>Real Jaén CF</strong>
