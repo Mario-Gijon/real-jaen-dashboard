@@ -83,6 +83,14 @@ test("Equipos reales: the 20 teams keep their grid, full names and native toolti
   if (phone) await page.getByRole("button", { name: "Cambiar equipo" }).click();
   await expect(grid.getByRole("radio")).toHaveCount(20);
   await expect(grid.getByRole("radio").first()).toHaveAccessibleName(jaen.name);
+  const tiles = await grid.locator("label").evaluateAll(labels => labels.map(label => {
+    const { y, height } = label.getBoundingClientRect();
+    return { y, height };
+  }));
+  const rowSizes = [...new Set(tiles.map(tile => tile.y))]
+    .map(y => tiles.filter(tile => tile.y === y).length);
+  expect(rowSizes).toEqual(phone ? [4, 4, 4, 4, 4] : [5, 5, 5, 5]);
+  expect(tiles.every(tile => tile.height >= 44)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("teams-grid.png"), fullPage: true });
   for (const team of teams) {
     if (phone && !await grid.isVisible()) await page.getByRole("button", { name: "Cambiar equipo" }).click();
