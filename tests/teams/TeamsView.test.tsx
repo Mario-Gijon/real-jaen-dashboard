@@ -103,6 +103,21 @@ describe("Equipos", () => {
     expect(within(grid()).getByRole("radio", { name: "Montealto" })).toBeChecked();
   });
 
+  it("keeps the chosen team, season and tab in the URL, replacing it without new history entries", async () => {
+    window.history.replaceState(null, "", "/teams");
+    const entries = window.history.length;
+    const user = userEvent.setup();
+    await openTeams();
+    expect(window.location.search).toBe("");
+    await user.click(within(grid()).getByText("Montealto"));
+    await screen.findByRole("heading", { level: 2, name: "CD Montealto" });
+    await user.click(screen.getByRole("tab", { name: "Jugadores" }));
+    expect(window.location.search).toBe("?team=team-alto&tab=players");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Temporada" }), SEASON_ID);
+    expect(window.location.search).toBe(`?season=${SEASON_ID}&team=team-alto&tab=players`);
+    expect(window.history.length).toBe(entries);
+  });
+
   it("moves through the grid with the arrow keys", async () => {
     const user = userEvent.setup();
     await openTeams();

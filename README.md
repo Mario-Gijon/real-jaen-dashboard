@@ -72,8 +72,13 @@ LOCAL_DATA_API_URL=http://127.0.0.1:8001
   («Datos reales») y su alcance: el listado no depende de la temporada sintética
   seleccionada y no lleva estadísticas. Con `TEAMS_SOURCE=local`, la tabla lleva los
   acumulados reales (ver «Acumulados de jugadores»).
-- Sólo hay correspondencia explícita para el Real Jaén (`team-real-jaen` ↔ equipo `2841`
-  de la fuente); el resto de equipos responde 404. Nunca se relacionan jugadores por nombre.
+- Hay correspondencia explícita para el Real Jaén (`team-real-jaen` ↔ equipo `2841`) y para
+  los otros 19 equipos de Primera Federación, Grupo 2, 26/27 (`sofascore-team-{id}` ↔ `{id}`,
+  el id que ya usan las listas de partidos; ids comprobados en el catálogo del scraper), en
+  `SOURCE_TEAM_IDS` de `src/server/local-api/local-api-source.ts`.
+  Además, el equipo debe tener una exportación propia declarada por la API local
+  (`teams_with_own_export` en `/api/v1/scope`, del manifiesto del importador); si no,
+  responde 404. Nunca se relacionan equipos ni jugadores por nombre.
 - Los IDs de jugador (`sofascore-player-966303`) se derivan del ID del proveedor: son
   estables mientras se use esa fuente, pero no son una identidad independiente de ella.
 - Si la API falla, no responde en 5 s o devuelve algo no válido, la pestaña muestra el
@@ -221,8 +226,16 @@ Reinicia el servidor Next tras cambiar `.env.local`. La API local debe ser una v
 reiníciala (`python api.py`), porque lee código y datos al arrancar.
 
 - En modo real la página no carga nada sintético: ni competiciones, ni clasificación, ni
-  plantilla. La cuadrícula muestra sólo los equipos con correspondencia explícita (hoy el
-  Real Jaén); el diseño admite más en cuanto se añadan.
+  plantilla. La cuadrícula muestra sólo los equipos analizables: correspondencia explícita y
+  exportación propia declarada (no acredita un calendario completo). Un rival que sólo
+  aparece en partidos ajenos no figura. El Real Jaén sigue siendo el predeterminado y el
+  único con escudo; el resto, escudo neutro hasta disponer de un archivo adecuado. Con datos
+  importados sin manifiesto no hay equipos analizables: reimporta con `importar.py`.
+- La URL guarda lo elegido (`?team=`, `season=`, `tab=players`; `teamsHref`), en modo real y
+  sintético: se reemplaza sin recargar ni añadir entradas al historial, así que Atrás desde un
+  partido, recargar o abrir el enlace devuelven el mismo equipo, temporada y pestaña. Lo no
+  elegido no se escribe (sin `team`, el Real Jaén). Un equipo desconocido o sin exportación
+  propia muestra su estado y la URL no se sustituye por la del Real Jaén.
 - Competición y temporada son las del ámbito de la API local (`GET /api/v1/scope`). Cada
   entrada (un grupo en una temporada) tiene un id propio derivado del proveedor,
   `sofascore-scope-{tournament_id}-{season_id}` (hoy `sofascore-scope-94191-97382`): estable

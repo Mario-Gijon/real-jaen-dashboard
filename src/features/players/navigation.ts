@@ -65,10 +65,18 @@ export function profileOrigin(query: { from?: unknown; origin?: unknown; originT
  */
 export type ObservedMatchOrigin = { playerId: string; seasonId: string | null; origin: ProfileOrigin | null };
 
+/** «Equipos» on the team, season and tab a real match was opened from, as its URL had them (`teamsHref`). */
+export type ObservedMatchTeamsOrigin = { kind: "teams"; seasonId: string | null; teamId: string | null; tab: "performance" | "players" };
+
 /** Real match detail, always explicitly real (`view=observed`), never the synthetic one. */
-export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin) {
+export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin | ObservedMatchTeamsOrigin) {
   const query = new URLSearchParams({ view: "observed" });
-  if (from) {
+  if (from && "kind" in from) {
+    query.set("from", "teams");
+    if (from.seasonId) query.set("season", from.seasonId);
+    if (from.teamId) query.set("team", from.teamId);
+    if (from.tab === "players") query.set("tab", "players");
+  } else if (from) {
     query.set("from", "player");
     query.set("player", from.playerId);
     if (from.seasonId) query.set("season", from.seasonId);
@@ -92,10 +100,41 @@ export function observedMatchReturnHref(matchId: string, query: {
     SAFE_ID.test(matchId) ? matchId : null);
 }
 
+/** The «Equipos» view to return to from a real match opened there, or null when it was opened elsewhere. */
+export function observedMatchTeamsReturnHref(query: { from?: unknown; season?: unknown; team?: unknown; tab?: unknown }) {
+  if (query.from !== "teams") return null;
+  const id = (value: unknown) => (typeof value === "string" && SAFE_ID.test(value) ? value : null);
+  return teamsHref({ seasonId: id(query.season), teamId: id(query.team), tab: query.tab === "players" ? "players" : "performance" });
+}
+
 /** Initial player tab and match from the URL; unknown values fall back to Temporada without a match. */
 export function playerInitialView(query: { tab?: string | string[]; match?: string | string[] }): { tab: PlayerTab; matchId: string | null } {
   if (query.tab !== "matches") return { tab: "season", matchId: null };
   return { tab: "matches", matchId: typeof query.match === "string" && query.match ? query.match : null };
+}
+
+/**
+ * «Equipos» on a team, season and tab: what the page keeps in its URL and what
+ * links back to it build. The default tab (Rendimiento) is left out.
+ */
+export function teamsHref({ seasonId = null, teamId = null, tab = "performance" }: {
+  seasonId?: string | null; teamId?: string | null; tab?: "performance" | "players";
+}) {
+  const query = new URLSearchParams();
+  if (seasonId) query.set("season", seasonId);
+  if (teamId) query.set("team", teamId);
+  if (tab === "players") query.set("tab", "players");
+  return query.size ? `/teams?${query}` : "/teams";
+}
+
+/** The team, season and tab a «Equipos» URL asks for (`teamsHref` writes them); anything else is left unset. */
+export function teamsInitialView(query: { team?: unknown; season?: unknown; tab?: unknown }) {
+  const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
+  return {
+    initialTeamId: text(query.team),
+    initialSeasonId: text(query.season),
+    initialTab: query.tab === "players" ? "players" as const : "performance" as const,
+  };
 }
 
 export function playerReturnHref(seasonId: string | null, query: { from?: string; origin?: string; originTab?: string }) {
@@ -108,9 +147,5 @@ export function playerReturnHref(seasonId: string | null, query: { from?: string
     const tab = query.originTab === "lineups" || query.originTab === "timeline" ? `?tab=${query.originTab}` : "";
     return `/matches/${encodeURIComponent(query.origin!)}${tab}`;
   }
-  const teamQuery = new URLSearchParams();
-  if (seasonId) teamQuery.set("season", seasonId);
-  if (query.from === "team" && validId) teamQuery.set("team", query.origin!);
-  teamQuery.set("tab", "players");
-  return `/teams?${teamQuery}`;
+  return teamsHref({ seasonId, teamId: query.from === "team" && validId ? query.origin! : null, tab: "players" });
 }

@@ -9,11 +9,16 @@ const call = (teamId: string) =>
     params: Promise.resolve({ teamId }),
   });
 
+/** `GET /api/v1/scope`: Group 2 in 26/27, with the Real Jaén's own export declared (or `teams`). */
+const scope = (teams = [2841]) => new Response(JSON.stringify({ data: { competitions: [
+  { name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382 },
+], teams_with_own_export: teams.map((team_id) => ({ team_id, exports: [] })) } }));
+
 /** Simulated local API: the real service is not reached by these tests. */
-function localApi(response: () => Response | Promise<Response>) {
+function localApi(response: () => Response | Promise<Response>, teams?: number[]) {
   vi.stubEnv("OBSERVED_PLAYERS_SOURCE", "local");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://127.0.0.1:8001");
-  const fetch = vi.fn(async () => response());
+  const fetch = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? scope(teams) : response());
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
@@ -72,6 +77,12 @@ describe("GET /api/v1/teams/{teamId}/players", () => {
     const fetch = localApi(() => new Response("{}"));
     expect((await call("team-alto")).status).toBe(404);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for a team with correspondence but no export of its own, without asking for its players", async () => {
+    const fetch = localApi(() => new Response("{}"), [2841]);
+    expect((await call("sofascore-team-24368")).status).toBe(404);
+    expect(fetch.mock.calls.map((c) => String(c[0]))).toEqual(["http://127.0.0.1:8001/api/v1/scope"]);
   });
 
   it("refuses a local source without its URL, and unknown sources", async () => {

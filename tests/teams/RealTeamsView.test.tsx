@@ -84,6 +84,7 @@ const SQUAD_SCOPE = "Jugadores observados en las convocatorias de los partidos f
 const squad = (competitions = [squadCompetition()]): ObservedSquad => ({
   teamId: "team-real-jaen", competitions, scope: SQUAD_SCOPE, source: { synthetic: false, label: "Datos reales" },
 });
+const ibiza = { id: "sofascore-team-24368", name: "UD Ibiza" };
 const sections = (realSections: RealSection[]) =>
   vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections });
 
@@ -192,7 +193,7 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
       expect.stringMatching(/^1.*Visitanteen.*CE Europa.*V 3-0$/),
     ]);
     expect(within(table).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
-      ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?view=observed`));
+      ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?view=observed&from=teams`));
     unmount();
     sections(["teams"]);
     render(<TeamsView />);
@@ -235,12 +236,57 @@ describe("Equipos con la fuente real (TEAMS_SOURCE=local)", () => {
     unmount();
     vi.mocked(getTeamObservedPerformance).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
     render(<TeamsView initialTeamId="team-montealto" />);
-    expect(await screen.findByText("Este equipo no tiene correspondencia con la fuente real de equipos.")).toBeVisible();
+    expect(await screen.findByText("Este equipo no está disponible en la fuente real de equipos: sin correspondencia explícita o sin exportación propia.")).toBeVisible();
     expect(getTeamObservedPerformance).toHaveBeenCalledWith("team-montealto", expect.anything());
     // The way out resets the team chosen by the URL (same page, no remount).
     vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance());
     await userEvent.setup().click(screen.getByRole("link", { name: "Ver el Real Jaén" }));
     await loaded();
+  });
+
+  describe("URL of the shown team (?team=, season and tab)", () => {
+    beforeEach(() => {
+      window.history.replaceState(null, "", "/teams");
+      vi.mocked(getTeamObservedPerformance).mockImplementation(async (teamId) => ({ ...performance(), teamId, teams: [jaen, ibiza] }));
+    });
+
+    it("leaves the default club out, then writes each chosen team, season and tab, without new history entries", async () => {
+      const entries = window.history.length;
+      const user = userEvent.setup();
+      render(<TeamsView />);
+      await loaded();
+      expect(window.location.search).toBe("");
+      await user.click(screen.getByRole("radio", { name: /UD Ibiza/ }));
+      expect(await screen.findByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+      expect(window.location.search).toBe("?team=sofascore-team-24368");
+      await user.click(screen.getByRole("tab", { name: "Jugadores" }));
+      expect(window.location.search).toBe("?team=sofascore-team-24368&tab=players");
+      await user.selectOptions(screen.getByRole("combobox", { name: "Temporada" }), GROUP_2);
+      expect(window.location.search).toBe(`?season=${GROUP_2}&team=sofascore-team-24368&tab=players`);
+      expect(window.history.length).toBe(entries);
+    });
+
+    it("opens the team, season and tab of the URL directly (reload or shared link)", async () => {
+      render(<TeamsView initialSeasonId={GROUP_2} initialTab="players" initialTeamId="sofascore-team-24368" />);
+      expect(await screen.findByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+      expect(getTeamObservedPerformance).toHaveBeenCalledWith("sofascore-team-24368", expect.anything());
+      expect(screen.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("never replaces an unknown or unavailable team, nor a synthetic season, with the club in the URL", async () => {
+      window.history.replaceState(null, "", "/teams?team=team-montealto");
+      vi.mocked(getTeamObservedPerformance).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
+      const { unmount } = render(<TeamsView initialTeamId="team-montealto" />);
+      expect(await screen.findByText(/no está disponible en la fuente real de equipos/)).toBeVisible();
+      expect(window.location.search).toBe("?team=team-montealto");
+      expect(screen.queryByRole("heading", { level: 2, name: "Real Jaén" })).toBeNull();
+      unmount();
+      vi.mocked(getTeamObservedPerformance).mockImplementation(async (teamId) => ({ ...performance(), teamId, teams: [jaen, ibiza] }));
+      window.history.replaceState(null, "", "/teams?season=season-demo-2026-27");
+      render(<TeamsView initialSeasonId="season-demo-2026-27" />);
+      expect(await screen.findByText(/La temporada indicada no corresponde a la fuente real de equipos/)).toBeVisible();
+      expect(window.location.search).toBe("?season=season-demo-2026-27");
+    });
   });
 
   it("opens the real season from the URL: the one a real profile returns to", async () => {

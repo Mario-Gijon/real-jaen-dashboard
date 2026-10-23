@@ -96,7 +96,7 @@ test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, si
   // Each played match opens its real detail.
   const table = page.getByRole("table", { name: "Partidos disputados" });
   await expect(table.getByRole("link")).toHaveCount(3);
-  await expect(table.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-5?view=observed");
+  await expect(table.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-5?view=observed&from=teams");
   expect(synthetic).toEqual([]);
 });
 
@@ -209,4 +209,71 @@ test("Equipos reales: un fallo de los acumulados tiene reintento, sin jugadores 
   down = false;
   await page.getByRole("button", { name: "Reintentar" }).click();
   await expect(page.getByRole("table", { name: "Jugadores observados" })).toBeVisible();
+});
+
+test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la URL", async ({ page }, testInfo) => {
+  const ibiza = { id: "sofascore-team-24368", name: "UD Ibiza" };
+  await serveReal(page, ["teams", "matches", "observedPlayers"]);
+  await page.route("**/api/v1/teams/*/observed-performance", (route) => {
+    const teamId = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
+    return teamId === "team-montealto"
+      ? route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "No disponible." } } })
+      : route.fulfill({ json: { ...performance, teamId, teams: [jaen, ibiza] } });
+  });
+  await page.route("**/api/v1/teams/*/observed-squad", (route) => route.fulfill({ json: { ...squad, teamId: ibiza.id } }));
+  await page.route("**/api/v1/players/*/profile", (route) => route.fulfill({ json: realProfile }));
+  await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: {
+    playerId: "sofascore-player-966303", matches: [], ratingSource: "SofaScore", source: { synthetic: false, label: "Datos reales" },
+    scope: "Partidos en los que la fuente registra al jugador en la convocatoria." } }));
+  await page.route("**/api/v1/matches/*/observed", (route) =>
+    route.fulfill({ status: 503, json: { error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." } } }));
+  const entries = () => page.evaluate(() => history.length);
+
+  // Without a team in the URL the club is the default, and the URL stays as it was.
+  await page.goto("/teams");
+  await expect(page.getByRole("heading", { level: 2, name: "Real Jaén" })).toBeVisible();
+  await expect(page).toHaveURL(/\/teams$/);
+  const before = await entries();
+
+  // Choosing UD Ibiza replaces the URL: no reload, no history entry.
+  if (testInfo.project.name === "mobile") await page.getByRole("button", { name: "Cambiar equipo" }).click();
+  await page.locator("label").filter({ hasText: "UD Ibiza" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+  await expect(page).toHaveURL(/\/teams[?]team=sofascore-team-24368$/);
+  expect(await entries()).toBe(before);
+
+  // UD Ibiza → a match → Back: the same team, season and tab.
+  await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-\d+[?]view=observed&from=teams&team=sofascore-team-24368$/);
+  await page.goBack();
+  await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Temporada" })).toHaveValue(GROUP_2);
+  await expect(page.getByRole("tab", { name: "Rendimiento del equipo" })).toHaveAttribute("aria-selected", "true");
+
+  // «Volver al equipo» returns there too, not to Partidos.
+  await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link").first().click();
+  await page.getByRole("link", { name: "‹ Volver al equipo" }).click();
+  await expect(page).toHaveURL(/\/teams[?]team=sofascore-team-24368$/);
+  await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+
+  // The players tab is kept too, also on reload.
+  await page.getByRole("tab", { name: "Jugadores" }).click();
+  await expect(page).toHaveURL(new RegExp(`team=sofascore-team-24368&tab=players$`));
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
+
+  // A player and «Volver»: back to UD Ibiza's players.
+  await page.getByRole("table", { name: "Jugadores observados" }).getByRole("link", { name: "Ver ficha de Moha Keita" }).click();
+  await expect(page.getByRole("heading", { name: "Moha Keita" })).toBeVisible();
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
+
+  // An unknown or unavailable team: an explicit state, never the club in its place.
+  await page.goto("/teams?team=team-montealto");
+  await expect(page.getByText(/no está disponible en la fuente real de equipos/)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Real Jaén" })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/teams[?]team=team-montealto$/);
+  expect(await noHorizontalOverflow(page)).toBe(true);
 });

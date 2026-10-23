@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: Context) {
   const { teamId } = await params;
   return jsonFromSource(
     () => getDataSource().teamObservedPerformance(teamId),
-    "Este equipo no tiene correspondencia con la fuente real de equipos.",
+    "Este equipo no está disponible en la fuente real de equipos: sin correspondencia explícita o sin exportación propia.",
     `rendimiento real de ${teamId}`,
   );
 }

@@ -20,7 +20,7 @@ import {
  */
 const SCOPE_BODY = { data: { competitions: [
   { name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382 },
-] } };
+], teams_with_own_export: [{ team_id: 2841, name: "Real Jaén", exports: [] }] } };
 const SCOPE_URL = "http://127.0.0.1:8001/api/v1/scope";
 /** The scope's answer for its URL, `null` for any other. */
 const scoped = (input: RequestInfo | URL) => String(input).endsWith("/api/v1/scope") ? new Response(JSON.stringify(SCOPE_BODY)) : null;
@@ -1108,5 +1108,48 @@ describe("local API adapter: observed squad", () => {
       call_ups: { total: 0, played: 0, unused: 0, unknown: 0, contradictions: 0, mismatches: 0, team_warnings: 0, duplicate_records: 0, discarded_records: 0 } }, []);
     expect((await squadSource(squadApi(empty))("team-real-jaen"))!.competitions[0].players).toEqual([]);
     await expect(squadSource(answer({}, 500))("team-real-jaen")).rejects.toThrow("HTTP 500");
+  });
+});
+
+describe("local API adapter: teams that can be analysed", () => {
+  /** The scope with the given teams declared as having an export of their own (`undefined`: an older service). */
+  const declaring = (teams: number[] | undefined, inner: typeof globalThis.fetch) => vi.fn(async (input: RequestInfo | URL) =>
+    String(input).endsWith("/api/v1/scope")
+      ? new Response(JSON.stringify({ data: { ...SCOPE_BODY.data,
+        teams_with_own_export: teams === undefined ? undefined : teams.map((team_id) => ({ team_id, exports: [] })) } }))
+      : inner(input));
+  const names = teamApi(null, { ...NAMES, "24368": "UD Ibiza" });
+  const service = (body: unknown) => vi.fn(async (input: RequestInfo | URL) =>
+    /\/teams\/\d+\/performance$/.test(String(input)) ? new Response(JSON.stringify(body)) : names(input));
+
+  it("lists only teams with explicit correspondence and an export of their own, the club first", async () => {
+    const both = await performanceSource(declaring([2841, 24368], service(performanceBody())))("team-real-jaen");
+    expect(both!.teams).toEqual([{ id: "team-real-jaen", name: "Real Jaén" }, { id: "sofascore-team-24368", name: "UD Ibiza" }]);
+    // With correspondence but no export of its own declared, UD Ibiza is not offered.
+    const onlyClub = await performanceSource(declaring([2841], service(performanceBody())))("team-real-jaen");
+    expect(onlyClub!.teams.map((t) => t.id)).toEqual(["team-real-jaen"]);
+  });
+
+  it("never analyses a rival seen only in other teams' matches, nor anything when the service declares no team", async () => {
+    const fetch = declaring([2841], service(performanceBody()));
+    expect(await performanceSource(fetch)("sofascore-team-24368")).toBeNull();
+    expect(urls(fetch as unknown as ReturnType<typeof teamApi>)).toEqual([SCOPE_URL]);
+    expect(await performanceSource(declaring(undefined, service(performanceBody())))("team-real-jaen")).toBeNull();
+    expect(await squadSource(declaring([2841], squadApi(squadBody())))("sofascore-team-24368")).toBeNull();
+  });
+});
+
+describe("local API adapter: explicit team correspondence", () => {
+  it("offers the 20 teams of Group 2 26/27 with their own export, the club first, each with the id the match lists already use", async () => {
+    const group2 = [2841, 24368, 24322, 4489, 24323, 24326, 43751, 217210, 135672, 24329, 2840, 2877, 24265, 263407, 202074, 5069, 4487, 2815, 24363, 24338];
+    const names = teamApi(null, Object.fromEntries(group2.map((id) => [String(id), id === 2841 ? "Real Jaén" : `Equipo ${id}`])));
+    const fetch = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/api/v1/scope")
+        ? new Response(JSON.stringify({ data: { ...SCOPE_BODY.data, teams_with_own_export: group2.map((team_id) => ({ team_id, exports: [] })) } }))
+        : /\/teams\/\d+\/performance$/.test(String(input)) ? new Response(JSON.stringify(performanceBody())) : names(input));
+    const { teams } = (await performanceSource(fetch)("team-real-jaen"))!;
+    expect(teams).toHaveLength(20);
+    expect(teams[0]).toEqual({ id: "team-real-jaen", name: "Real Jaén" });
+    expect(teams.slice(1).map((t) => t.id)).toEqual(group2.slice(1).map((id) => `sofascore-team-${id}`));
   });
 });

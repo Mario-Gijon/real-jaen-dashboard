@@ -14,7 +14,7 @@ const sourceInfo = async () => (await source().json()) as SourceInfo;
 /** `GET /api/v1/scope` of the local API: Primera Federación, Group 2 (94191) in 26/27 (97382). */
 const scope = () => new Response(JSON.stringify({ data: { competitions: [
   { name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382 },
-] } }));
+], teams_with_own_export: [{ team_id: 2841, name: "Real Jaén", exports: [] }] } }));
 const performance = () => new Response(JSON.stringify({ data: { team_id: 2841, competitions: [{
   name: "Primera Federación, Grupo 2", season: "26/27", unique_tournament_id: 17073, tournament_id: 94191, season_id: 97382,
   matches: { in_scope: 2, finished: 1, pending: 1, counted: 1, finished_without_valid_score: 0, unknown_status: 0 },

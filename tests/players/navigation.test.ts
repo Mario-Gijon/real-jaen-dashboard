@@ -1,8 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
-  observedMatchHref, observedMatchReturnHref, playerHref, playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch,
-  profileOrigin,
+  observedMatchHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch,
+  profileOrigin, teamsHref, teamsInitialView,
 } from "@/features/players/navigation";
+
+describe("teamsHref", () => {
+  it("keeps season, team and the players tab; the default tab and missing values are left out", () => {
+    expect(teamsHref({ seasonId: "season-2", teamId: "team-3", tab: "players" })).toBe("/teams?season=season-2&team=team-3&tab=players");
+    expect(teamsHref({ seasonId: "season-2", teamId: "sofascore-team-24368", tab: "performance" }))
+      .toBe("/teams?season=season-2&team=sofascore-team-24368");
+    expect(teamsHref({})).toBe("/teams");
+  });
+  it("reads back what it writes; anything else stays unset or the default tab", () => {
+    const query = queryOf(teamsHref({ seasonId: "season-2", teamId: "sofascore-team-24368", tab: "players" }));
+    expect(teamsInitialView(query)).toEqual({ initialTeamId: "sofascore-team-24368", initialSeasonId: "season-2", initialTab: "players" });
+    expect(teamsInitialView({ team: ["a", "b"], season: "", tab: "otra" }))
+      .toEqual({ initialTeamId: undefined, initialSeasonId: undefined, initialTab: "performance" });
+  });
+});
 
 function queryOf(href: string) {
   return Object.fromEntries(new URL(href, "http://localhost").searchParams);
@@ -71,6 +86,23 @@ describe("Player navigation context", () => {
   it("opens a real match from the list without any return context", () => {
     expect(observedMatchHref("sofascore-match-3")).toBe("/matches/sofascore-match-3?view=observed");
     expect(observedMatchReturnHref("sofascore-match-3", queryOf(observedMatchHref("sofascore-match-3")))).toBeNull();
+    expect(observedMatchTeamsReturnHref(queryOf(observedMatchHref("sofascore-match-3")))).toBeNull();
+  });
+
+  it.each([
+    [{ seasonId: "sofascore-scope-94191-97382", teamId: "sofascore-team-24265", tab: "players" as const },
+      "/teams?season=sofascore-scope-94191-97382&team=sofascore-team-24265&tab=players"],
+    [{ seasonId: null, teamId: "sofascore-team-24368", tab: "performance" as const }, "/teams?team=sofascore-team-24368"],
+    [{ seasonId: null, teamId: null, tab: "performance" as const }, "/teams"],
+  ])("returns from a real match to the «Equipos» view it was opened from (%o)", (view, teams) => {
+    const href = observedMatchHref("sofascore-match-16599788", { kind: "teams", ...view });
+    expect(observedMatchTeamsReturnHref(queryOf(href))).toBe(teams);
+    expect(observedMatchReturnHref("sofascore-match-16599788", queryOf(href))).toBeNull();
+  });
+
+  it("drops an «Equipos» origin it did not build", () => {
+    expect(observedMatchTeamsReturnHref({ from: "teams", team: "//example.com", season: "../x", tab: "other" })).toBe("/teams");
+    expect(observedMatchTeamsReturnHref({ from: "player", team: "sofascore-team-24265" })).toBeNull();
   });
 
   it.each([

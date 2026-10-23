@@ -2,6 +2,7 @@
 
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ApiRequestError, getCompetitions, getObservedPlayers, getObservedSquad, getSeasonTeams, getSource, getTeamObservedPerformance,
@@ -15,7 +16,7 @@ import { Select } from "@/ui/Select";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { tabId, tabPanelId, Tabs } from "@/ui/Tabs";
 import { observedCrest } from "../matches/ObservedMatchList";
-import { observedMatchHref } from "../players/navigation";
+import { observedMatchHref, teamsHref, teamsInitialView } from "../players/navigation";
 import { useApi } from "../use-api";
 import { ObservedPlayersList } from "./ObservedPlayersList";
 import { ObservedSquadTable } from "./ObservedSquadTable";
@@ -37,6 +38,24 @@ const TABS_PREFIX = "team";
 /** Same breakpoint as the phone layout in TeamsView.module.css. */
 const PHONE = "(max-width: 640px)";
 
+/**
+ * Keeps the team, season and tab chosen (in the URL or on the page) in the
+ * URL (`teamsHref`), so the browser's Back, a reload or a shared link open the
+ * same view; what was never chosen stays out, as its default (the club, the
+ * first season, Rendimiento). The URL is replaced: no navigation and no
+ * history entry per choice. `null` while nothing is shown (loading, or an
+ * explicit state for an unknown team or season): the URL keeps what was asked
+ * for.
+ */
+function useTeamsUrl(view: Parameters<typeof teamsHref>[0] | null) {
+  const href = view ? teamsHref(view) : null;
+  useEffect(() => {
+    if (href && `${window.location.pathname}${window.location.search}` !== href) {
+      window.history.replaceState(window.history.state, "", href);
+    }
+  }, [href]);
+}
+
 /** Club first, then alphabetical: quick to scan for a name. */
 function gridOrder(teams: readonly TeamRef[]): TeamRef[] {
   return [...teams].sort(
@@ -51,7 +70,12 @@ function gridOrder(teams: readonly TeamRef[]): TeamRef[] {
  * (`TEAMS_SOURCE`); a real page loads nothing synthetic and a synthetic one
  * nothing real but its observed players. If it cannot say, nothing is assumed.
  */
-export function TeamsView(props: Props) {
+export function TeamsView(serverView: Props) {
+  // The URL in the browser rules: after Back, Next restores the page with the props of its first request, but
+  // the history entry keeps the team, season and tab this page wrote there (`useTeamsUrl`). Without a router
+  // (tests), the props.
+  const search = useSearchParams();
+  const props = search ? teamsInitialView(Object.fromEntries(search)) : serverView;
   const source = useApi("source", (signal) => getSource({ signal }));
   if (source.error) return <>
     <PageHeader title="Equipos" />
@@ -108,6 +132,7 @@ function SyntheticTeamsView({ initialTeamId, initialSeasonId, initialTab = "perf
   );
 
   const seasonLabel = [competition?.shortName, season?.name].filter(Boolean).join(" · ");
+  useTeamsUrl(season && team ? { seasonId: seasonId ?? (competitionId ? season.id : null), teamId, tab } : null);
 
   return (
     <>
@@ -222,7 +247,9 @@ const realTeamRef = (team: ObservedTeam): TeamRef => ({ id: team.id, ...observed
 function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performance", realMatches, realPlayers }: Props & {
   realMatches: boolean; realPlayers: boolean;
 }) {
-  const [teamId, setTeamId] = useState(initialTeamId ?? CLUB_TEAM_ID);
+  // The team asked for (URL or grid); without one, the club.
+  const [chosenTeamId, setTeamId] = useState<string | null>(initialTeamId ?? null);
+  const teamId = chosenTeamId ?? CLUB_TEAM_ID;
   const load = useApi(`real-team|${teamId}`, (signal) => getTeamObservedPerformance(teamId, { signal }));
   // A season id from the URL must be one of the source's; a synthetic one is said so, never swapped.
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId ?? null);
@@ -238,7 +265,12 @@ function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performan
   const teams = useMemo(() => gridOrder((load.data?.teams ?? []).map(realTeamRef)), [load.data]);
   const team = teams.find((t) => t.id === teamId) ?? realTeamRef({ id: teamId, name: null });
   const subtitle = competition ? [competition.name, competition.season].filter(Boolean).join(" · ") : "";
-  const matchHref = realMatches ? (matchId: string) => observedMatchHref(matchId) : null;
+  // A match opened here returns to this team, season and tab, as the URL keeps them.
+  const matchHref = realMatches
+    ? (matchId: string) => observedMatchHref(matchId, { kind: "teams", seasonId, teamId: chosenTeamId, tab })
+    : null;
+  // Only a team and season the source serves are written; an unknown one stays as asked, with its explicit state.
+  useTeamsUrl(load.data && competition ? { seasonId, teamId: chosenTeamId, tab } : null);
 
   return (
     <>
@@ -266,9 +298,9 @@ function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "performan
 
       {notFound ? (
         <div className={css.status} role="status">
-          <p>Este equipo no tiene correspondencia con la fuente real de equipos.</p>
+          <p>Este equipo no está disponible en la fuente real de equipos: sin correspondencia explícita o sin exportación propia.</p>
           {/* Same page: the link also resets what the URL had chosen. */}
-          <Link href="/teams" onClick={() => setTeamId(CLUB_TEAM_ID)}>Ver el Real Jaén</Link>
+          <Link href="/teams" onClick={() => setTeamId(null)}>Ver el Real Jaén</Link>
         </div>
       ) : load.error ? (
         <div className={css.error} role="alert">

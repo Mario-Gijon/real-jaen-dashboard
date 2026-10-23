@@ -46,9 +46,33 @@ import {
 /**
  * Our team ids and their ids in the source. Explicit on purpose: a team
  * without an entry has no real data, and nothing is ever matched by name.
+ * A team other than the club keeps the id the match lists already derive for
+ * it (`sofascore-team-{id}`), so its links do not change. Having an entry is
+ * not enough to analyse a team: the source must also declare an export of
+ * its own (see `analysableSourceTeam`).
  */
 const SOURCE_TEAM_IDS: Readonly<Record<string, number>> = {
   "team-real-jaen": 2841,
+  // Primera Federación, Group 2, 26/27: ids checked against the scraper's catalog (tournament 94191, season 97382).
+  "sofascore-team-24368": 24368, // UD Ibiza
+  "sofascore-team-24322": 24322, // AD Alcorcón
+  "sofascore-team-4489": 4489, // Algeciras CF
+  "sofascore-team-24323": 24323, // Antequera
+  "sofascore-team-24326": 24326, // Atlético Madrileño
+  "sofascore-team-43751": 43751, // CD Teruel
+  "sofascore-team-217210": 217210, // CDA Águilas FC
+  "sofascore-team-135672": 135672, // CE Europa
+  "sofascore-team-24329": 24329, // FC Cartagena
+  "sofascore-team-2840": 2840, // Gimnàstic de Tarragona
+  "sofascore-team-2877": 2877, // Hércules CF
+  "sofascore-team-24265": 24265, // Huesca
+  "sofascore-team-263407": 263407, // Juventud Torremolinos CF
+  "sofascore-team-202074": 202074, // Rayo Majadahonda
+  "sofascore-team-5069": 5069, // Real Madrid Castilla U21
+  "sofascore-team-4487": 4487, // Real Murcia
+  "sofascore-team-2815": 2815, // Real Zaragoza
+  "sofascore-team-24363": 24363, // UE Sant Andreu
+  "sofascore-team-24338": 24338, // Villarreal B U23
 };
 
 const PLAYER_ID_PREFIX = "sofascore-player-";
@@ -304,8 +328,8 @@ function parseProfile(body: unknown, sourceId: number): PlayerProfile["player"] 
  */
 export function createLocalApiObservedPlayers(options: Options) {
   return async (teamId: string): Promise<ObservedPlayers | null> => {
-    const sourceId = SOURCE_TEAM_IDS[teamId];
-    if (sourceId === undefined) return null;
+    const sourceId = await analysableSourceTeam(options, teamId);
+    if (sourceId === null) return null;
     const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${sourceId}/players`);
     return body === null ? null : { teamId, ...parsePlayers(body), source: PROVENANCE };
   };
@@ -334,12 +358,43 @@ type SourceCompetition = ObservedCompetition & { tournamentId: number; seasonId:
  * does not declare its scope is unusable, never assumed to serve everything.
  */
 async function sourceScope(options: Options): Promise<SourceCompetition[]> {
+  return (await sourceDeclaration(options)).competitions;
+}
+
+/**
+ * The scope and the teams with an export of their own declared by the
+ * importer's manifest (`teams_with_own_export`). An export of its own does
+ * not prove a full calendar; a service that declares none (an older one, or
+ * data imported without a manifest) has no team to analyse.
+ */
+async function sourceDeclaration(options: Options): Promise<{ competitions: SourceCompetition[]; ownExport: Set<number> }> {
   const body = await getJson(options, `${baseOf(options)}/api/v1/scope`);
   if (body === null) throw new UpstreamUnavailableError("La API local no declara su ámbito (/api/v1/scope).");
   if (!isRecord(body) || !isRecord(body.data) || !Array.isArray(body.data.competitions) || !body.data.competitions.length) {
     throw invalid("se esperaba { data: { competitions: [...] } }");
   }
-  return body.data.competitions.map((entry, index) => {
+  const declared = body.data.teams_with_own_export ?? [];
+  if (!Array.isArray(declared)) throw invalid("data.teams_with_own_export");
+  const ownExport = new Set(declared.map((entry, index) => {
+    if (!isRecord(entry)) throw invalid(`data.teams_with_own_export[${index}]`);
+    return positiveId(entry.team_id, `data.teams_with_own_export[${index}].team_id`);
+  }));
+  return { competitions: parseCompetitions(body.data.competitions), ownExport };
+}
+
+/**
+ * The source id of a team that can be analysed: explicit correspondence and
+ * an export of its own declared by the source. `null` otherwise, so a rival
+ * seen only in other teams' matches never passes for an analysed team.
+ */
+async function analysableSourceTeam(options: Options, teamId: string): Promise<number | null> {
+  const sourceId = SOURCE_TEAM_IDS[teamId];
+  if (sourceId === undefined) return null;
+  return (await sourceDeclaration(options)).ownExport.has(sourceId) ? sourceId : null;
+}
+
+function parseCompetitions(competitions: unknown[]): SourceCompetition[] {
+  return competitions.map((entry, index) => {
     const at = (field: string) => `data.competitions[${index}].${field}`;
     if (!isRecord(entry)) throw invalid(`data.competitions[${index}]`);
     const name = optionalText(entry.name, at("name"));
@@ -759,7 +814,8 @@ export function createLocalApiTeamPerformance(options: Options) {
   return async (teamId: string): Promise<ObservedTeamPerformance | null> => {
     const teamSourceId = SOURCE_TEAM_IDS[teamId];
     if (teamSourceId === undefined) return null;
-    const scope = await sourceScope(options);
+    const { competitions: scope, ownExport } = await sourceDeclaration(options);
+    if (!ownExport.has(teamSourceId)) return null;
     const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${teamSourceId}/performance`);
     if (body === null) return null;
     if (!isRecord(body) || !isRecord(body.data) || body.data.team_id !== teamSourceId || !Array.isArray(body.data.competitions)) {
@@ -770,8 +826,10 @@ export function createLocalApiTeamPerformance(options: Options) {
     for (const [index, entry] of body.data.competitions.entries()) {
       competitions.push(await parseCompetitionPerformance(options, entry, index, teamSourceId, scope));
     }
-    const names = await teamNames(options, Object.values(SOURCE_TEAM_IDS));
-    const teams = Object.entries(SOURCE_TEAM_IDS).map(([id, sourceId]) => ({ id, name: names.get(sourceId) ?? null }));
+    // The teams that can be analysed: explicit correspondence and an export of their own.
+    const analysable = Object.entries(SOURCE_TEAM_IDS).filter(([, sourceId]) => ownExport.has(sourceId));
+    const names = await teamNames(options, analysable.map(([, sourceId]) => sourceId));
+    const teams = analysable.map(([id, sourceId]) => ({ id, name: names.get(sourceId) ?? null }));
     return { teamId, competitions, teams, scope: TEAM_PERFORMANCE_SCOPE, source: PROVENANCE };
   };
 }
@@ -896,7 +954,8 @@ export function createLocalApiObservedSquad(options: Options) {
   return async (teamId: string): Promise<ObservedSquad | null> => {
     const teamSourceId = SOURCE_TEAM_IDS[teamId];
     if (teamSourceId === undefined) return null;
-    const scope = await sourceScope(options);
+    const { competitions: scope, ownExport } = await sourceDeclaration(options);
+    if (!ownExport.has(teamSourceId)) return null;
     const body = await getJson(options, `${baseOf(options)}/api/v1/teams/${teamSourceId}/player-stats`);
     if (body === null) return null;
     if (!isRecord(body) || !isRecord(body.data) || body.data.team_id !== teamSourceId || !Array.isArray(body.data.competitions)) {

@@ -147,8 +147,12 @@ describe("Real match detail: Resumen", () => {
     unmount();
     vi.mocked(getSource).mockResolvedValue({ synthetic: true, label: "Datos sintéticos y reales", realSections: ["observedPlayers", "matches"] });
     const profile = "/players/sofascore-player-7?view=profile&from=team&origin=team-real-jaen";
-    render(<RealMatchDetailView matchId="sofascore-match-16599363" playerReturnHref={profile} />);
+    const { unmount: unmount2 } = render(<RealMatchDetailView matchId="sofascore-match-16599363" playerReturnHref={profile} />);
     expect(screen.getByRole("link", { name: "‹ Volver al jugador" })).toHaveAttribute("href", profile);
+    expect(screen.queryByRole("link", { name: "‹ Volver a partidos" })).toBeNull();
+    unmount2();
+    render(<RealMatchDetailView matchId="sofascore-match-16599363" teamsReturnHref="/teams?team=sofascore-team-24265" />);
+    expect(screen.getByRole("link", { name: "‹ Volver al equipo" })).toHaveAttribute("href", "/teams?team=sofascore-team-24265");
     expect(screen.queryByRole("link", { name: "‹ Volver a partidos" })).toBeNull();
     // A profile opened from these line-ups still returns to them, not to the previous profile.
     await userEvent.setup().click(await screen.findByRole("tab", { name: "Alineaciones" }));
