@@ -1137,12 +1137,6 @@ async function matchSection<T extends object>(
   }
 }
 
-/**
- * `matchObservedDetail` against the local API: the match with the source's
- * team names, its team stats, line-ups and incidents, one request at a time.
- * `null` for an id not derived from this source (a synthetic id is never
- * read as real) or a match the source does not know.
- */
 /** One local decision on a match (`decision: "local"`): the other event, the reason and who decided it, when. */
 function parseReplacementEntry(value: unknown, field: string): LocalReplacement {
   if (!isRecord(value) || value.decision !== "local") throw invalid(field);
@@ -1167,6 +1161,12 @@ function parseLocalReplacement(data: Record<string, unknown>, at: (field: string
   return { replacedBy, replaces };
 }
 
+/**
+ * `matchObservedDetail` against the local API: the match with the source's
+ * team names, its team stats, line-ups and incidents, one request at a time.
+ * `null` for an id not derived from this source (a synthetic id is never
+ * read as real) or a match the source does not know.
+ */
 export function createLocalApiMatchDetail(options: Options) {
   return async (matchId: string): Promise<ObservedMatchDetail | null> => {
     const sourceId = sourceMatchId(matchId);
