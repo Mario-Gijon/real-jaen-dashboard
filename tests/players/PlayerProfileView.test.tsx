@@ -38,15 +38,15 @@ async function load(data: PlayerProfile = moha) {
 }
 
 describe("Real player profile", () => {
-  it("shows the personal data with provenance and scope, and loads nothing else", async () => {
+  it("shows personal data without the provenance block, and loads nothing else", async () => {
     await load();
     expect(getPlayerProfile).toHaveBeenCalledWith("sofascore-player-966303", expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(screen.getByText("Centrocampista")).toBeVisible();
     expect(field("Nacimiento")).toHaveTextContent(/^18\/09\/1999 \(\d+ años\)$/);
     expect(field("Estatura")).toHaveTextContent("1,65 m");
     expect(field("País")).toHaveTextContent("Senegal");
-    expect(screen.getByText("Datos reales")).toBeVisible();
-    expect(screen.getByText(SCOPE)).toBeVisible();
+    expect(screen.queryByText("Datos reales")).toBeNull();
+    expect(screen.queryByText(SCOPE)).toBeNull();
     expect(screen.getByRole("link", { name: "← Volver" })).toHaveAttribute("href", RETURN);
     // No season, team, stats or matches: neither shown nor requested.
     expect(screen.queryByRole("tab")).toBeNull();
@@ -62,6 +62,13 @@ describe("Real player profile", () => {
       expect(field(label), label).toHaveTextContent(/^—$/);
     }
     expect(screen.getByText("—", { selector: "p" })).toBeVisible();
+  });
+
+  it("translates the source country without changing height or preferred foot", async () => {
+    await load({ ...moha, player: { ...moha.player, country: "Spain", preferredFoot: "right" } });
+    expect(field("País")).toHaveTextContent("España");
+    expect(field("Pierna dominante")).toHaveTextContent("Derecha");
+    expect(field("Estatura")).toHaveTextContent("1,65 m");
   });
 
   it("says when the player does not exist, without retry", async () => {
@@ -120,20 +127,26 @@ async function loadMatches(matches: ObservedPlayerMatch[], props: Partial<Parame
 }
 
 describe("Partidos (real)", () => {
-  it("lists every call-up with its own competition and season, and details the newest appearance", async () => {
+  it("lists compact cards with round, opponent and home–away score, keeping the supplied order and default selection", async () => {
     await loadMatches([benched, played]);
     const [first, second] = rowButtons();
-    expect(first).toHaveTextContent(
-      "J2Equipo sin identificar · Real JaénVisitante · 6 sept 2026Copa del Rey · 25/262–2Suplente · Participación no confirmada");
-    expect(second).toHaveTextContent(/J10Real Jaén · Rayo MajadahondaLocal · 18 oct 2026Primera Federacion, Group 2 · 26\/271–0Titular · 90′/);
-    expect(within(second).getByLabelText("2 goles")).toBeVisible();
-    // Zero assists: no icon; an unconfirmed call-up never reads «No participó».
-    expect(within(second).queryByLabelText(/asistencia/)).toBeNull();
+    expect(first).toHaveTextContent("J2Equipo sin identificar2–2");
+    expect(second).toHaveTextContent("J1090′Rayo Majadahonda1–0");
+    expect(within(second).getByLabelText("90 minutos jugados")).toBeVisible();
+    expect(within(first).queryByLabelText(/minutos jugados/)).toBeNull();
+    expect(within(first).getByRole("img", { name: "Visitante" })).toBeVisible();
+    expect(within(second).getByRole("img", { name: "Local" })).toBeVisible();
+    expect(within(detail()).getAllByText("Local", { exact: true })).toHaveLength(1);
+    expect(screen.queryByText("Ir a jornada", { exact: true })).toBeNull();
     expect(screen.queryByText(/No participó/)).toBeNull();
     // Without a selection, the newest confirmed appearance, not the newest call-up.
     expect(second).toHaveAttribute("aria-pressed", "true");
     expect(first).toHaveAttribute("aria-pressed", "false");
-    expect(within(detail()).getByText(/Posición en el partido: Delantero · Valoración de SofaScore: 7,0/)).toBeVisible();
+    expect(within(detail()).getByText("Delantero", { selector: "span" })).toBeVisible();
+    expect(within(detail()).getByText("90 min")).toBeVisible();
+    expect(screen.queryByText(/Valoración|Copa del Rey|26\/27|25\/26/)).toBeNull();
+    expect(screen.queryByText(noMatches.scope)).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Ir a jornada" })).toHaveValue(played.match.id);
     expect(getSeasonMatches).not.toHaveBeenCalled();
     expect(getPlayer).not.toHaveBeenCalled();
   });
@@ -163,17 +176,39 @@ describe("Partidos (real)", () => {
     expect(metric("Precisión de pase")).toHaveTextContent(/^—$/);
   });
 
+  it("keeps all field metrics in uniform rows and the logical order inside each category regardless of position", async () => {
+    for (const position of ["defender", "midfielder", "forward"] as const) {
+      await loadMatches([{ ...played, position }]);
+      expect(within(detail()).getAllByRole("term").map(term => term.textContent)).toEqual([
+        "Goles", "Tiros", "Tiros a puerta", "xG", "Recuperaciones", "Pérdidas", "Duelos ganados", "Duelos perdidos",
+        "Asistencias", "Pases", "Pases completados", "Precisión de pase", "Regates", "Regates ganados", "Faltas",
+      ]);
+      for (const term of within(detail()).getAllByRole("term")) {
+        expect(term.nextElementSibling?.tagName).toBe("DD");
+        expect(term.nextElementSibling?.querySelector("[class*='mainValue']")).toBeNull();
+      }
+      cleanup();
+    }
+  });
+
+  it("hides unavailable or uncertain minutes, without converting them to zero", async () => {
+    await loadMatches([{ ...played, stats: { ...played.stats, minutes: missing } }, { ...benched, stats: played.stats }]);
+    expect(within(history()).queryByLabelText(/minutos jugados/)).toBeNull();
+    expect(within(detail()).queryByText(/\d+ min$/)).toBeNull();
+  });
+
   it("uses the match position, not the usual one, to choose the goalkeeper metrics", async () => {
     await loadMatches([keeper]);
-    expect(within(detail()).getByText(/Posición en el partido: Portero/)).toBeVisible();
+    expect(within(detail()).getByText("Portero", { selector: "span" })).toBeVisible();
     expect(metric("Paradas")).toHaveTextContent(/^4$/);
+    expect(within(detail()).getAllByRole("term")).toHaveLength(1);
     expect(within(detail()).queryByText("Tiros")).toBeNull();
   });
 
   it("tells a call-up without resolved participation from an appearance", async () => {
     await loadMatches([benched], { initialMatchId: "sofascore-match-2" });
     expect(within(detail()).getByText(/Los datos no permiten confirmar su participación: sin minutos ni estadísticas/)).toBeVisible();
-    expect(within(detail()).getByText(/Suplente · Participación no confirmada/)).toBeVisible();
+    expect(within(detail()).getByText("Suplente", { selector: "span" })).toBeVisible();
     expect(within(detail()).queryByText(/Valoración/)).toBeNull();
     expect(within(detail()).queryByRole("term")).toBeNull();
   });
@@ -183,10 +218,10 @@ describe("Partidos (real)", () => {
       stats: { ...noStats, minutes: { value: 0 }, goals: { value: 0 }, assists: { value: 0 } } };
     await loadMatches([unused], { initialMatchId: "sofascore-match-2" });
     expect(within(detail()).getByText("Convocado, no utilizado: no entró en el partido.")).toBeVisible();
-    expect(within(detail()).getByText(/Suplente · No utilizado/)).toBeVisible();
+    expect(within(detail()).getByText("Suplente", { selector: "span" })).toBeVisible();
+    expect(within(detail()).getByText("0 min")).toBeVisible();
     expect(within(detail()).queryByRole("term")).toBeNull();
-    // The history row says it too.
-    expect(within(rowButtons()[0]).getByText(/Suplente · No utilizado/)).toBeVisible();
+    expect(rowButtons()[0]).toHaveTextContent("J20′Equipo sin identificar2–2");
   });
 
   it("changes the selected match in place and keeps it in the URL without navigating", async () => {
@@ -195,9 +230,38 @@ describe("Partidos (real)", () => {
     const second = rowButtons()[1];
     await userEvent.setup().click(second);
     expect(second).toHaveAttribute("aria-pressed", "true");
-    expect(within(detail()).getByText(/vs Equipo sin identificar/)).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Ir a jornada" })).toHaveValue(benched.match.id);
+    expect(within(detail()).getByText(/Equipo sin identificar ·/)).toBeVisible();
     expect(replace).toHaveBeenLastCalledWith(window.history.state, "", expect.stringContaining("match=sofascore-match-2"));
     replace.mockRestore();
+  });
+
+  it("synchronizes the jump selector and cards with one selection, distinguishing repeated rounds by opponent and date", async () => {
+    const user = userEvent.setup();
+    const repeated = { ...benched, match: { ...benched.match, round: played.match.round } };
+    await loadMatches([played, repeated]);
+    const jump = screen.getByRole("combobox", { name: "Ir a jornada" });
+    expect(within(jump).getAllByRole("option").map(option => option.textContent)).toEqual([
+      "J10 · Rayo Majadahonda", "J10 · Equipo sin identificar",
+    ]);
+    await user.selectOptions(jump, benched.match.id);
+    expect(rowButtons()[1]).toHaveAttribute("aria-pressed", "true");
+    expect(within(detail()).getByText(/Los datos no permiten confirmar su participación/)).toBeVisible();
+    expect(window.location.search).toContain(`match=${benched.match.id}`);
+    await user.click(rowButtons()[0]);
+    expect(jump).toHaveValue(played.match.id);
+    expect(metric("Goles")).toHaveTextContent(/^2$/);
+  });
+
+  it("adds dates only for repeated round and opponent, distinguishing equal or absent dates too", async () => {
+    const duplicate = { ...played, match: { ...played.match, id: "same-round", kickoff: "2026-09-20T12:00:00Z" } };
+    const sameDate = { ...played, match: { ...played.match, id: "same-date" } };
+    await loadMatches([played, duplicate, sameDate, benched]);
+    const labels = within(screen.getByRole("combobox", { name: "Ir a jornada" })).getAllByRole("option").map(option => option.textContent);
+    expect(labels).toEqual([
+      "J10 · Rayo Majadahonda · 18 oct 2026 · Encuentro 1", "J10 · Rayo Majadahonda · 20 sept 2026",
+      "J10 · Rayo Majadahonda · 18 oct 2026 · Encuentro 2", "J2 · Equipo sin identificar",
+    ]);
   });
 
   it("selects the requested match, and says when it is not among the call-ups", async () => {

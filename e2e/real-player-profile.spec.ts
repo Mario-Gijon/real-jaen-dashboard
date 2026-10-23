@@ -37,7 +37,7 @@ const KEYS = ["minutes", "goals", "assists", "shots", "shotsOnTarget", "xg", "pa
   "recoveries", "possessionLost", "duelsWon", "duelsLost", "fouls", "saves", "rating"];
 const stats = (values: Record<string, number> = {}) =>
   Object.fromEntries(KEYS.map((key) => [key, key in values ? { value: values[key] } : missing]));
-const observedMatches = (playerId: string, matches: unknown[]) => ({
+const observedMatches = <T>(playerId: string, matches: T[]) => ({
   playerId, matches, ratingSource: "SofaScore", source: { synthetic: false, label: "Datos reales" },
   scope: "Partidos en los que la fuente registra al jugador en la convocatoria. No garantiza cobertura completa ni indica equipo actual.",
 });
@@ -103,7 +103,7 @@ async function serveReal(page: Page, { profileDown = false, matchesDown = false 
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-test("Real players: list to profile, personal data with provenance and back", async ({ page }, testInfo) => {
+test("Real players: list to profile, personal data without provenance and back", async ({ page }, testInfo) => {
   await serveReal(page);
   const synthetic: string[] = [];
   page.on("request", (request) => {
@@ -119,14 +119,16 @@ test("Real players: list to profile, personal data with provenance and back", as
   await expect(page.getByRole("heading", { level: 1, name: "Moha Keita" })).toBeVisible();
   await expect(page.getByText("Senegal")).toBeVisible();
   await expect(page.getByText("1,65 m")).toBeVisible();
-  await expect(page.getByText("Datos reales", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Datos personales según la fuente. No indican equipo actual./)).toBeVisible();
+  await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Datos personales según la fuente. No indican equipo actual./)).toHaveCount(0);
+  await expect(page.getByText(/Partidos en los que la fuente registra al jugador/)).toHaveCount(0);
   await expect(page.getByRole("tab")).toHaveCount(0);
   const history = page.getByRole("list", { name: "Histórico de partidos" });
   await expect(history.getByRole("button")).toHaveCount(3);
-  await expect(history.getByRole("button").nth(0)).toContainText("Real Jaén · Rayo Majadahonda");
+  await expect(history.getByRole("button").nth(0)).toContainText("Rayo Majadahonda");
   await expect(history.getByRole("button").nth(0)).toHaveAttribute("aria-pressed", "true");
-  await expect(history.getByRole("button").nth(2)).toContainText("Suplente · Participación no confirmada");
+  await expect(history.getByRole("button").nth(2)).toContainText("J2Huesca2–2");
+  await expect(page.getByRole("combobox", { name: "Ir a jornada" })).toHaveValue("sofascore-match-16599928");
   // The selected match opens its real detail, never a synthetic one.
   await expect(page.getByRole("link", { name: "Ver partido completo" }).first()).toHaveAttribute("href", /^\/matches\/sofascore-match-\d+\?view=observed&from=player&/);
   expect(await noHorizontalOverflow(page)).toBe(true);
@@ -208,7 +210,75 @@ async function serveRealWithMatches(page: Page) {
 const visibleDetail = (page: Page) => page.locator("#player-match-detail-panel:visible, #player-inline-detail:visible");
 const metric = (page: Page, label: string) => visibleDetail(page).locator("dt", { hasText: new RegExp(`^${label}$`) }).locator("+ dd");
 
-test("Real players: Partidos master-detail, selection in place, kept on reload and on return from the match", async ({ page, context }, testInfo) => {
+test("Real players: compact goalkeeper block with saves and no empty field categories", async ({ page }, testInfo) => {
+  await serveReal(page);
+  await page.route("**/api/v1/players/*/profile", (route) => route.fulfill({ json: profile({
+    id: "sofascore-player-966303", name: "Portero de prueba", position: "goalkeeper", birthDate: null,
+    heightCm: 190, preferredFoot: null, country: "Spain",
+  }) }));
+  await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: observedMatches("sofascore-player-966303", [
+    { ...MOHA_MATCHES.matches[0], position: "goalkeeper", stats: stats({ saves: 4, minutes: 90 }) },
+  ]) }));
+  await page.goto("/players/sofascore-player-966303?view=profile");
+  await expect(page.getByText("España", { exact: true })).toBeVisible();
+  await expect(metric(page, "Paradas")).toHaveText("4");
+  await expect(visibleDetail(page).locator("dt")).toHaveCount(1);
+  const block = page.getByRole("region", { name: "Portería", exact: true });
+  const bounds = await block.boundingBox();
+  expect(bounds!.width).toBeLessThanOrEqual(240);
+  expect(bounds!.height).toBeLessThan(180);
+  await expect(page.getByRole("region", { name: "Juego", exact: true })).toHaveCount(0);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("profile-keeper.png"), fullPage: true });
+});
+
+test("Real players: many match cards, repeated rounds, jump synchronization and one-match profiles", async ({ page }, testInfo) => {
+  await serveReal(page);
+  const base = MOHA_MATCHES.matches[0];
+  const many = Array.from({ length: 15 }, (_, index) => ({ ...base,
+    match: { ...base.match, id: `sofascore-match-${index + 1}`, round: 10 - Math.floor(index / 2),
+      kickoff: new Date(Date.UTC(2026, 9, 20 - index)).toISOString(),
+      away: { id: `sofascore-team-${index + 1}`, name: index === 14 ? "Juventud Torremolinos CF" : `Rival ${index + 1}` } },
+  }));
+  await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: observedMatches("sofascore-player-966303", many) }));
+  await page.goto("/players/sofascore-player-966303?view=profile&match=sofascore-match-15");
+  const history = page.getByRole("list", { name: "Histórico de partidos" });
+  const cards = history.getByRole("button");
+  const jump = page.getByRole("combobox", { name: "Ir a jornada" });
+  await expect(cards).toHaveCount(15);
+  await expect(jump).toHaveValue("sofascore-match-15");
+  await expect(cards.last()).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => history.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  await expect(cards.last()).toBeInViewport({ ratio: 1 });
+  const shortBounds = await cards.first().boundingBox();
+  const longBounds = await cards.last().boundingBox();
+  expect(longBounds!.height).toBe(shortBounds!.height);
+  const longName = cards.last().getByTitle("Juventud Torremolinos CF");
+  expect(await longName.evaluate(element => element.scrollHeight)).toBeLessThanOrEqual(40);
+  await page.screenshot({ path: testInfo.outputPath("profile-cards-long-name.png"), fullPage: true });
+  await expect(jump.locator("option").nth(0)).toContainText("J10 · Rival 1");
+  await expect(jump.locator("option").nth(1)).toContainText("J10 · Rival 2");
+  const pageScroll = await page.evaluate(() => window.scrollY);
+  await jump.selectOption("sofascore-match-1");
+  await expect(cards.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(cards.first()).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("profile-many-matches.png"), fullPage: true });
+  // Selection from a card updates the same selector and URL.
+  await cards.nth(1).click();
+  await expect(jump).toHaveValue("sofascore-match-2");
+  await expect(page).toHaveURL(/match=sofascore-match-2$/);
+  await page.unroute("**/api/v1/players/*/observed-matches");
+  await page.route("**/api/v1/players/*/observed-matches", (route) => route.fulfill({ json: observedMatches("sofascore-player-966303", [many[0]]) }));
+  await page.goto("/players/sofascore-player-966303?view=profile");
+  await expect(cards).toHaveCount(1);
+  await expect(jump.locator("option")).toHaveCount(1);
+  await expect(jump).toHaveValue("sofascore-match-1");
+  await page.screenshot({ path: testInfo.outputPath("profile-one-match.png"), fullPage: true });
+});
+
+test("Real players: horizontal match selector, selection in place, kept on reload and on return from the match", async ({ page, context }, testInfo) => {
   await serveRealWithMatches(page);
   await page.goto("/teams?tab=players");
   await page.getByRole("table", { name: /Jugadores observados/ }).getByRole("link", { name: "Ver ficha de Moha Keita" }).click();
@@ -221,7 +291,47 @@ test("Real players: Partidos master-detail, selection in place, kept on reload a
 
   // Default: the newest appearance, with real values, real zeros and missing values apart.
   await expect(rows.nth(0)).toHaveAttribute("aria-pressed", "true");
-  await expect(visibleDetail(page)).toContainText("Posición en el partido: Centrocampista · Valoración de SofaScore: 7,0");
+  await expect(visibleDetail(page).getByText("Centrocampista", { exact: true })).toBeVisible();
+  await expect(visibleDetail(page)).not.toContainText(/Valoración|SofaScore|Primera Federacion|26\/27/);
+  const jump = page.getByRole("combobox", { name: "Ir a jornada" });
+  await expect(jump).toHaveValue("sofascore-match-16599928");
+  await expect(jump.locator("option").first()).toHaveText("J10 · Rayo Majadahonda");
+  await expect(rows.first().getByLabel("90 minutos jugados", { exact: true })).toBeVisible();
+  const headingBounds = await page.getByRole("heading", { name: "Partidos", exact: true }).boundingBox();
+  const selectorBounds = await jump.boundingBox();
+  if (testInfo.project.name === "desktop") {
+    expect(Math.abs(selectorBounds!.y + selectorBounds!.height / 2 - headingBounds!.y - headingBounds!.height / 2)).toBeLessThan(2);
+  } else {
+    expect(selectorBounds!.y - headingBounds!.y - headingBounds!.height).toBeLessThan(16);
+  }
+  await expect(page.getByText("Ir a jornada", { exact: true })).toHaveCount(0);
+  await expect(rows.first().getByRole("img", { name: "Local" })).toBeVisible();
+  await expect(rows.nth(1).getByRole("img", { name: "Visitante" })).toBeVisible();
+  const cardGeometry = await rows.evaluateAll(cards => cards.map(card => {
+    const bounds = card.getBoundingClientRect();
+    const footer = card.lastElementChild!;
+    const score = footer.firstElementChild!.getBoundingClientRect();
+    const icon = footer.lastElementChild!.getBoundingClientRect();
+    const opponent = card.children[1].getBoundingClientRect();
+    return { height: bounds.height, scoreY: score.y, iconY: icon.y, scoreRight: score.right, iconX: icon.x, opponentBottom: opponent.bottom };
+  }));
+  expect(new Set(cardGeometry.map(card => card.height)).size).toBe(1);
+  for (const card of cardGeometry) {
+    expect(Math.abs(card.scoreY - card.iconY)).toBeLessThan(5);
+    expect(card.scoreRight).toBeLessThan(card.iconX);
+    expect(card.opponentBottom).toBeLessThanOrEqual(card.scoreY);
+  }
+  await expect(visibleDetail(page).getByText("Local", { exact: true })).toBeVisible();
+  const finish = await page.getByRole("region", { name: "Finalización", exact: true }).boundingBox();
+  const recovery = await page.getByRole("region", { name: "Recuperación", exact: true }).boundingBox();
+  const game = await page.getByRole("region", { name: "Juego", exact: true }).boundingBox();
+  if (testInfo.project.name === "desktop") {
+    expect(recovery!.y - finish!.y - finish!.height).toBeLessThanOrEqual(17);
+    expect(game!.x).toBeGreaterThan(finish!.x);
+  } else {
+    expect(game!.y).toBeGreaterThan(finish!.y);
+    expect(recovery!.y).toBeGreaterThan(game!.y);
+  }
   await expect(metric(page, "Pases")).toHaveText("29");
   await expect(metric(page, "Precisión de pase")).toHaveText("79,3 %");
   await expect(metric(page, "Tiros a puerta")).toHaveText("0");
@@ -235,17 +345,22 @@ test("Real players: Partidos master-detail, selection in place, kept on reload a
   await rows.nth(1).focus();
   await page.keyboard.press("Enter");
   await expect(rows.nth(1)).toHaveAttribute("aria-pressed", "true");
-  await expect(rows.nth(1).getByLabel("1 gol")).toBeVisible();
+  await expect(rows.nth(1)).toContainText("J522′Antequera CF0–2");
+  await expect(rows.nth(1).getByLabel("22 minutos jugados", { exact: true })).toBeVisible();
+  await expect(jump).toHaveValue("sofascore-match-16599500");
   await expect(metric(page, "Goles")).toHaveText("1");
   await expect(metric(page, "Asistencias")).toHaveText("1");
-  await expect(visibleDetail(page)).toContainText("Suplente · 22′");
+  await expect(visibleDetail(page).getByText("Suplente", { exact: true })).toBeVisible();
+  await expect(visibleDetail(page).getByText("22 min", { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/&match=sofascore-match-16599500$/);
   expect(new URL(page.url()).pathname).toBe(profilePath);
 
   // A call-up without confirmed participation: no minutes nor stats.
-  await rows.nth(2).click();
+  await jump.selectOption("sofascore-match-16599388");
+  await expect(rows.nth(2)).toHaveAttribute("aria-pressed", "true");
   await expect(visibleDetail(page)).toContainText("Los datos no permiten confirmar su participación");
   await expect(visibleDetail(page).locator("dt")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("real-profile-unconfirmed.png"), fullPage: true });
 
   // Reload keeps the selection.
   await rows.nth(1).click();

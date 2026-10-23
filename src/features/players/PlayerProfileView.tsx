@@ -5,8 +5,8 @@ import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile } from "@/c
 import type { PlayerProfile } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
-import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
-import { MISSING, birthLabel, footLabel, heightLabel, positionLabel } from "../format";
+import { birthLabel, footLabel, heightLabel, positionLabel } from "../format";
+import { countryLabel } from "./country-label";
 import { useApi } from "../use-api";
 import { ObservedMatches } from "./ObservedMatches";
 import { observedMatchHref, type ProfileOrigin } from "./navigation";
@@ -60,7 +60,7 @@ export function PlayerProfileView({ playerId, returnHref, context = { seasonId: 
   </div>;
 }
 
-function Identity({ data: { player, scope, source } }: { data: PlayerProfile }) {
+function Identity({ data: { player } }: { data: PlayerProfile }) {
   return <header className={css.header}>
     <div className={css.identity}>
       <PlayerAvatar name={player.name} size={48} />
@@ -73,10 +73,7 @@ function Identity({ data: { player, scope, source } }: { data: PlayerProfile }) 
       <div><dt>Nacimiento</dt><dd>{birthLabel(player.birthDate)}</dd></div>
       <div><dt>Estatura</dt><dd>{heightLabel(player.heightCm)}</dd></div>
       <div><dt>Pierna dominante</dt><dd>{footLabel(player.preferredFoot)}</dd></div>
-      <div><dt>País</dt><dd>{player.country ?? MISSING}</dd></div>
+      <div><dt>País</dt><dd>{countryLabel(player.country)}</dd></div>
     </dl>
-    <div className={css.provenance}>
-      <ProvenanceNotice source={source}><p>{scope}</p></ProvenanceNotice>
-    </div>
   </header>;
 }

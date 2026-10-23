@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { House, LogOut } from "lucide-react";
 import type { ObservedMatchStatKey, ObservedPlayerMatch, ObservedPlayerMatches, PlayerPosition, Stat } from "@/contract";
 import { Button } from "@/ui/Button";
+import { Select } from "@/ui/Select";
 import { dateLabel, positionLabel, statText } from "../format";
-import { GoalIcon } from "../matches/GoalIcon";
-import { AssistIcon } from "../matches/AssistIcon";
 import { revealMatch } from "./reveal-match";
+import sections from "../teams/TeamPerformance.module.css";
+import output from "../teams/TeamOutput.module.css";
 import shared from "./PlayerDetailView.module.css";
 import css from "./PlayerMatches.module.css";
 
@@ -39,6 +41,7 @@ const KEEPER_GROUPS: typeof FIELD_GROUPS = [
   { title: "Portería", metrics: [{ key: "saves", label: "Paradas" }] },
 ];
 const NOT_AVAILABLE: Stat = { value: null, reason: "not_available" };
+const hasMinutes = (row: ObservedPlayerMatch) => row.participation !== "unknown" && row.stats.minutes.value !== null;
 
 /** Completed over attempted passes, only when both are known and some pass was attempted. */
 function passAccuracy(stats: ObservedPlayerMatch["stats"]): Stat {
@@ -48,9 +51,8 @@ function passAccuracy(stats: ObservedPlayerMatch["stats"]): Stat {
 }
 
 /**
- * «Partidos» of a real player, laid out like the synthetic one: the
- * call-ups the source lists (newest first) on the left and the selected
- * match's individual detail on the right (inline under the row on phones).
+ * «Partidos» of a real player: the recorded call-ups (newest first) in a
+ * horizontal selector, with the selected match's individual detail below.
  * Selecting a match never leaves the profile; `onSelect` lets the profile
  * keep it in the URL. A missing value reads «—», never 0; a call-up without
  * confirmed participation has no minutes nor stats and never reads «No
@@ -63,14 +65,13 @@ export function ObservedMatches({ load, usualPosition, initialMatchId = null, ma
   const { data, error, retry } = load;
   const [selectedId, setSelectedId] = useState<string | null>(initialMatchId);
   const historyViewport = useRef<HTMLUListElement>(null);
-  const initialMatch = useRef(initialMatchId);
+  const activeMatchId = selectedId ?? data?.matches.find(row => row.participation === "confirmed")?.match.id ?? data?.matches[0]?.match.id;
   useEffect(() => {
-    // Reveal the requested match once, inside the history viewport only.
-    if (data && initialMatch.current) revealMatch(historyViewport.current, initialMatch.current);
-    if (data) initialMatch.current = null;
-  }, [data]);
-  if (error) return <section className={shared.block} aria-labelledby="player-match-history">
-    <h2 id="player-match-history">Partidos</h2>
+    // Reveal selection changes inside the strip, without moving the page.
+    if (activeMatchId) revealMatch(historyViewport.current, activeMatchId, "horizontal");
+  }, [data, activeMatchId]);
+  if (error) return <section className={css.matchSelector} aria-labelledby="player-match-history">
+    <h2 className={sections.zoneTitle} id="player-match-history">Partidos</h2>
     <div role="alert" className={shared.message}>
       <p>No se pudieron cargar los partidos observados.</p>
       <Button size="sm" onClick={retry}>Reintentar</Button>
@@ -88,35 +89,44 @@ export function ObservedMatches({ load, usualPosition, initialMatchId = null, ma
     setSelectedId(matchId);
     onSelect?.(matchId);
   }
-  return <div className={css.masterDetail}>
-    <section className={`${shared.block} ${css.master}`} aria-labelledby="player-match-history">
-      <h2 id="player-match-history">Partidos</h2>
-      <p className={shared.coverageNote}>{data.scope}</p>
+  return <div className={css.observedLayout}>
+    <section className={css.matchSelector} aria-labelledby="player-match-history">
+      <div className={css.selectorHeading}>
+        <h2 className={sections.zoneTitle} id="player-match-history">Partidos</h2>
+        <div className={css.jump}>
+          <Select aria-label="Ir a jornada" value={selected?.match.id ?? ""} disabled={!rows.length} onChange={(event) => select(event.target.value)}>
+            {!selected ? <option value="" disabled>Selecciona un partido</option> : null}
+            {rows.map(row => <option key={row.match.id} value={row.match.id}>{matchOption(row, rows)}</option>)}
+          </Select>
+        </div>
+      </div>
       {selectedId !== null && !requested ? <p role="status" className={shared.message}>
         El partido indicado no figura entre los partidos observados de este jugador.
       </p> : null}
       {!rows.length ? <p className={shared.message}>La fuente no tiene partidos observados de este jugador.</p> : null}
-      <ul ref={historyViewport} className={css.history} aria-label="Histórico de partidos">
+      <ul ref={historyViewport} className={css.matchStrip} aria-label="Histórico de partidos">
         {rows.map(row => {
           const active = selected?.match.id === row.match.id;
           return <li key={row.match.id}>
-            <button type="button" className={css.historyRow} data-match-id={row.match.id}
-              aria-pressed={active} aria-expanded={active} aria-controls={active ? "player-match-detail-panel player-inline-detail" : undefined}
+            <button type="button" className={css.matchCard} data-match-id={row.match.id}
+              aria-pressed={active} aria-controls="player-match-detail-panel"
               onClick={() => select(row.match.id)}>
-              <HistoryRow row={row} />
+              <span className={css.cardTop}>
+                <span className={css.round}>{row.match.round !== null ? `J${row.match.round}` : "Sin jornada"}</span>
+                {hasMinutes(row)
+                  ? <span className={css.cardMinutes} aria-label={`${statText(row.stats.minutes)} minutos jugados`}><MatchValue stat={row.stats.minutes} />′</span> : null}
+              </span>
+              <span className={css.cardOpponent} title={opponentName(row)}>{opponentName(row)}</span>
+              <span className={css.cardBottom}><Score row={row} /><Venue side={row.side} /></span>
             </button>
-            {active ? <section id="player-inline-detail" className={css.inlineDetail} aria-label="Detalle inline del partido">
-              <h3 className={css.detailHeading}>Detalle del partido</h3>
-              <MatchDetail row={row} usualPosition={usualPosition} ratingSource={data.ratingSource} href={matchHref?.(row.match.id) ?? null} />
-            </section> : null}
           </li>;
         })}
       </ul>
     </section>
-    <section id="player-match-detail-panel" className={`${shared.block} ${css.desktopDetail}`} aria-labelledby="player-match-detail">
-      <h2 id="player-match-detail">Detalle del partido</h2>
+    <section id="player-match-detail-panel" className={css.selectedDetail} aria-labelledby="player-match-detail">
+      <h2 className={sections.zoneTitle} id="player-match-detail">Detalle del partido</h2>
       {selected
-        ? <MatchDetail row={selected} usualPosition={usualPosition} ratingSource={data.ratingSource} href={matchHref?.(selected.match.id) ?? null} />
+        ? <MatchDetail row={selected} usualPosition={usualPosition} href={matchHref?.(selected.match.id) ?? null} />
         : <p className={shared.message}>{rows.length ? "Selecciona un partido del histórico." : "Sin partidos observados."}</p>}
     </section>
   </div>;
@@ -135,66 +145,58 @@ function Score({ row }: { row: ObservedPlayerMatch }) {
     {score ? `${score.home}–${score.away}` : "—"}
   </span>;
 }
-/** Role and minutes; an unused substitute says so, and a call-up the data cannot resolve too, never «No participó». */
-function Role({ row }: { row: ObservedPlayerMatch }) {
-  const role = row.role === "starter" ? "Titular" : row.role === "substitute" ? "Suplente" : "Rol no disponible";
-  if (row.participation === "unused") return <>{role} · No utilizado</>;
-  if (row.participation !== "confirmed") return <>{role} · Participación no confirmada</>;
-  return <>{role} · <MatchValue stat={row.stats.minutes} />{row.stats.minutes.value !== null ? "′" : null}</>;
-}
 const teamName = (name: string | null) => name ?? "Equipo sin identificar";
-const competitionLabel = ({ match }: ObservedPlayerMatch) => [match.competition, match.season].filter(Boolean).join(" · ");
-
-function HistoryRow({ row }: { row: ObservedPlayerMatch }) {
-  const { match } = row;
-  const goals = row.stats.goals.value ?? 0;
-  const assists = row.stats.assists.value ?? 0;
-  const competition = competitionLabel(row);
-  return <>
-    <span className={css.round}>{match.round !== null ? `J${match.round}` : null}</span>
-    <span className={css.fixture}>
-      <span className={css.teams}>{teamName(match.home.name)} · {teamName(match.away.name)}</span>
-      <span className={css.meta}>{row.side === "home" ? "Local" : "Visitante"} · {match.kickoff ? dateLabel(match.kickoff) : "Fecha por definir"}</span>
-      {competition ? <span className={css.meta}>{competition}</span> : null}
-    </span>
-    <Score row={row} />
-    <span className={css.playerContext}>
-      <span className={css.role}><Role row={row} /></span>
-      <span className={css.contribution}>
-        {goals > 0 ? <span aria-label={`${goals} ${goals === 1 ? "gol" : "goles"}`}><GoalIcon />{goals > 1 ? goals : null}</span> : null}
-        {assists > 0 ? <span aria-label={`${assists} ${assists === 1 ? "asistencia" : "asistencias"}`}><AssistIcon />{assists > 1 ? assists : null}</span> : null}
-      </span>
-    </span>
-  </>;
+const opponentName = (row: ObservedPlayerMatch) => teamName((row.side === "home" ? row.match.away : row.match.home).name);
+function matchOption(row: ObservedPlayerMatch, rows: readonly ObservedPlayerMatch[]) {
+  const label = `${row.match.round !== null ? `J${row.match.round}` : "Sin jornada"} · ${opponentName(row)}`;
+  const repeated = rows.filter(other => other.match.round === row.match.round && opponentName(other) === opponentName(row));
+  if (repeated.length === 1) return label;
+  const date = row.match.kickoff ? dateLabel(row.match.kickoff) : "Fecha por definir";
+  const sameDate = repeated.filter(other => (other.match.kickoff ? dateLabel(other.match.kickoff) : "Fecha por definir") === date);
+  return `${label} · ${date}${sameDate.length > 1 ? ` · Encuentro ${sameDate.indexOf(row) + 1}` : ""}`;
 }
 
-function MatchDetail({ row, usualPosition, ratingSource, href }: {
-  row: ObservedPlayerMatch; usualPosition: PlayerPosition | null; ratingSource: string; href: string | null;
+function MetricValue({ metric, stats }: { metric: Metric; stats: ObservedPlayerMatch["stats"] }) {
+  return <MatchValue stat={metric.key === "passAccuracy" ? passAccuracy(stats) : stats[metric.key]}
+    decimals={metric.decimals} percent={metric.percent} />;
+}
+
+function Venue({ side }: { side: ObservedPlayerMatch["side"] }) {
+  if (side !== "home" && side !== "away") return null;
+  return <span className={css.venueIcon} role="img" aria-label={side === "home" ? "Local" : "Visitante"}>
+    {side === "home" ? <House size={18} aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />}
+  </span>;
+}
+
+function MatchDetail({ row, usualPosition, href }: {
+  row: ObservedPlayerMatch; usualPosition: PlayerPosition | null; href: string | null;
 }) {
   const { match } = row;
   const opponent = row.side === "home" ? match.away : match.home;
-  const competition = competitionLabel(row);
   // The match position decides the metrics; the usual one only when the source does not give it.
   const keeper = (row.position ?? usualPosition) === "goalkeeper";
   return <>
     <div className={css.detailContext}>
-      <p className={css.teams}>{match.round !== null ? `J${match.round} · ` : null}vs {teamName(opponent.name)} <Score row={row} /></p>
-      <p className={css.meta}>{row.side === "home" ? "Local" : "Visitante"} · {match.kickoff ? dateLabel(match.kickoff) : "Fecha por definir"} · <Role row={row} /></p>
-      {competition ? <p className={css.meta}>{competition}</p> : null}
-      <p className={css.meta}>
-        Posición en el partido: {row.position ? positionLabel(row.position) : "—"}
-        {row.participation === "confirmed" ? <> · Valoración de {ratingSource}: <MatchValue stat={row.stats.rating} decimals={1} /></> : null}
-      </p>
+      <p className={css.detailFixture}>{match.round !== null ? <span>J{match.round} · </span> : null}{teamName(opponent.name)} · <Score row={row} /></p>
+      <p className={css.meta}>{match.kickoff ? dateLabel(match.kickoff) : "Fecha por definir"}</p>
+      <div className={css.playerBadges}>
+        {row.side === "home" || row.side === "away" ? <span>{row.side === "home" ? "Local" : "Visitante"}</span> : null}
+        {row.role ? <span>{row.role === "starter" ? "Titular" : "Suplente"}</span> : null}
+        {hasMinutes(row) ? <span><MatchValue stat={row.stats.minutes} /> min</span> : null}
+        {row.position ? <span>{positionLabel(row.position)}</span> : null}
+      </div>
     </div>
-    {row.participation === "confirmed" ? <div className={shared.performance}>
-      {(keeper ? KEEPER_GROUPS : FIELD_GROUPS).map(group =>
-        <section className={shared.group} key={group.title} aria-label={group.title}>
-          <h3>{group.title}</h3>
-          <dl className={shared.metrics}>{group.metrics.map(({ key, label, decimals, percent }) =>
-            <div key={key}><dt>{label}</dt><dd>
-              <MatchValue stat={key === "passAccuracy" ? passAccuracy(row.stats) : row.stats[key]} decimals={decimals} percent={percent} />
-            </dd></div>)}</dl>
-        </section>)}
+    {row.participation === "confirmed" ? <div className={css.statGroups} data-keeper={keeper || undefined}>
+      {(keeper ? [0] : [0, 1]).map(column => <div className={css.statColumn} key={column}>
+        {(keeper ? KEEPER_GROUPS : FIELD_GROUPS).map((group, index) => index % 2 === column ? <section className={css.statBlock} style={{ order: index }} key={group.title} aria-label={group.title}>
+          <h3 className={output.unitTitle}>{group.title}</h3>
+          <dl className={css.statSecondary}>
+            {group.metrics.map(metric => <div key={metric.key}>
+              <dt>{metric.label}</dt><dd><MetricValue metric={metric} stats={row.stats} /></dd>
+            </div>)}
+          </dl>
+        </section> : null)}
+      </div>)}
     </div> : <p className={shared.message}>
       {row.participation === "unused"
         ? "Convocado, no utilizado: no entró en el partido."

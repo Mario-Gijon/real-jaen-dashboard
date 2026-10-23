@@ -13,7 +13,6 @@
 .personal > div { display: flex; align-items: baseline; gap: 6px; }
 .personal dt { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .personal dd { margin: 0; font-size: var(--rj-text-sm); }
-.provenance { margin-top: var(--rj-space-4); max-width: 640px; }
 .pending:disabled { color: var(--rj-text-muted); cursor: default; }
 .season { padding-top: var(--rj-space-5); max-width: 800px; }
 .matches { max-width: none; }

@@ -1,4 +1,43 @@
 .round { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); white-space: nowrap; }
+.observedLayout { display: grid; gap: var(--rj-space-6); min-width: 0; }
+.matchSelector, .selectedDetail { min-width: 0; }
+.selectorHeading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rj-space-2) var(--rj-space-4); margin-bottom: var(--rj-space-2); }
+.jump { display: grid; justify-self: end; gap: 3px; min-width: 0; width: min(100%, 260px); color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
+.jump select { font-size: var(--rj-text-sm); }
+.selectedDetail > h2 { margin-bottom: var(--rj-space-4); }
+.cardTop { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rj-space-2); }
+.cardMinutes { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.venueIcon { display: inline-flex; flex-shrink: 0; color: var(--rj-text-secondary); }
+.cardBottom { display: flex; align-items: center; justify-content: space-between; gap: var(--rj-space-2); }
+.detailFixture { overflow-wrap: anywhere; font-size: var(--rj-text-sm); font-weight: 700; }
+.detailContext .detailFixture .score { margin-left: 0; }
+.playerBadges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--rj-space-2); }
+.playerBadges > span { padding: 2px 8px; border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); color: var(--rj-text-secondary); background: var(--rj-bg-card); font-size: var(--rj-text-xs); }
+.statGroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rj-space-4); align-items: start; }
+.statColumn { display: grid; gap: var(--rj-space-4); min-width: 0; }
+.statBlock { display: grid; gap: var(--rj-space-3); min-width: 0; padding: var(--rj-space-4) var(--rj-space-5); border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); background: var(--rj-bg-soft); }
+.statSecondary { margin: 0; }
+.statSecondary > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rj-space-3); padding-block: 5px; }
+.statSecondary > div + div { border-top: 1px solid var(--rj-border-default); }
+.statSecondary dt { font-size: var(--rj-text-sm); }
+.statSecondary dd { margin: 0; font-size: var(--rj-text-md); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.statGroups[data-keeper] { grid-template-columns: minmax(0, 240px); }
+@media (max-width: 640px) {
+  .jump { margin-left: auto; }
+  .statGroups { display: flex; flex-direction: column; }
+  .statGroups[data-keeper] { max-width: 240px; }
+  .statColumn { display: contents; }
+  .statBlock { width: 100%; box-sizing: border-box; }
+  .statBlock { padding: var(--rj-space-3) var(--rj-space-4); }
+}
+.matchStrip { display: flex; gap: var(--rj-space-2); overflow-x: auto; padding: 3px; margin: 0; list-style: none; scrollbar-width: thin; scrollbar-color: var(--rj-border-strong) transparent; }
+.matchStrip > li { display: flex; flex: 0 0 160px; min-width: 0; }
+.matchCard { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; width: 100%; height: 116px; box-sizing: border-box; padding: var(--rj-space-3); border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); background: var(--rj-bg-card); color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.matchCard:hover { background: var(--rj-bg-hover); }
+.matchCard[aria-pressed="true"] { background: var(--rj-purple-100); border-color: var(--rj-purple-700); box-shadow: inset 0 0 0 1px var(--rj-purple-700); }
+.matchCard:focus-visible { outline: var(--rj-focus-ring); outline-offset: 1px; }
+.cardOpponent { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--rj-text-sm); line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; }
+.matchCard .score { text-align: left; font-size: var(--rj-text-md); font-weight: 700; }
 .history { list-style: none; margin: 0; padding: 0; }
 .masterDetail { display: grid; grid-template-columns: minmax(0, 42fr) minmax(0, 58fr); gap: var(--rj-space-6); align-items: start; }
 .master { min-width: 0; }
