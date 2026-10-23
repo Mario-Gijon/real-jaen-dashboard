@@ -1,6 +1,5 @@
 .page { max-width: 980px; min-width: 0; }
-.heading > header { margin-bottom: var(--rj-space-3); }
-.target { padding-block: var(--rj-space-2) var(--rj-space-6); border-bottom: 1px solid var(--rj-border-default); }
+.target { padding-block: 0 var(--rj-space-6); border-bottom: 1px solid var(--rj-border-default); }
 .context { display: flex; align-items: center; justify-content: space-between; gap: var(--rj-space-3); color: var(--rj-text-secondary); font-size: var(--rj-text-sm); }
 .encounterContext { min-width: 0; }
 .fixture { display: grid; grid-template-columns: minmax(0, 1fr) 50px minmax(0, 1fr); align-items: center; gap: var(--rj-space-3); margin-block: var(--rj-space-4) var(--rj-space-3); }
@@ -25,7 +24,8 @@
 .options strong { display: block; font-weight: 600; }
 .options time, .current { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .history { display: grid; gap: var(--rj-space-8); padding-top: var(--rj-space-6); }
-.history h2 { font-size: var(--rj-text-lg); font-weight: 700; }
+.sectionHeader h2 { min-width: 0; overflow-wrap: anywhere; }
+.sectionHeader h2::before { flex-shrink: 0; }
 .sectionHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--rj-space-3); margin-bottom: var(--rj-space-3); }
 .summary { display: grid; grid-template-columns: 1fr 1fr 1.5fr; max-width: 760px; gap: var(--rj-space-3) var(--rj-space-8); padding-bottom: var(--rj-space-4); }
 .summary dt { color: var(--rj-text-secondary); font-size: var(--rj-text-xs); text-transform: uppercase; letter-spacing: .04em; }

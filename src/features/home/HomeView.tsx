@@ -1,7 +1,6 @@
 "use client";
 
 import { getSource } from "@/client/api";
-import { PageHeader } from "@/ui/PageHeader";
 import { failureReason, useApi } from "../use-api";
 import { LoadError } from "./PreparationParts";
 import { RealHomeView } from "./RealHomeView";
@@ -17,7 +16,6 @@ import css from "./HomeView.module.css";
 export function HomeView(props: Props) {
   const source = useApi("source", signal => getSource({ signal }));
   return <div className={css.page}>
-    <div className={css.heading}><PageHeader title="Preparación de rival" /></div>
     {source.error ? <LoadError message={`No se pudo determinar la fuente de los datos. ${failureReason(source.error)}`} retry={source.retry} />
       : !source.data ? <p role="status" className={css.message}>Cargando preparación…</p>
         : source.data.synthetic ? <SyntheticHomeView {...props} /> : <RealHomeView {...props} />}

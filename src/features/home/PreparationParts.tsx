@@ -7,6 +7,7 @@ import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel, formatNumber } from "../format";
 import { CLUB_ID } from "../club";
+import sections from "../teams/TeamPerformance.module.css";
 import css from "./HomeView.module.css";
 
 /**
@@ -110,7 +111,7 @@ export function HistorySection({ team, rows, summary, expectation, allHref, cove
   return <div className={css.history}>
     <section aria-labelledby="home-recent-title">
       <div className={css.sectionHeader}>
-        <h2 id="home-recent-title">{title}</h2>
+        <h2 className={sections.zoneTitle} id="home-recent-title">{title}</h2>
         <Link className={css.secondaryLink} href={allHref}>Ver todos</Link>
       </div>
       {coverage}

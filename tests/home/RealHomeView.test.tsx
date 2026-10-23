@@ -50,6 +50,7 @@ describe("Inicio con la fuente real", () => {
   it("prepares the club's next current match: its rival, its five previous matches and their summary, loading nothing synthetic", async () => {
     render(<HomeView now={NOW} />);
     const list = await recent();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     const header = screen.getByRole("region", { name: "Encuentro de preparación" });
     expect(within(header).getByText("Jornada 9 · 25 oct 2026 · Primera Federación, Grupo 2 · 26/27")).toBeVisible();
     expect(within(header).getByText("Atlético Madrileño").parentElement).toHaveTextContent("Local");

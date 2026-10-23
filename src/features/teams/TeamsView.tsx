@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import { getSource } from "@/client/api";
 import { Button } from "@/ui/Button";
-import { PageHeader } from "@/ui/PageHeader";
 import { teamsInitialView } from "../players/navigation";
 import { failureReason, useApi } from "../use-api";
 import { RealTeamsView } from "./RealTeamsView";
@@ -24,14 +23,12 @@ export function TeamsView(serverView: Props) {
   const props = search ? teamsInitialView(Object.fromEntries(search)) : serverView;
   const source = useApi("source", (signal) => getSource({ signal }));
   if (source.error) return <>
-    <PageHeader title="Equipos" />
     <div className={css.error} role="alert">
       <p>No se pudo determinar la fuente de los equipos. {failureReason(source.error)}</p>
       <Button onClick={source.retry} size="sm">Reintentar</Button>
     </div>
   </>;
   if (!source.data) return <>
-    <PageHeader title="Equipos" />
     <p className={css.status} role="status">Cargando equipos…</p>
   </>;
   return source.data.synthetic ? <SyntheticTeamsView {...props} /> : <RealTeamsView {...props} />;

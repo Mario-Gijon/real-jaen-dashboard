@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { ApiRequestError, getObservedSquad, getTeamObservedPerformance } from "@/client/api";
 import type { ObservedCompetitionPerformance, ObservedTeam, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
-import { PageHeader } from "@/ui/PageHeader";
 import { CLUB_ID } from "../club";
 import { observedCrest } from "../team-crests";
 import { observedMatchHref } from "../players/navigation";
@@ -57,7 +56,6 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
 
   return (
     <>
-      <PageHeader title="Equipos" />
 
       {notFound ? (
         <div className={css.status} role="status">

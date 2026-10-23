@@ -87,7 +87,6 @@ export function SyntheticTeamsView({ initialTeamId, initialSeasonId, initialTab 
             </label>
           </div>
         }
-        title="Equipos"
       />
 
       {competitions.error || standings.error ? (

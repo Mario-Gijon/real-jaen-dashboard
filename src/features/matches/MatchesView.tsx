@@ -2,7 +2,6 @@
 
 import { useSearchParams } from "next/navigation";
 import { getSource } from "@/client/api";
-import { PageHeader } from "@/ui/PageHeader";
 import { matchesInitialState } from "../players/navigation";
 import { failureReason, useApi } from "../use-api";
 import { RealMatchesView } from "./RealMatchesView";
@@ -20,11 +19,9 @@ export function MatchesView(serverView: Props = {}) {
     initialState: matchesInitialState({ state: search.get("state") }) } : serverView;
   const source = useApi("source", (signal) => getSource({ signal }));
   if (source.error) return <>
-    <PageHeader title="Partidos" />
     <LoadError message={`No se pudo determinar la fuente de los partidos. ${failureReason(source.error)}`} retry={source.retry} />
   </>;
   if (!source.data) return <>
-    <PageHeader title="Partidos" />
     <p className={css.status} role="status">Cargando partidos…</p>
   </>;
   return source.data.synthetic ? <SyntheticMatchesView {...props} /> : <RealMatchesView {...props} />;

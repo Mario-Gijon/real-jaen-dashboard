@@ -82,7 +82,6 @@ export function RealMatchesView({ initialSeasonId, initialTeamId, initialState =
   return (
     <>
       <PageHeader
-        title="Partidos"
         actions={served.length > 1 ? (
           <div className={css.scope}>
             <label className={`${css.field} ${css.competition}`}>

@@ -70,6 +70,14 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   await expect(header.getByText(/aplazado, pendiente de disputar sin nueva fecha confirmada/)).toBeVisible();
   await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 2, name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(0);
+  const historyHeading = page.getByRole("heading", { name: "Últimos 5 partidos del Atlético Madrileño", exact: true });
+  await expect(historyHeading).toHaveCSS("color", "rgb(75, 38, 119)");
+  const accent = await historyHeading.evaluate(element => {
+    const before = getComputedStyle(element, "::before");
+    return { width: before.width, color: before.backgroundColor };
+  });
+  expect(accent).toEqual({ width: "4px", color: "rgb(212, 167, 44)" });
   const list = page.getByRole("list", { name: "Últimos partidos del rival" });
   await expect(list.getByRole("link")).toHaveCount(5);
   await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-106?view=observed&from=home&match=sofascore-match-9");

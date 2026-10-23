@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 test("Home changes preparation context by keyboard and opens a recent match", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Preparación de rival", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Encuentro de preparación" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Secciones" }).getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
   const trigger = page.getByRole("button", { name: "Cambiar rival" });
   await expect(trigger).toBeEnabled();

@@ -28,7 +28,6 @@ export function SyntheticMatchesView({ initialSeasonId, initialTeamId }: Props) 
   return (
     <>
       <PageHeader
-        title="Partidos"
         actions={
           <div className={css.scope}>
             <label className={`${css.field} ${css.competition}`}>
