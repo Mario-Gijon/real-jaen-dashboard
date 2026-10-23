@@ -207,7 +207,7 @@ function SyntheticTeamsView({ initialTeamId, initialSeasonId, initialTab = "perf
   );
 }
 
-/** A real team as the crest grid and header draw it: the source's name and a neutral shield (the club keeps its crest). */
+/** A real team as the crest grid and header draw it: the source's name and its crest file, or a neutral shield. */
 const realTeamRef = (team: ObservedTeam): TeamRef => ({ id: team.id, ...observedCrest(team) });
 
 /**

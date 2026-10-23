@@ -314,6 +314,30 @@ reiníciala.
 - El dorsal es el de la última convocatoria observada con fecha (se indica así): no
   necesariamente el actual. No es una plantilla completa ni necesariamente actual.
 
+## Escudos
+
+Los datos de la fuente no traen escudos: ni las exportaciones raw ni el almacén de
+`sofascore_scraper` incluyen imágenes ni URL de imagen de los equipos (sólo nombre, `nameCode`
+y colores). Por eso un escudo es un archivo local en `public/`, servido por el propio
+dashboard; el navegador nunca lo pide a un proveedor.
+
+- `src/features/team-crests.ts` es el único registro: identificador público del equipo → archivo.
+  Lo usan todas las vistas reales (cuadrícula y cabecera de Equipos, rendimiento, lista y
+  detalle de partidos) a través de `observedCrest`. Las vistas sintéticas toman el escudo de sus
+  datos.
+- Sin entrada en el registro, o si el archivo no carga, `TeamCrest` dibuja el escudo neutro con
+  las iniciales.
+
+| Equipo | Archivo | Procedencia |
+|---|---|---|
+| Real Jaén (`team-real-jaen`) | `public/real-jaen-crest.png` (439×703 PNG) | Recurso del proyecto desde su creación (commit `af3ba28`, 2026-10-05); origen no registrado |
+| UD Ibiza (`sofascore-team-24368`) | — (escudo neutro) | Intento de descarga el 2026-10-22 16:11:22 UTC de `https://api.sofascore.app/api/v1/team/24368/image`: HTTP 403 Forbidden. Sin archivo |
+
+Para añadir el escudo de un equipo con correspondencia: obtén la imagen de un origen adecuado
+(el club o una descarga autorizada; es una marca del club, uso interno), compruébala (tipo,
+tamaño y que sea ese club), guárdala como `public/crests/{id-público}.{png|webp|svg}`, añade la
+entrada en `src/features/team-crests.ts` y anota en esta tabla la URL de origen y la fecha.
+
 ## Goles y tarjetas
 
 - Un evento `goal` lleva el jugador que lo realiza y su equipo (`teamId`). Si `ownGoal` es

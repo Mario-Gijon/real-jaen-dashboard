@@ -4,13 +4,14 @@ import { TeamCrest } from "@/ui/TeamCrest";
 import { CLUB_ID } from "../home/preparation";
 import { observedMatchHref } from "../players/navigation";
 import { dateLabel } from "../format";
+import { crestUrlOf } from "../team-crests";
 import css from "./MatchList.module.css";
 
 const STATUS: Record<MatchStatus, string> = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };
 const timeFormat = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
 });
-/** No colours or crest are invented for a real team: a neutral shield, the club keeps its own. */
+/** No colours are invented for a real team: its crest file, or a neutral shield. */
 const NEUTRAL = { primary: "#e3deea", secondary: "#5e6172" };
 
 /**
@@ -62,10 +63,10 @@ export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch
   );
 }
 
-/** What TeamCrest needs for a real team: its source name and a neutral shield (the club keeps its crest). */
+/** What TeamCrest needs for a real team: its source name and its crest file (`crestUrlOf`), or a neutral shield. */
 export function observedCrest(team: ObservedTeam) {
   const name = team.name ?? "Equipo sin identificar";
-  return { name, shortName: name, crestUrl: team.id === CLUB_ID ? "/real-jaen-crest.png" : null, colors: NEUTRAL };
+  return { name, shortName: name, crestUrl: crestUrlOf(team.id), colors: NEUTRAL };
 }
 
 function Team({ team, side }: { team: ObservedTeam; side: "home" | "away" }) {
