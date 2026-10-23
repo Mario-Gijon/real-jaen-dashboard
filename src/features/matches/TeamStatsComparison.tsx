@@ -19,7 +19,7 @@ export type StatsSide = { label: string; name: string; stats: TeamMatchStats };
 export function TeamStatsComparison({ home: homeSide, away: awaySide }: { home: StatsSide; away: StatsSide }) {
   return <>
     <div className={css.legend} aria-hidden="true">
-      <span>{homeSide.label} · Local</span><span>{awaySide.label} · Visitante</span>
+      <span><strong>{homeSide.label}</strong><span> · Local</span></span><span><strong>{awaySide.label}</strong><span> · Visitante</span></span>
     </div>
     <dl className={css.metrics}>
       {METRICS.map(({ key, label, decimals = 0 }) => {

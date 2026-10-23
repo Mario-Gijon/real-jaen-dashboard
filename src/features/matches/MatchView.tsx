@@ -14,13 +14,14 @@ import css from "./MatchDetailView.module.css";
  * only keeps its return context, so a real link in the demonstration (or an
  * old synthetic one in real mode) finds no match instead of switching data.
  */
-export function MatchView({ matchId, tab, playerReturnHref, teamsReturnHref, homeReturnHref, originQuery }: {
+export function MatchView({ matchId, tab, playerReturnHref, teamsReturnHref, homeReturnHref, matchesReturnHref = null, originQuery }: {
   matchId: string; tab: unknown; playerReturnHref: string | null; teamsReturnHref: string | null; homeReturnHref: string | null;
+  matchesReturnHref?: string | null;
   originQuery: Record<string, unknown>;
 }) {
   const source = useApi("source", (signal) => getSource({ signal }));
   if (source.error) return <div className={css.page}>
-    <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>
+    <Link href={matchesReturnHref ?? "/matches"} className={css.back}>‹ Volver a partidos</Link>
     <div role="alert" className={css.message}>
       <h1>No se pudo determinar la fuente de los datos</h1>
       <p>{failureReason(source.error)}</p>
@@ -31,5 +32,6 @@ export function MatchView({ matchId, tab, playerReturnHref, teamsReturnHref, hom
   return source.data.synthetic
     ? <MatchDetailView matchId={matchId} initialSection={tab === "timeline" || tab === "lineups" ? tab : "summary"} homeReturnHref={homeReturnHref} />
     : <RealMatchDetailView matchId={matchId} initialSection={tab === "lineups" ? "lineups" : "summary"}
-      playerReturnHref={playerReturnHref} teamsReturnHref={teamsReturnHref} homeReturnHref={homeReturnHref} originQuery={originQuery} />;
+      playerReturnHref={playerReturnHref} teamsReturnHref={teamsReturnHref} homeReturnHref={homeReturnHref}
+      matchesReturnHref={matchesReturnHref} originQuery={originQuery} />;
 }

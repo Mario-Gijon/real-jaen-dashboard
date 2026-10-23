@@ -2,130 +2,187 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ApiRequestError, getCompetitions, getSeasonMatches, getSeasonTeams, getSource, getTeamObservedMatches,
+  ApiRequestError, getCompetitions, getSeasonMatches, getSeasonTeams, getSource, getTeamObservedMatches, getTeamObservedPerformance,
 } from "@/client/api";
-import type { ObservedMatch, ObservedTeamMatches } from "@/contract";
+import type { ObservedCompetition, ObservedMatch, ObservedTeam, ObservedTeamMatches, ObservedTeamPerformance } from "@/contract";
 import { MatchesView } from "@/features/matches/MatchesView";
+import { mergeTeamMatches, teamOptions } from "@/features/matches/real-matches";
 import { REAL_SOURCE } from "../shared/sources";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
-  getSource: vi.fn(), getTeamObservedMatches: vi.fn(),
+  getSource: vi.fn(), getTeamObservedMatches: vi.fn(), getTeamObservedPerformance: vi.fn(),
   getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getSeasonTeams: vi.fn(),
 }));
 
 const jaen = { id: "team-real-jaen", name: "Real Jaén" };
+const ibiza = { id: "sofascore-team-24368", name: "UD Ibiza" };
+const alcorcon = { id: "sofascore-team-24322", name: "AD Alcorcón" };
+const europa = { id: "sofascore-team-135672", name: "CE Europa" };
 const match = (id: string, fields: Partial<ObservedMatch>): ObservedMatch => ({
   id, kickoff: "2026-08-30T17:15:00Z", status: "finished", competition: "Primera Federacion, Group 2",
-  season: "26/27", round: 1, home: { id: "sofascore-team-1", name: "CE Europa" }, away: jaen,
-  score: { home: 0, away: 3 }, ...fields,
+  season: "26/27", round: 1, home: europa, away: jaen, score: { home: 0, away: 3 }, ...fields,
 });
-const SCOPE = "Partidos del equipo que registra la fuente. No es necesariamente un calendario completo.";
-const GROUP_2 = { name: "Primera Federación, Grupo 2", season: "26/27" };
-/** By default a source serving two competitions (the selector's case); this version's serves only Group 2. */
-const real = (matches: ObservedMatch[], competitions = [GROUP_2, { name: "Copa del Rey", season: "26/27" }]): ObservedTeamMatches => ({
-  teamId: "team-real-jaen", scope: SCOPE, source: { synthetic: false, label: "Datos reales" }, competitions,
-  matches: matches.map((m) => ({ match: m, side: m.home.id === jaen.id ? "home" : "away" })),
+const GROUP_2: ObservedCompetition = { name: "Primera Federación, Grupo 2", season: "26/27" };
+const real = (team: ObservedTeam, matches: ObservedMatch[], competitions = [GROUP_2]): ObservedTeamMatches => ({
+  teamId: team.id, scope: "Partidos del equipo.", source: { synthetic: false, label: "Datos reales" }, competitions,
+  matches: matches.map((m) => ({ match: m, side: m.home.id === team.id ? "home" : "away" })),
 });
+/** The real catalog: the analysable teams, in the source's order (not the selector's). */
+const catalog = (teams = [ibiza, jaen, alcorcon]) => ({ teamId: jaen.id, teams, competitions: [], scope: "", source: REAL_SOURCE }) as unknown as ObservedTeamPerformance;
+
 const finished = match("m1", {});
 const goalless = match("m2", { kickoff: "2026-10-03T11:00:00Z", round: 6, score: { home: 0, away: 0 } });
-const cup = match("m3", { kickoff: "2026-10-28T19:00:00Z", status: "scheduled", competition: "Copa del Rey", round: 1,
-  home: { id: "sofascore-team-3", name: "CD Rival Copa" }, score: null });
+const pending = match("m3", { kickoff: "2026-10-28T19:00:00Z", status: "scheduled", round: 9, home: jaen, away: ibiza, score: null });
+const unknown = match("m5", { kickoff: "2026-11-01T10:00:00Z", status: null, score: null, round: 10 });
 const undated = match("m4", { kickoff: null, status: "scheduled", round: 20, home: jaen, away: { id: "sofascore-team-4", name: null }, score: null });
-const strange = match("m5", { kickoff: "2026-11-01T10:00:00Z", status: null, score: null, season: "27/28" });
+const ibizaOnly = match("m6", { kickoff: "2026-09-12T17:00:00Z", round: 3, home: ibiza, away: alcorcon, score: { home: 1, away: 1 } });
+const LISTS: Record<string, ObservedTeamMatches> = {
+  [jaen.id]: real(jaen, [finished, goalless, pending, unknown, undated]),
+  [ibiza.id]: real(ibiza, [ibizaOnly, pending]),
+  [alcorcon.id]: real(alcorcon, [ibizaOnly]),
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
+  window.history.replaceState(null, "", "/matches");
   vi.mocked(getSource).mockResolvedValue(REAL_SOURCE);
-  vi.mocked(getTeamObservedMatches).mockResolvedValue(real([finished, goalless, cup, strange, undated]));
+  vi.mocked(getTeamObservedPerformance).mockResolvedValue(catalog());
+  vi.mocked(getTeamObservedMatches).mockImplementation(async (teamId) => LISTS[teamId] ?? real({ id: teamId, name: null }, []));
 });
 
+const list = () => screen.findByRole("list", { name: "Partidos reales" });
 const rows = () => within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("listitem");
+const hrefs = () => within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("link").map((l) => l.getAttribute("href"));
+const teamSelect = () => screen.getByRole("combobox", { name: "Equipo" });
+/** A row's link: its real detail, carrying the list's team and status to return to. */
+const link = (id: string, context = "") => `/matches/${id}?view=observed&from=matches${context}`;
 
 describe("Partidos with the real source", () => {
-  it("lists the club's real matches with provenance and coverage, linked only to their real detail, never touching synthetic data", async () => {
+  it("opens on Real Jaén with only Equipo and Estado above, no provenance block and no competition per row", async () => {
     render(<MatchesView />);
-    expect(await screen.findByRole("list", { name: "Partidos reales" })).toBeVisible();
-    expect(getTeamObservedMatches).toHaveBeenCalledWith("team-real-jaen", expect.anything());
-    expect(screen.getByText("Datos reales")).toBeVisible();
-    expect(screen.getByText(SCOPE)).toBeVisible();
-    expect(rows()).toHaveLength(5);
-    expect(within(rows()[0]).getByText("Primera Federacion, Group 2")).toBeVisible();
+    await list();
+    expect(getTeamObservedMatches).toHaveBeenCalledWith(jaen.id, expect.anything());
+    expect(teamSelect()).toHaveValue(jaen.id);
+    expect(screen.getAllByRole("combobox").map((c) => c.getAttribute("aria-label") ?? c.closest("label")!.firstChild!.textContent))
+      .toEqual(["Equipo", "Estado"]);
+    expect(screen.queryByText("Datos reales")).toBeNull();
+    expect(screen.queryByText("Competición")).toBeNull();
+    expect(screen.queryByText("Temporada")).toBeNull();
+    expect(screen.queryByText("Primera Federacion, Group 2")).toBeNull();
     expect(within(rows()[0]).getByText("26/27 · J1")).toBeVisible();
     expect(rows()[0]).toHaveTextContent("0 – 3Finalizado");
-    expect(rows()[1]).toHaveTextContent("0 – 0Finalizado");
-    // A pending match shows its time, never 0–0.
+    // A pending match shows its time, never 0–0; unknown states and dates are said so.
     expect(rows()[2]).toHaveTextContent(/\d\d:\d\dProgramado/);
-    expect(rows()[2]).not.toHaveTextContent("0 – 0");
     expect(rows()[3]).toHaveTextContent("Estado desconocido");
     expect(rows()[4]).toHaveTextContent("Fecha por definir");
-    expect(rows()[4]).toHaveTextContent("Por definirProgramado");
-    expect(rows()[4]).toHaveTextContent("Equipo sin identificar");
-    const links = within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("link");
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["m1", "m2", "m3", "m5", "m4"].map((id) => `/matches/${id}?view=observed`));
+    expect(hrefs()).toEqual(["m1", "m2", "m3", "m5", "m4"].map((id) => link(id)));
+    expect(window.location.search).toBe("");
     for (const synthetic of [getCompetitions, getSeasonMatches, getSeasonTeams]) expect(synthetic).not.toHaveBeenCalled();
   });
 
-  it("names the only competition the source serves instead of offering a choice, keeping the real seasons", async () => {
-    vi.mocked(getTeamObservedMatches).mockResolvedValue(real([finished, goalless, strange], [GROUP_2]));
+  it("offers the real catalog, club first, then «Todos los equipos», and shows the chosen team's matches with the same status filter", async () => {
     const user = userEvent.setup();
     render(<MatchesView />);
-    await screen.findByRole("list", { name: "Partidos reales" });
-    expect(screen.queryByRole("combobox", { name: "Competición" })).toBeNull();
-    expect(screen.getByText("Competición").parentElement).toHaveTextContent("CompeticiónPrimera Federación, Grupo 2");
-    const season = screen.getByRole("combobox", { name: "Temporada" });
-    expect([...season.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Todas", "27/28", "26/27"]);
-    await user.selectOptions(season, "26/27");
-    expect(rows()).toHaveLength(2);
-    expect(screen.queryByText(/Copa del Rey/)).toBeNull();
-  });
-
-  it("filters by the source's seasons, competitions and status", async () => {
-    const user = userEvent.setup();
-    render(<MatchesView />);
-    await screen.findByRole("list", { name: "Partidos reales" });
-    const season = screen.getByRole("combobox", { name: "Temporada" });
-    expect([...season.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Todas", "27/28", "26/27"]);
-    await user.selectOptions(season, "26/27");
-    expect(rows()).toHaveLength(4);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Competición" }), "Copa del Rey");
-    expect(rows()).toHaveLength(1);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Competición" }), "all");
+    await list();
+    expect([...teamSelect().querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Real Jaén", "AD Alcorcón", "UD Ibiza", "Todos los equipos"]);
     await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "finished");
-    expect(rows()).toHaveLength(2);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "pending");
-    expect(rows()).toHaveLength(2);
-    await user.selectOptions(season, "27/28");
-    expect(screen.getByText("No hay partidos con estos filtros.")).toBeVisible();
+    await user.selectOptions(teamSelect(), ibiza.id);
+    await vi.waitFor(() => expect(hrefs()).toHaveLength(1));
+    expect(getTeamObservedMatches).toHaveBeenLastCalledWith(ibiza.id, expect.anything());
+    expect(window.location.search).toBe(`?team=${ibiza.id}&state=finished`);
+    // Status is kept: only Ibiza's finished match, opening with this team and status.
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("finished");
+    expect(hrefs()).toEqual([link("m6", `&team=${ibiza.id}&state=finished`)]);
   });
 
-  it("says when the source has no matches", async () => {
-    vi.mocked(getTeamObservedMatches).mockResolvedValue(real([]));
+  it("lists every team's matches once with «Todos los equipos», asking for one team at a time", async () => {
+    const order: string[] = [];
+    let busy = 0;
+    vi.mocked(getTeamObservedMatches).mockImplementation(async (teamId) => {
+      expect(busy).toBe(0);
+      busy++;
+      order.push(teamId);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      busy--;
+      return LISTS[teamId];
+    });
+    render(<MatchesView initialTeamId="all" />);
+    await list();
+    expect(teamSelect()).toHaveValue("all");
+    expect(order).toEqual([jaen.id, alcorcon.id, ibiza.id]);
+    // m3 (Jaén – Ibiza) and m6 (Ibiza – Alcorcón) appear in two lists, listed once; by kickoff, undated last.
+    expect(hrefs()).toEqual(["m1", "m6", "m2", "m3", "m5", "m4"].map((id) => link(id, "&team=all")));
+    await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Estado" }), "pending");
+    expect(hrefs()).toEqual(["m3", "m4"].map((id) => link(id, "&team=all&state=pending")));
+  });
+
+  it("opens the team of the URL, and falls back to Real Jaén for one the catalog does not offer, saying so", async () => {
+    const { unmount } = render(<MatchesView initialTeamId={ibiza.id} />);
+    await list();
+    expect(teamSelect()).toHaveValue(ibiza.id);
+    expect(getTeamObservedMatches).toHaveBeenCalledWith(ibiza.id, expect.anything());
+    unmount();
+    vi.mocked(getTeamObservedMatches).mockClear();
+    window.history.replaceState(null, "", "/matches?team=team-montealto");
+    render(<MatchesView initialTeamId="team-montealto" />);
+    expect(await screen.findByText("El equipo indicado no está disponible en la fuente real: se muestran los partidos del Real Jaén.")).toBeVisible();
+    await list();
+    expect(teamSelect()).toHaveValue(jaen.id);
+    expect(getTeamObservedMatches).not.toHaveBeenCalledWith("team-montealto", expect.anything());
+    expect(window.location.search).toBe("?team=team-montealto");
+  });
+
+  it("opens the status of the URL too, as a match page returns to it", async () => {
+    render(<MatchesView initialTeamId="all" initialState="pending" />);
+    await list();
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("pending");
+    expect(hrefs()).toEqual(["m3", "m4"].map((id) => link(id, "&team=all&state=pending")));
+  });
+
+  it("keeps to the current season of the scope: another season never shows, a match without a season name stays", async () => {
+    vi.mocked(getTeamObservedMatches).mockResolvedValue(real(jaen, [finished, match("m7", { season: "25/26", kickoff: "2026-05-01T10:00:00Z" }),
+      match("m8", { season: null, kickoff: "2026-09-20T10:00:00Z" })]));
     render(<MatchesView />);
-    expect(await screen.findByText("La fuente no tiene partidos de este equipo.")).toBeVisible();
+    await list();
+    expect(hrefs()).toEqual([link("m1"), link("m8")]);
   });
 
-  it("shows the failure of the real source with retry, never synthetic matches", async () => {
-    vi.mocked(getTeamObservedMatches).mockRejectedValueOnce(
-      new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "La fuente de datos real no está disponible."),
-    );
+  it("brings the competition and season selectors back when the source serves more than one", async () => {
+    const cup = match("m9", { competition: "Copa del Rey", kickoff: "2026-10-28T19:00:00Z" });
+    vi.mocked(getTeamObservedMatches).mockResolvedValue(real(jaen, [finished, cup], [GROUP_2, { name: "Copa del Rey", season: "26/27" }]));
+    const user = userEvent.setup();
+    render(<MatchesView />);
+    await list();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Competición" }), "Copa del Rey");
+    expect(hrefs()).toEqual([link("m9")]);
+    expect(screen.getByRole("combobox", { name: "Temporada" })).toBeVisible();
+  });
+
+  it("says when the source has no matches, and shows failures with retry, never synthetic matches", async () => {
+    vi.mocked(getTeamObservedMatches).mockResolvedValueOnce(real(jaen, []));
+    const { unmount } = render(<MatchesView />);
+    expect(await screen.findByText("La fuente no tiene partidos de este equipo.")).toBeVisible();
+    unmount();
+    vi.mocked(getTeamObservedMatches).mockRejectedValueOnce(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "No"));
     render(<MatchesView />);
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudieron cargar los partidos reales.");
     expect(getSeasonMatches).not.toHaveBeenCalled();
     await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByRole("list", { name: "Partidos reales" })).toBeVisible();
+    expect(await list()).toBeVisible();
   });
 
-  it("says a team from the URL has no correspondence, without swapping it for Real Jaén", async () => {
-    vi.mocked(getTeamObservedMatches).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "Sin correspondencia"));
-    render(<MatchesView initialTeamId="team-montealto" />);
-    expect(await screen.findByText("Este equipo no tiene correspondencia con la fuente real de partidos.")).toBeVisible();
-    expect(getTeamObservedMatches).toHaveBeenCalledWith("team-montealto", expect.anything());
-    expect(screen.getByRole("link", { name: "Ver los partidos reales del Real Jaén" })).toHaveAttribute("href", "/matches");
-    expect(screen.queryByRole("list", { name: "Partidos reales" })).toBeNull();
+  it("still shows the club's matches when the team list fails, with its own retry", async () => {
+    vi.mocked(getTeamObservedPerformance).mockRejectedValueOnce(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "No"));
+    render(<MatchesView />);
+    await list();
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar la lista de equipos.");
+    expect(teamSelect()).toBeDisabled();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("option", { name: "Todos los equipos" })).toBeInTheDocument();
   });
 
-  it("says a synthetic season from the URL does not apply, without asking for or filtering real matches", async () => {
+  it("says a synthetic season from the URL does not apply, without asking for real matches", async () => {
     render(<MatchesView initialSeasonId="season-demo-2026-27" initialTeamId="team-real-jaen" />);
     expect(await screen.findByText(/La temporada seleccionada no corresponde a la fuente real de partidos/)).toBeVisible();
     expect(getTeamObservedMatches).not.toHaveBeenCalled();
@@ -137,5 +194,18 @@ describe("Partidos with the real source", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo determinar la fuente de los partidos.");
     expect(getTeamObservedMatches).not.toHaveBeenCalled();
     expect(getCompetitions).not.toHaveBeenCalled();
+  });
+});
+
+describe("real match lists", () => {
+  it("order the catalog club first, then by name", () => {
+    expect(teamOptions([ibiza, alcorcon, jaen]).map((t) => t.id)).toEqual([jaen.id, alcorcon.id, ibiza.id]);
+  });
+
+  it("merge several teams' matches without repeating one, by kickoff, undated last", () => {
+    const merged = mergeTeamMatches([LISTS[jaen.id], LISTS[ibiza.id], LISTS[alcorcon.id]]);
+    expect(merged.matches.map((m) => m.id)).toEqual(["m1", "m6", "m2", "m3", "m5", "m4"]);
+    expect(merged.competitions).toEqual([GROUP_2]);
+    expect(mergeTeamMatches([])).toEqual({ matches: [], competitions: [] });
   });
 });

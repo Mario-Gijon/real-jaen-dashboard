@@ -1,8 +1,46 @@
 import { describe, expect, it } from "vitest";
 import {
-  homeHref, homeReturnHref, matchHref, observedMatchHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, relatedObservedMatchHref,
+  homeHref, homeReturnHref, matchHref, matchesHref, matchesInitialState, observedMatchHref, observedMatchListReturnHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, relatedObservedMatchHref,
   playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch, profileOrigin, teamsHref, teamsInitialView,
 } from "@/features/players/navigation";
+
+describe("«Partidos» as the origin of a real match", () => {
+  it("keeps both list filters through a profile and a match opened from that profile", () => {
+    const matches = { kind: "matches", teamId: "all", state: "finished" } as const;
+    const origin = { kind: "observedMatch", id: "m1", tab: "lineups", matches } as const;
+    const profile = playerProfileHref("p1", null, origin);
+    const query = queryOf(profile);
+    expect(profileOrigin(query)).toEqual(origin);
+    const back = playerReturnHref(null, query);
+    expect(back).toBe(`${observedMatchHref("m1", matches)}&tab=lineups`);
+    expect(observedMatchListReturnHref(queryOf(back))).toBe("/matches?team=all&state=finished");
+    const match = observedMatchHref("m2", { playerId: "p1", seasonId: null, origin: profileOrigin(query) });
+    expect(observedMatchReturnHref("m2", queryOf(match))).toBe(`${profile}&match=m2`);
+  });
+
+  it("keeps the team and status the list had, leaving out the club and «Todos»", () => {
+    expect(matchesHref({})).toBe("/matches");
+    expect(matchesHref({ teamId: "team-real-jaen", state: "all" })).toBe("/matches");
+    expect(matchesHref({ teamId: "all", state: "pending" })).toBe("/matches?team=all&state=pending");
+    const href = observedMatchHref("sofascore-match-1", { kind: "matches", teamId: "sofascore-team-24326", state: "finished" });
+    expect(href).toBe("/matches/sofascore-match-1?view=observed&from=matches&team=sofascore-team-24326&state=finished");
+    expect(observedMatchListReturnHref(queryOf(href))).toBe("/matches?team=sofascore-team-24326&state=finished");
+    expect(observedMatchListReturnHref(queryOf(observedMatchHref("sofascore-match-1", { kind: "matches", teamId: "team-real-jaen", state: "all" }))))
+      .toBe("/matches");
+    // A related match keeps it; other origins are not one.
+    expect(relatedObservedMatchHref("sofascore-match-2", queryOf(href)))
+      .toBe("/matches/sofascore-match-2?view=observed&from=matches&team=sofascore-team-24326&state=finished");
+    expect(observedMatchTeamsReturnHref(queryOf(href))).toBeNull();
+    expect(homeReturnHref(queryOf(href))).toBeNull();
+  });
+
+  it("returns to plain «Partidos» without a context, and drops what it did not build", () => {
+    expect(observedMatchListReturnHref(queryOf(observedMatchHref("sofascore-match-1")))).toBeNull();
+    expect(observedMatchListReturnHref({ from: "matches", team: "//example.com", state: "otro" })).toBe("/matches");
+    expect(matchesInitialState({ state: "pending" })).toBe("pending");
+    expect(matchesInitialState({ state: ["finished"] })).toBe("all");
+  });
+});
 
 describe("«Inicio» as the origin of a match", () => {
   it("returns from a synthetic match to the season and target it was opened from", () => {

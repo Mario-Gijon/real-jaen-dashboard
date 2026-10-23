@@ -71,15 +71,20 @@ async function openLineups(props: { initialSection?: "summary" | "lineups" } = {
 const row = (panel: HTMLElement, name: string) => within(panel).getByText(name).closest("li")!;
 
 describe("Real match detail: Resumen", () => {
-  it("shows the header and, in Resumen, the team stats from the source, unknown values as «—», with provenance", async () => {
+  it("shows the header without competition nor provenance block, and in Resumen the team stats from the source, unknown values as «—»", async () => {
     render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
     expect(await screen.findByRole("heading", { level: 1, name: "CE Europa contra Real Jaén" })).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Resumen", "Alineaciones"]);
     expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Primera Federacion, Group 2 · 26/27")).toBeVisible();
+    // Competition and season stay in the data, not on screen; the round and date do.
+    expect(screen.queryByText(/Primera Federacion/)).toBeNull();
+    expect(screen.getByText("Jornada 1")).toBeVisible();
     expect(screen.getByText("0 – 3")).toBeVisible();
-    expect(screen.getByText("Datos reales")).toBeVisible();
-    expect(screen.getByText(SCOPE)).toBeVisible();
+    expect(screen.queryByText("Datos reales")).toBeNull();
+    expect(screen.queryByText(SCOPE)).toBeNull();
+    // Each team named above its column, «Local»/«Visitante» beneath.
+    expect(screen.getByText("CE Europa", { selector: "strong" }).nextElementSibling).toHaveTextContent("Local");
+    expect(screen.getByText("Real Jaén", { selector: "strong" }).nextElementSibling).toHaveTextContent("Visitante");
     expect(values("Posesión")).toEqual(["46 %", "54 %"]);
     expect(values("xG")).toEqual(["1,81", "1,60"]);
     expect(values("Amarillas")).toEqual(["0", "1"]);
@@ -195,7 +200,8 @@ describe("Real match detail: Resumen", () => {
 describe("Real match detail: Alineaciones", () => {
   it("lists «Once inicial» and «Banquillo» per team with shirt number and position, like the synthetic detail", async () => {
     const panel = await openLineups();
-    expect(within(panel).getByText("Alineaciones confirmadas por la fuente.")).toBeVisible();
+    // Confirmed line-ups need no note.
+    expect(within(panel).queryByText(/Alineaciones confirmadas/)).toBeNull();
     const home = within(panel).getByRole("region", { name: "CE Europa" });
     expect(within(home).getByRole("list", { name: "Once inicial de CE Europa" }).children).toHaveLength(11);
     expect(within(home).getByRole("list", { name: "Banquillo de CE Europa" }).children).toHaveLength(3);
@@ -229,9 +235,9 @@ describe("Real match detail: Alineaciones", () => {
     expect(within(withMinutes).queryByLabelText(/Entra/)).toBeNull();
     expect(withMinutes).toHaveTextContent("5′");
     expect(row(panel, "Suplente Sin Jugar")).toHaveTextContent("Participación no confirmada");
-    // Unused as the data service resolves it: said so, never «0′».
-    expect(row(panel, "Suplente No Utilizado")).toHaveTextContent("No utilizado");
-    expect(row(panel, "Suplente No Utilizado")).not.toHaveTextContent("0′");
+    // Unused as the data service resolves it: still listed, with nothing in its incidents area (never «0′»).
+    expect(row(panel, "Suplente No Utilizado")).toHaveTextContent(/^42Suplente No UtilizadoMED$/);
+    expect(row(panel, "Suplente No Utilizado")).not.toHaveTextContent(/No utilizado|0′/);
     expect(within(row(panel, "Titular 1")).queryByRole("img")).toBeNull();
   });
 

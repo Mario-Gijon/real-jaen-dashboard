@@ -11,7 +11,7 @@
   border-radius: var(--rj-radius-sm);
 }
 .match:hover, .match:focus-visible { background: var(--rj-bg-hover); }
-/* Real rows carry the source's competition name: a wider context column. */
+/* Real rows keep their wider context column (season · round, date), so teams and scores stay put. */
 @media (min-width: 761px) {
   .match[data-observed] { grid-template-columns: 168px minmax(0, 1fr) 96px minmax(0, 1fr); }
 }

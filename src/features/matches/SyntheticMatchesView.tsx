@@ -7,12 +7,13 @@ import type { Season } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
+import type { MatchesState } from "../players/navigation";
 import { useApi } from "../use-api";
 import { MatchList } from "./MatchList";
 import css from "./MatchesView.module.css";
 
 /** What the «Partidos» URL asks for. */
-export type Props = { initialSeasonId?: string; initialTeamId?: string };
+export type Props = { initialSeasonId?: string; initialTeamId?: string; initialState?: MatchesState };
 
 /** The demonstration's season, round by round, with its competition, season, round and team filters. */
 export function SyntheticMatchesView({ initialSeasonId, initialTeamId }: Props) {

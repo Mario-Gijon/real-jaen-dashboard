@@ -19,7 +19,10 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
  * finished match shows a score; a pending one shows its time or «Por
  * definir», never 0–0.
  */
-export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch[] }) {
+/** `matchHref` builds each row's link (e.g. with the list's team and status to return to). */
+export function ObservedMatchList({ matches, matchHref = (matchId) => observedMatchHref(matchId) }: {
+  matches: readonly ObservedMatch[]; matchHref?: (matchId: string) => string;
+}) {
   return (
     <ul className={css.list} aria-label="Partidos reales">
       {matches.map((match) => {
@@ -38,13 +41,13 @@ export function ObservedMatchList({ matches }: { matches: readonly ObservedMatch
             <Link
               className={css.match}
               data-observed=""
-              href={observedMatchHref(match.id)}
+              href={matchHref(match.id)}
               prefetch={false}
-              aria-label={`${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.competition, match.season].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}
+              aria-label={`${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.season, match.round !== null ? `jornada ${match.round}` : null].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}
             >
               <div className={css.meta}>
-                {match.competition ? <span className={css.round}>{match.competition}</span> : null}
-                {seasonRound ? <span>{seasonRound}</span> : null}
+                {/* The competition stays in the data; while every match is of the same one, it is not repeated per row. */}
+                {seasonRound ? <span className={css.round}>{seasonRound}</span> : null}
                 {match.kickoff ? <time dateTime={match.kickoff}>{date}</time> : <span>{date}</span>}
               </div>
               <Team team={match.home} side="home" />

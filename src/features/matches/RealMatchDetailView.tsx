@@ -8,7 +8,7 @@ import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "../format";
-import { relatedObservedMatchHref } from "../players/navigation";
+import { relatedObservedMatchHref, matchesInitialState, type ObservedMatchListOrigin } from "../players/navigation";
 import { useApi } from "../use-api";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { ObservedLineups } from "./ObservedLineups";
@@ -33,8 +33,11 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
  * provenance. Loads nothing synthetic; an id the real source does not know is
  * said so, never looked up among the synthetic matches.
  */
-export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null, homeReturnHref = null, originQuery = {} }: {
+export function RealMatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null, homeReturnHref = null,
+  matchesReturnHref = null, originQuery = {} }: {
   matchId: string; initialSection?: Section; playerReturnHref?: string | null; teamsReturnHref?: string | null; homeReturnHref?: string | null;
+  /** «Partidos» on the team and status the match was opened from; without it, plain «Partidos». */
+  matchesReturnHref?: string | null;
   /** The query this match was opened with: a related match keeps its origin. */
   originQuery?: Record<string, unknown>;
 }) {
@@ -48,14 +51,14 @@ export function RealMatchDetailView({ matchId, initialSection = "summary", playe
       ? <Link href={playerReturnHref} className={css.back}>‹ Volver al jugador</Link>
       : teamsReturnHref ? <Link href={teamsReturnHref} className={css.back}>‹ Volver al equipo</Link>
       : homeReturnHref ? <Link href={homeReturnHref} className={css.back}>‹ Volver a Inicio</Link>
-      : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
+      : <Link href={matchesReturnHref ?? "/matches"} className={css.back}>‹ Volver a partidos</Link>}
     {notFound ? <div role="alert" className={css.message}>
         <h1>Partido no encontrado en la fuente real</h1>
       </div>
       : detail.error ? <Failure title="No se pudo cargar el partido" retry={detail.retry} />
       : !detail.data ? <p role="status" className={css.message}>Cargando partido…</p>
       : <Detail data={detail.data} retry={detail.retry} section={section} setSection={setSection}
-        linkProfiles relatedHref={(id) => relatedObservedMatchHref(id, originQuery)} />}
+        linkProfiles matchesOrigin={originQuery.from === "matches" ? { kind: "matches", teamId: new URLSearchParams(matchesReturnHref?.split("?")[1]).get("team"), state: matchesInitialState(originQuery) } : undefined} relatedHref={(id) => relatedObservedMatchHref(id, originQuery)} />}
   </div>;
 }
 
@@ -66,11 +69,11 @@ function Failure({ title, retry }: { title: string; retry: () => void }) {
   </div>;
 }
 
-function Detail({ data, retry, linkProfiles, section, setSection, relatedHref }: {
-  data: ObservedMatchDetail; retry: () => void; linkProfiles: boolean; section: Section; setSection: (section: Section) => void;
+function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, matchesOrigin }: {
+  data: ObservedMatchDetail; retry: () => void; linkProfiles: boolean; matchesOrigin?: ObservedMatchListOrigin; section: Section; setSection: (section: Section) => void;
   relatedHref: (matchId: string) => string;
 }) {
-  const { match, scope, source } = data;
+  const { match } = data;
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
     const index = SECTIONS.indexOf(section);
@@ -84,7 +87,6 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref }:
   }
   const home = match.home.name ?? "Equipo sin identificar";
   const away = match.away.name ?? "Equipo sin identificar";
-  const context = [match.competition, match.season].filter(Boolean).join(" · ");
   const central = match.status === "finished"
     ? match.score ? `${match.score.home} – ${match.score.away}` : "—"
     : match.status === "scheduled" && match.kickoff ? timeFormat.format(new Date(match.kickoff))
@@ -94,7 +96,6 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref }:
   return <>
     <header className={css.header}>
       <h1 className={css.matchHeading}>{home} contra {away}</h1>
-      {context ? <p className={css.competition}>{context}</p> : null}
       <p className={css.context}>
         {match.round !== null ? <span>Jornada {match.round}</span> : null}
         {match.kickoff ? <time dateTime={match.kickoff}>
@@ -113,14 +114,13 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref }:
     {data.localReplacement ? <div className={css.provenance}>
       <LocalReplacementNotice replacement={data.localReplacement} relatedHref={relatedHref} />
     </div> : null}
-    <div className={css.provenance}><ProvenanceNotice source={source}><p>{scope}</p></ProvenanceNotice></div>
     <div className={css.tabs} role="tablist" aria-label="Secciones del partido" ref={tabs}>
       {SECTIONS.map((id) => <button key={id} type="button" role="tab" id={`match-${id}-tab`} aria-selected={section === id}
         tabIndex={section === id ? 0 : -1} onClick={() => setSection(id)} onKeyDown={moveTab}
         aria-controls={`match-${id}-panel`} className={css.tab}>{LABEL[id]}</button>)}
     </div>
     <section role="tabpanel" id={`match-${section}-panel`} aria-labelledby={`match-${section}-tab`} className={css.summary}>
-      {section === "summary" ? <Summary data={data} retry={retry} /> : <Lineups data={data} retry={retry} linkProfiles={linkProfiles} />}
+      {section === "summary" ? <Summary data={data} retry={retry} /> : <Lineups data={data} retry={retry} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} />}
     </section>
   </>;
 }
@@ -149,7 +149,6 @@ function Summary({ data: { match, statistics }, retry }: { data: ObservedMatchDe
   const home = match.home.name ?? "Equipo sin identificar";
   const away = match.away.name ?? "Equipo sin identificar";
   return <>
-    <h2 className={css.summaryTitle}>Estadísticas de equipo</h2>
     {statistics.state === "stored" ? <>
       <TeamStatsComparison home={{ label: home, name: home, stats: statistics.home }}
         away={{ label: away, name: away, stats: statistics.away }} />
@@ -167,8 +166,8 @@ function Summary({ data: { match, statistics }, retry }: { data: ObservedMatchDe
   </>;
 }
 
-function Lineups({ data: { match, lineups, incidents }, retry, linkProfiles }: {
-  data: ObservedMatchDetail; retry: () => void; linkProfiles: boolean;
+function Lineups({ data: { match, lineups, incidents }, retry, linkProfiles, matchesOrigin }: {
+  data: ObservedMatchDetail; retry: () => void; linkProfiles: boolean; matchesOrigin?: ObservedMatchListOrigin;
 }) {
   if (lineups.state === "error") return <div role="alert" className={css.sectionError}>
     <p>No se pudieron cargar las alineaciones de este partido.</p>
@@ -181,7 +180,7 @@ function Lineups({ data: { match, lineups, incidents }, retry, linkProfiles }: {
   </p>;
   return <>
     <ObservedLineups match={match} confirmed={lineups.confirmed} home={lineups.home} away={lineups.away}
-      linkProfiles={linkProfiles} incidents={incidents} retry={retry} />
+      linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} incidents={incidents} retry={retry} />
     {lineups.fetchedAt ? <p className={css.fetched}>Alineaciones obtenidas de la fuente el {dateLabel(lineups.fetchedAt)}.</p> : null}
   </>;
 }

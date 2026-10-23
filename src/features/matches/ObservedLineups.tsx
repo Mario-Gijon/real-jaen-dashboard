@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ObservedGoal, ObservedLineupPlayer, ObservedMatch, ObservedMatchDetail, ObservedSubstitution } from "@/contract";
 import { Button } from "@/ui/Button";
 import { MISSING, POSITION_SHORT, formatNumber, positionLabel } from "../format";
-import { playerProfileHref } from "../players/navigation";
+import { playerProfileHref, type ObservedMatchListOrigin } from "../players/navigation";
 import linkCss from "../players/PlayerLink.module.css";
 import { AssistIcon } from "./AssistIcon";
 import { GoalIcon } from "./GoalIcon";
@@ -52,8 +52,9 @@ function marksFrom(incidents: Incidents): Map<string, Marks> {
  * apart. No formation or pitch. Without incidents nothing is marked, and an
  * unused substitute is never taken for one who did not play.
  */
-export function ObservedLineups({ match, confirmed, home, away, linkProfiles, incidents, retry }: {
+export function ObservedLineups({ match, confirmed, home, away, linkProfiles, incidents, retry, matchesOrigin }: {
   match: ObservedMatch;
+  matchesOrigin?: ObservedMatchListOrigin;
   confirmed: boolean | null;
   home: readonly ObservedLineupPlayer[];
   away: readonly ObservedLineupPlayer[];
@@ -64,11 +65,10 @@ export function ObservedLineups({ match, confirmed, home, away, linkProfiles, in
 }) {
   const marks = marksFrom(incidents);
   return <>
-    <p className={css.status}>
-      {confirmed === true ? "Alineaciones confirmadas por la fuente."
-        : confirmed === false ? "Alineaciones no confirmadas por la fuente."
-          : "La fuente no indica si las alineaciones están confirmadas."}
-    </p>
+    {/* Confirmed line-ups need no note; only doubtful ones are said so. */}
+    {confirmed === true ? null : <p className={css.status}>
+      {confirmed === false ? "Alineaciones no confirmadas por la fuente." : "La fuente no indica si las alineaciones están confirmadas."}
+    </p>}
     {incidents.state === "error" ? <div role="alert" className={css.incidentsNote}>
       <p>No se pudieron cargar las incidencias: no se marcan goles, asistencias ni cambios.</p>
       <Button size="sm" onClick={retry}>Reintentar</Button>
@@ -85,7 +85,7 @@ export function ObservedLineups({ match, confirmed, home, away, linkProfiles, in
         const unassigned = players.filter((p) => p.role === null);
         const complete = starters.length === STARTERS && unassigned.length === 0;
         const list = (items: readonly ObservedLineupPlayer[], label: string) =>
-          <PlayerList players={items} label={`${label} de ${name}`} matchId={match.id} linkProfiles={linkProfiles} marks={marks} />;
+          <PlayerList players={items} label={`${label} de ${name}`} matchId={match.id} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} marks={marks} />;
         return <section key={side} aria-labelledby={`real-lineup-${side}`} className={css.team}>
           <header className={css.identity}>
             <div className={css.teamTitle}>
@@ -113,7 +113,8 @@ export function ObservedLineups({ match, confirmed, home, away, linkProfiles, in
   </>;
 }
 
-function PlayerList({ players, label, matchId, linkProfiles, marks }: {
+function PlayerList({ players, label, matchId, linkProfiles, marks, matchesOrigin }: {
+  matchesOrigin?: ObservedMatchListOrigin;
   players: readonly ObservedLineupPlayer[]; label: string; matchId: string; linkProfiles: boolean; marks: ReadonlyMap<string, Marks>;
 }) {
   return <ul className={css.players} aria-label={label}>
@@ -127,7 +128,7 @@ function PlayerList({ players, label, matchId, linkProfiles, marks }: {
         <span className={css.playerIdentity}>
           {linkProfiles
             ? <Link className={`${linkCss.link} ${css.name}`} prefetch={false}
-              href={playerProfileHref(player.id, null, { kind: "observedMatch", id: matchId, tab: "lineups" })}>{player.name}</Link>
+              href={playerProfileHref(player.id, null, { kind: "observedMatch", id: matchId, tab: "lineups", matches: matchesOrigin })}>{player.name}</Link>
             : <span className={css.name}>{player.name}</span>}
           <span className={css.position} title={player.position ? positionLabel(player.position) : "Posición no disponible"}
             aria-label={player.position ? positionLabel(player.position) : "Posición no disponible"}>
@@ -139,7 +140,7 @@ function PlayerList({ players, label, matchId, linkProfiles, marks }: {
           {role === "substitute" && !entered
             ? participation === "confirmed" && minutes.value !== null
               ? <span className={css.minutes} aria-label={`${formatNumber(minutes.value)} minutos`}>{formatNumber(minutes.value)}′</span>
-              : <span className={css.unknown}>{participation === "unused" ? "No utilizado" : "Participación no confirmada"}</span>
+              : participation === "unused" ? null : <span className={css.unknown}>Participación no confirmada</span>
             : null}
         </span>
         {entered ? <span className={css.entry}>

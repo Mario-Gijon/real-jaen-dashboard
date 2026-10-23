@@ -27,12 +27,20 @@ const body = {
   matches: MATCHES.map((m) => ({ match: m, side: m.home.id === jaen.id ? "home" : "away" })),
 };
 
+/** The real catalog of teams (as «Equipos» gets it) and each one's matches: the club's, and Antequera's single one with it. */
+const antequera = { id: "sofascore-team-3", name: "Antequera CF" };
+const catalog = { teamId: jaen.id, teams: [antequera, jaen], competitions: [], scope: "", source: REAL_SOURCE };
+const listOf = (teamId: string) => ({ ...body, teamId,
+  matches: body.matches.filter(({ match }) => match.home.id === teamId || match.away.id === teamId)
+    .map(({ match }) => ({ match, side: match.home.id === teamId ? "home" : "away" })) });
+
 async function serveReal(page: Page, { down = false } = {}) {
   await page.route("**/api/v1/source", (route) =>
     route.fulfill({ json: REAL_SOURCE }));
+  await page.route("**/api/v1/teams/team-real-jaen/observed-performance", (route) => route.fulfill({ json: catalog }));
   await page.route("**/api/v1/teams/*/observed-matches", (route) => down
     ? route.fulfill({ status: 503, json: { error: { code: "UPSTREAM_UNAVAILABLE", message: "La fuente de datos real no está disponible." } } })
-    : route.fulfill({ json: body }));
+    : route.fulfill({ json: listOf(decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!)) }));
 }
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -44,24 +52,51 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
   await page.goto("/matches");
   const list = page.getByRole("list", { name: "Partidos reales" });
   await expect(list.getByRole("listitem")).toHaveCount(4);
-  await expect(page.getByText("Datos reales", { exact: true })).toBeVisible();
-  await expect(page.getByText(/No es necesariamente un calendario completo/)).toBeVisible();
+  // Only Equipo and Estado above; no provenance block, no competition nor season, no competition per row.
+  await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("team-real-jaen");
+  await expect(page.getByRole("combobox")).toHaveCount(2);
+  await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Primera Federaci/)).toHaveCount(0);
+  await expect(list.getByRole("listitem").first()).toContainText("26/27 · J1");
   await expect(list.getByRole("listitem").nth(1)).toContainText("0 – 0");
   await expect(list.getByRole("listitem").nth(2)).toContainText("Programado");
   await expect(list.getByRole("listitem").nth(2)).not.toContainText("0 – 0");
   await expect(list.getByRole("link")).toHaveCount(4);
-  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-1?view=observed");
+  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-1?view=observed&from=matches");
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-matches.png"), fullPage: true });
 
-  // A single competition: named, not offered; the seasons stay the source's.
-  await expect(page.getByRole("combobox", { name: "Competición" })).toHaveCount(0);
-  await expect(page.locator("header").getByText("Primera Federación, Grupo 2")).toBeVisible();
-  await expect(page.getByText(/Copa del Rey/)).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: "Temporada" }).locator("option")).toHaveText(["Todas", "26/27"]);
   await page.getByRole("combobox", { name: "Estado" }).selectOption("pending");
   await expect(list.getByRole("listitem")).toHaveCount(2);
+
+  // Another team of the catalog, kept in the URL with the status filter.
+  await page.getByRole("combobox", { name: "Equipo" }).selectOption(antequera.id);
+  await expect(page).toHaveURL(/\/matches\?team=sofascore-team-3&state=pending$/);
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await expect(page.getByRole("combobox", { name: "Estado" })).toHaveValue("pending");
+  // All the teams: the match both lists share appears once.
+  await page.getByRole("combobox", { name: "Equipo" }).selectOption("all");
+  await page.getByRole("combobox", { name: "Estado" }).selectOption("all");
+  await expect(page).toHaveURL(/\/matches\?team=all$/);
+  await expect(list.getByRole("listitem")).toHaveCount(4);
+  expect(await noHorizontalOverflow(page)).toBe(true);
+
+  // Back from a match detail recovers the team from the URL.
+  await page.getByRole("combobox", { name: "Equipo" }).selectOption(antequera.id);
+  await list.getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-3\?view=observed&from=matches&team=sofascore-team-3$/);
+  await page.goBack();
+  await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue(antequera.id);
+  await expect(list.getByRole("listitem")).toHaveCount(1);
   expect(synthetic).toEqual([]);
+});
+
+test("Partidos reales: a team the catalog does not offer falls back to Real Jaén, saying so", async ({ page }) => {
+  await serveReal(page);
+  await page.goto("/matches?team=team-montealto");
+  await expect(page.getByText("El equipo indicado no está disponible en la fuente real: se muestran los partidos del Real Jaén.")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("team-real-jaen");
+  await expect(page.getByRole("list", { name: "Partidos reales" }).getByRole("listitem")).toHaveCount(4);
 });
 
 test("Partidos reales: an unavailable source shows an error with retry", async ({ page }) => {
@@ -131,11 +166,15 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   const synthetic: string[] = [];
   page.on("request", (r) => { if (/\/api\/v1\/(competitions|matches\/[^/]+$)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
   await page.goto("/matches");
+  await page.getByRole("combobox", { name: "Estado" }).selectOption("finished");
   await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
-  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?view=observed$/);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?view=observed&from=matches&state=finished$/);
   await expect(page.getByText("0 – 3")).toBeVisible();
-  await expect(page.getByText("Primera Federacion, Group 2 · 26/27")).toBeVisible();
-  await expect(page.getByText("Datos reales", { exact: true })).toBeVisible();
+  // No competition nor season in the header, no provenance block; the round and date stay.
+  await expect(page.getByText(/Primera Federacion/)).toHaveCount(0);
+  await expect(page.getByText("Datos reales", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Jornada 1", { exact: true })).toBeVisible();
+  await expect(page.locator("strong", { hasText: "CE Europa" }).last()).toBeVisible();
   const reds = page.locator("dt", { hasText: "Rojas" }).locator("..");
   await expect(reds.locator("dd").nth(0)).toHaveText("—");
   await expect(reds.locator("dd").nth(1)).toHaveText("—");
@@ -145,8 +184,23 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-match-detail.png"), fullPage: true });
   expect(synthetic).toEqual([]);
+  // Back to the list with the status it had.
   await page.getByRole("link", { name: "‹ Volver a partidos" }).click();
-  await expect(page.getByRole("list", { name: "Partidos reales" })).toBeVisible();
+  await expect(page).toHaveURL(/\/matches\?state=finished$/);
+  await expect(page.getByRole("combobox", { name: "Estado" })).toHaveValue("finished");
+  await expect(page.getByRole("list", { name: "Partidos reales" }).getByRole("listitem")).toHaveCount(2);
+
+  // And with the team it had, also from a match the source cannot show.
+  await page.getByRole("combobox", { name: "Estado" }).selectOption("all");
+  await page.getByRole("combobox", { name: "Equipo" }).selectOption("sofascore-team-3");
+  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
+  await page.getByRole("link", { name: "‹ Volver a partidos" }).click();
+  await expect(page).toHaveURL(/\/matches\?team=sofascore-team-3$/);
+  await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("sofascore-team-3");
+
+  // Opened directly, without a list behind it: plain «Partidos», the club.
+  await page.goto("/matches/sofascore-match-1?view=observed");
+  await expect(page.getByRole("link", { name: "‹ Volver a partidos" })).toHaveAttribute("href", "/matches");
 });
 
 test("Partido real: an excluded match (Copa del Rey) cannot be opened by its id, nor its sections", async ({ page }) => {
@@ -190,7 +244,7 @@ test("Alineaciones reales: tab with once inicial and banquillo, recorded marks, 
   await page.goto("/matches/sofascore-match-1?view=observed");
   await page.getByRole("tab", { name: "Alineaciones" }).click();
   const lineups = page.getByRole("tabpanel", { name: "Alineaciones" });
-  await expect(lineups.getByText("Alineaciones confirmadas por la fuente.")).toBeVisible();
+  await expect(lineups.getByText(/Alineaciones confirmadas/)).toHaveCount(0);
   await expect(lineups.getByRole("list", { name: "Once inicial de CE Europa" }).getByRole("listitem")).toHaveCount(11);
   await expect(lineups.getByRole("list", { name: "Banquillo de CE Europa" })).toContainText("Participación no confirmada");
   const jaen = lineups.getByRole("list", { name: "Once inicial de Real Jaén" });
@@ -210,6 +264,25 @@ test("Alineaciones reales: tab with once inicial and banquillo, recorded marks, 
   await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tabpanel", { name: "Alineaciones" })).toBeVisible();
   expect(synthetic).toEqual([]);
+
+  // The complete journey keeps both filters through the player profile.
+  await serveReal(page);
+  await page.goto("/matches?team=all&state=finished");
+  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
+  await expect(page.getByRole("tabpanel", { name: "Resumen" })).toBeVisible();
+  await expect(page.getByText("CE Europa", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("Estadísticas de equipo", { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("filtered-summary.png"), fullPage: true });
+  await page.getByRole("tab", { name: "Alineaciones" }).click();
+  await page.screenshot({ path: testInfo.outputPath("filtered-lineups.png"), fullPage: true });
+  await page.getByRole("link", { name: "Moha Keita", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Moha Keita" })).toBeVisible();
+  await page.getByRole("link", { name: "← Volver", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("link", { name: "‹ Volver a partidos" }).click();
+  await expect(page).toHaveURL(/\/matches\?team=all&state=finished$/);
+  await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("all");
+  await expect(page.getByRole("combobox", { name: "Estado" })).toHaveValue("finished");
 });
 
 test("Alineaciones reales: failed incidents keep line-ups and stats; failed line-ups recover on the same tab", async ({ page }) => {

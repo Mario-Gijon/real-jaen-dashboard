@@ -24,7 +24,8 @@
 .summary { padding-block: var(--rj-space-5); max-width: 800px; margin-inline: auto; }
 .summaryTitle { margin: 0 0 var(--rj-space-4); font-size: var(--rj-text-md); }
 .legend { display: flex; justify-content: space-between; gap: var(--rj-space-4); color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
-.legend > span { max-width: 45%; overflow-wrap: anywhere; }
+.legend > span { display: block; max-width: 45%; overflow-wrap: anywhere; }
+.legend strong { color: var(--rj-text-primary); font-size: var(--rj-text-sm); font-weight: 700; line-height: 1.25; }
 .legend > span:last-child { text-align: right; }
 .metrics { margin: var(--rj-space-2) 0 0; }
 .metric { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, 2fr) minmax(0, 1fr); align-items: center; padding-block: var(--rj-space-3); border-bottom: 1px solid var(--rj-border-default); row-gap: 6px; }

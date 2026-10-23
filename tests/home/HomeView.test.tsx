@@ -8,7 +8,8 @@ import { NOW, season, target, second, rival, other, teamSeason, history } from "
 import { DEMO_SOURCE } from "../shared/sources";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// No URL of its own: the explorer opened here takes its props (as without a router).
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), useSearchParams: () => null }));
 vi.mock("@/client/api", () => ({ getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getTeamSeason: vi.fn(), getSeasonTeams: vi.fn(), getSource: vi.fn() }));
 beforeEach(() => {
   vi.resetAllMocks();
