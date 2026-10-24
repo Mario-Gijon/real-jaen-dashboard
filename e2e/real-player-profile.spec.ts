@@ -33,10 +33,16 @@ const PROFILES: Record<string, { status: number; body: unknown }> = {
 };
 
 const missing = { value: null, reason: "not_available" };
-const KEYS = ["minutes", "goals", "assists", "shots", "shotsOnTarget", "xg", "passesCompleted", "passes", "dribbles", "dribblesWon",
-  "recoveries", "possessionLost", "duelsWon", "duelsLost", "fouls", "saves", "rating"];
-const stats = (values: Record<string, number> = {}) =>
-  Object.fromEntries(KEYS.map((key) => [key, key in values ? { value: values[key] } : missing]));
+const KEYS = ["minutes", "goals", "assists", "shots", "shotsOnTarget", "xg", "passesCompleted", "passes", "passAccuracy", "dribbles",
+  "dribblesWon", "recoveries", "possessionLost", "duelsWon", "duelsLost", "fouls", "saves", "rating"];
+const stats = (values: Record<string, number | Record<string, unknown>> = {}) => Object.fromEntries(KEYS.map((key) => {
+  const value = values[key];
+  return [key, value === undefined ? missing : typeof value === "number" ? { value } : value];
+}));
+/** As the service normalizes Moha Keita against Rayo Majadahonda: 2 shots, both blocked. */
+const DEDUCED_ZERO = { value: 0, derivation: { source: "derived", rule: "shots_partition" } };
+const accuracy = (completed: number, passes: number) =>
+  ({ value: (completed / passes) * 100, derivation: { source: "calculated", rule: "ratio" } });
 const observedMatches = <T>(playerId: string, matches: T[]) => ({
   playerId, matches, ratingSource: "SofaScore", source: { synthetic: false, label: "Datos reales" },
   scope: "Partidos en los que la fuente registra al jugador en la convocatoria. No garantiza cobertura completa ni indica equipo actual.",
@@ -47,13 +53,15 @@ const MOHA_MATCHES = observedMatches("sofascore-player-966303", [
     home: { id: "team-real-jaen", name: "Real Jaén" }, away: { id: "sofascore-team-1", name: "Rayo Majadahonda" },
     score: { home: 1, away: 0 } },
     side: "home", role: "starter", position: "midfielder", participation: "confirmed",
-    stats: stats({ minutes: 90, assists: 0, shots: 2, shotsOnTarget: 0, xg: 0.31, passesCompleted: 23, passes: 29, rating: 7 }) },
+    stats: stats({ minutes: 90, assists: 0, shots: 2, shotsOnTarget: DEDUCED_ZERO, xg: 0.31, passesCompleted: 23, passes: 29,
+      passAccuracy: accuracy(23, 29), rating: 7 }) },
   { match: { id: "sofascore-match-16599500", kickoff: "2026-09-20T16:00:00+00:00", status: "finished",
     competition: "Primera Federacion, Group 2", season: "26/27", round: 5,
     home: { id: "sofascore-team-3", name: "Antequera CF" }, away: { id: "team-real-jaen", name: "Real Jaén" },
     score: { home: 0, away: 2 } },
     side: "away", role: "substitute", position: "forward", participation: "confirmed",
-    stats: stats({ minutes: 22, goals: 1, assists: 1, shots: 1, shotsOnTarget: 1, passes: 8, passesCompleted: 6, duelsWon: 3, rating: 7.6 }) },
+    stats: stats({ minutes: 22, goals: 1, assists: 1, shots: 1, shotsOnTarget: 1, passes: 8, passesCompleted: 6,
+      passAccuracy: accuracy(6, 8), duelsWon: 3, rating: 7.6 }) },
   { match: { id: "sofascore-match-16599388", kickoff: "2026-09-06T09:30:00+00:00", status: "finished",
     competition: "Primera Federacion, Group 2", season: "26/27", round: 2,
     home: { id: "team-real-jaen", name: "Real Jaén" }, away: { id: "sofascore-team-2", name: "Huesca" },
@@ -334,7 +342,10 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   }
   await expect(metric(page, "Pases")).toHaveText("29");
   await expect(metric(page, "Precisión de pase")).toHaveText("79,3 %");
-  await expect(metric(page, "Tiros a puerta")).toHaveText("0");
+  // Deduced by the service: a visible mark, its meaning under the stats, and the word for screen readers.
+  await expect(metric(page, "Tiros a puerta")).toHaveText("0* (deducido)");
+  await expect(visibleDetail(page).getByRole("list", { name: "Notas sobre los datos" }))
+    .toHaveText("* Deducido: la fuente no lo da, pero sus tiros fuera y bloqueados suman todos sus tiros (o no tiró).");
   await expect(metric(page, "Goles")).toHaveText("—");
   await expect(metric(page, "Duelos ganados")).toHaveText("—");
   expect(await noHorizontalOverflow(page)).toBe(true);

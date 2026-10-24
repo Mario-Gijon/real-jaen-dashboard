@@ -12,13 +12,29 @@ export type MissingReason =
   /** The source does not offer it, or it does not apply (e.g. saves of a defender). */
   | "not_available"
   /** It should exist but has not been collected yet. */
-  | "not_collected";
+  | "not_collected"
+  /** The source's own figures for it contradict each other; none is shown. */
+  | "inconsistent"
+  /** Versions or duplicate records of the source disagree, and none is chosen. */
+  | "conflicting"
+  /** The source gives a value outside the metric's domain. */
+  | "invalid";
+
+/**
+ * How a value the source does not give as such was obtained. The data
+ * service applies the rule (documented there); the interface only says so.
+ * - `derived` · `shots_partition`: shots on target is 0 because the shots
+ *   the source reports as off target or blocked add up to all the shots.
+ * - `calculated` · `ratio`: a quotient of two known values (pass accuracy).
+ */
+export type StatDerivation = { source: "derived"; rule: "shots_partition" } | { source: "calculated"; rule: "ratio" };
 
 /**
  * One metric in one match. A real zero is `{ value: 0 }`; a missing value
- * always says why, so the interface never turns an absence into a fictitious zero.
+ * always says why, so the interface never turns an absence into a fictitious
+ * zero. A value without `derivation` is the source's own.
  */
-export type Stat = { value: number } | { value: null; reason: MissingReason };
+export type Stat = { value: number; derivation?: StatDerivation } | { value: null; reason: MissingReason };
 
 /**
  * A metric accumulated over several matches. `of` is the number of matches in
@@ -446,6 +462,7 @@ export const OBSERVED_MATCH_STAT_KEYS = [
   "xg",
   "passesCompleted",
   "passes",
+  "passAccuracy",
   "dribbles",
   "dribblesWon",
   "recoveries",
@@ -501,13 +518,17 @@ export type ObservedPlayerMatch = {
    * source's value, or 0 when it omits a goal or assist in an appearance
    * with full individual stats (a rule for this source, checked against the
    * incidents; a contradiction stays missing), or 0 for an unused
-   * substitute. Minutes are never derived. Every other value is as given by
-   * the source; a value it omits is missing, never 0. Without confirmed
+   * substitute. Minutes are never derived. Every other value is the
+   * service's normalization too: the source's value, or one fixed by a
+   * documented relation with values the source does give (`derivation`); a
+   * value it omits without such a relation is missing, never 0, and figures
+   * that contradict each other are `inconsistent`. Without confirmed
    * participation every other value is missing. `xg` keeps its decimals;
    * `rating` is the provider's own rating (see `ratingSource`). `fouls` are
    * committed; `duelsWon`/`duelsLost` include aerial duels; `dribbles` are
-   * attempted and `dribblesWon` successful. No pass accuracy is stored: it is
-   * derived from `passesCompleted` and `passes` only when both are known.
+   * attempted and `dribblesWon` successful. `passAccuracy` is a percentage
+   * (`calculated`), only when both pass figures are known and some pass was
+   * attempted.
    */
   stats: Record<ObservedMatchStatKey, Stat>;
 };

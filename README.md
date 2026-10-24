@@ -124,19 +124,24 @@ En modo real, «Equipos › Jugadores» y las fichas de jugador leen de la API l
   partido (`match_position`, distinta de la habitual de la cabecera) y valoración de
   SofaScore. Sin participación confirmada sólo dice que fue convocado, sin minutos ni
   estadísticas (nunca «No participó»). Con ella, los grupos de la ficha sintética con lo
-  que la fuente da; la posición en el partido decide si son los de portero. Una clave que
-  la fuente omite es «—», nunca 0, aunque haya otras: la fuente suele omitir los ceros,
-  pero no se supone. Sin tarjetas, goles encajados ni «Acciones» (no están en estas
-  estadísticas). Correspondencia (`statistics` de cada convocatoria):
+  que la fuente da; la posición en el partido decide si son los de portero. Todas las
+  cifras vienen normalizadas por la API local (`normalized` y `normalized.stats`; reglas en
+  `api-real-jaen/docs/normalizacion-estadisticas-individuales.md`); el dashboard no repite
+  reglas. Una clave que la fuente omite es «—», nunca 0, salvo que la API la deduzca de
+  valores explícitos (hoy solo tiros a puerta = 0 cuando fuera y bloqueados suman todos los
+  tiros): se marca con `*` y se explica en una leyenda. Cifras contradictorias (`†`),
+  versiones o duplicados que no coinciden (`‡`) y valores no válidos (`§`) son «—» con su
+  marca, distintos de una simple ausencia. Sin tarjetas, goles encajados ni «Acciones» (no
+  están en estas estadísticas). Correspondencia (clave original de `statistics`):
 
   | Interfaz | Clave de la fuente |
   |---|---|
   | Minutos | `minutes_played` (o `statistics.minutesPlayed`) |
   | Goles / Asistencias | `goals` / `goalAssist` |
-  | Tiros / Tiros a puerta | `totalShots` / `onTargetScoringAttempt` (`totalShots` = a puerta + fuera + bloqueados en las 125 actuaciones de jugadores por partido con estadísticas revisadas el 22/10/2026) |
+  | Tiros / Tiros a puerta | `totalShots` / `onTargetScoringAttempt` (0 deducido por la API con `shotOffTarget` y `blockedScoringAttempt` explícitos) |
   | xG | `expectedGoals` |
   | Pases / Pases completados | `totalPass` / `accuratePass` |
-  | Precisión de pase | derivada: `accuratePass / totalPass`, sólo con ambos y `totalPass` > 0 |
+  | Precisión de pase | calculada por la API: `accuratePass / totalPass`, sólo con ambos y `totalPass` > 0 |
   | Regates / Regates ganados | `totalContest` / `wonContest` |
   | Recuperaciones / Pérdidas | `ballRecovery` / `possessionLostCtrl` |
   | Duelos ganados / perdidos | `duelWon` / `duelLost` |

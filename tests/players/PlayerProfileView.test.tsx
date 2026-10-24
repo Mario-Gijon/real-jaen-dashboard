@@ -102,6 +102,7 @@ const played: ObservedPlayerMatch = {
   side: "home", role: "starter", position: "forward", participation: "confirmed",
   stats: { ...noStats, minutes: { value: 90 }, goals: { value: 2 }, assists: { value: 0 }, shots: { value: 4 },
     shotsOnTarget: { value: 0 }, xg: { value: 0.454 }, passes: { value: 29 }, passesCompleted: { value: 23 },
+    passAccuracy: { value: (23 / 29) * 100, derivation: { source: "calculated", rule: "ratio" } },
     duelsWon: { value: 5 }, rating: { value: 7 } },
 };
 const benched: ObservedPlayerMatch = {
@@ -151,12 +152,13 @@ describe("Partidos (real)", () => {
     expect(getPlayer).not.toHaveBeenCalled();
   });
 
-  it("shows real values, real zeros and missing values apart; accuracy only from both pass counts", async () => {
+  it("shows real values, real zeros and missing values apart, with the service's pass accuracy", async () => {
     await loadMatches([played]);
     expect(metric("Goles")).toHaveTextContent(/^2$/);
     expect(metric("Tiros a puerta")).toHaveTextContent(/^0$/);
     expect(metric("xG")).toHaveTextContent(/^0,45$/);
     expect(metric("Pases")).toHaveTextContent(/^29$/);
+    // A percentage is a quotient by definition: no mark.
     expect(metric("Precisión de pase")).toHaveTextContent(/^79,3 %$/);
     expect(metric("Duelos ganados")).toHaveTextContent(/^5$/);
     // Keys the source omitted stay unknown although other stats are given.
@@ -164,16 +166,49 @@ describe("Partidos (real)", () => {
       expect(metric(label), label).toHaveTextContent(/^—$/);
       expect(within(metric(label)).getByLabelText("Dato no disponible")).toBeVisible();
     }
+    // Without deduced or contradictory values there is nothing to explain.
+    expect(within(detail()).queryByRole("list", { name: "Notas sobre los datos" })).toBeNull();
     // No synthetic-only metric is invented for a real player.
     expect(within(detail()).queryByText(/Amarillas|Rojas|Goles encajados/)).toBeNull();
   });
 
-  it("never divides by zero or by an unknown count", async () => {
-    await loadMatches([{ ...played, stats: { ...played.stats, passes: { value: 0 }, passesCompleted: { value: 0 } } }]);
+  it("never computes a pass accuracy the service does not give", async () => {
+    await loadMatches([{ ...played, stats: { ...played.stats, passes: { value: 0 }, passesCompleted: { value: 0 }, passAccuracy: missing } }]);
     expect(metric("Precisión de pase")).toHaveTextContent(/^—$/);
     cleanup();
-    await loadMatches([{ ...played, stats: { ...played.stats, passesCompleted: missing } }]);
+    // Both pass counts known, but no accuracy from the service: none is calculated here.
+    await loadMatches([{ ...played, stats: { ...played.stats, passAccuracy: missing } }]);
     expect(metric("Precisión de pase")).toHaveTextContent(/^—$/);
+  });
+
+  it("marks a deduced value visibly and for screen readers, and explains it under the stats", async () => {
+    // Moha Keita against Rayo Majadahonda: 2 shots, both blocked.
+    await loadMatches([{ ...played, stats: { ...played.stats, shots: { value: 2 },
+      shotsOnTarget: { value: 0, derivation: { source: "derived", rule: "shots_partition" } } } }]);
+    expect(metric("Tiros a puerta")).toHaveTextContent(/^0\* \(deducido\)$/);
+    const notes = within(detail()).getByRole("list", { name: "Notas sobre los datos" });
+    expect(notes).toBeVisible();
+    expect(within(notes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "* Deducido: la fuente no lo da, pero sus tiros fuera y bloqueados suman todos sus tiros (o no tiró).",
+    ]);
+    expect(metric("Tiros")).toHaveTextContent(/^2$/);
+  });
+
+  it("tells contradictory, conflicting and invalid figures apart from a plain absence", async () => {
+    await loadMatches([{ ...played, stats: { ...played.stats, shots: { value: null, reason: "inconsistent" },
+      shotsOnTarget: { value: null, reason: "inconsistent" }, fouls: { value: null, reason: "conflicting" },
+      dribblesWon: { value: null, reason: "invalid" } } }]);
+    expect(within(metric("Tiros")).getByLabelText("Cifras contradictorias en la fuente")).toHaveTextContent("—");
+    expect(metric("Tiros")).toHaveTextContent(/^—† \(cifras contradictorias en la fuente\)$/);
+    expect(within(metric("Faltas")).getByLabelText("Versiones de la fuente que no coinciden")).toBeVisible();
+    expect(within(metric("Regates ganados")).getByLabelText("Valor no válido en la fuente")).toBeVisible();
+    expect(within(metric("Regates")).getByLabelText("Dato no disponible")).toBeVisible();
+    const notes = within(detail()).getByRole("list", { name: "Notas sobre los datos" });
+    expect(within(notes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "† Cifras contradictorias en la fuente: no se muestra ninguna.",
+      "‡ Las versiones de la fuente no coinciden: no se elige ninguna.",
+      "§ Valor no válido en la fuente.",
+    ]);
   });
 
   it("keeps all field metrics in uniform rows and the logical order inside each category regardless of position", async () => {

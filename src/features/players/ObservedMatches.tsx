@@ -14,7 +14,7 @@ import shared from "./PlayerDetailView.module.css";
 import css from "./PlayerMatches.module.css";
 
 type Load = { data: ObservedPlayerMatches | null; error: unknown; retry: () => void };
-type Metric = { key: ObservedMatchStatKey | "passAccuracy"; label: string; decimals?: number; percent?: boolean };
+type Metric = { key: ObservedMatchStatKey; label: string; decimals?: number; percent?: boolean };
 
 /**
  * The synthetic groups (player-metrics) with what the real source gives and
@@ -40,15 +40,36 @@ const FIELD_GROUPS: readonly { title: string; metrics: readonly Metric[] }[] = [
 const KEEPER_GROUPS: typeof FIELD_GROUPS = [
   { title: "Portería", metrics: [{ key: "saves", label: "Paradas" }] },
 ];
-const NOT_AVAILABLE: Stat = { value: null, reason: "not_available" };
 const hasMinutes = (row: ObservedPlayerMatch) => row.participation !== "unknown" && row.stats.minutes.value !== null;
 
-/** Completed over attempted passes, only when both are known and some pass was attempted. */
-function passAccuracy(stats: ObservedPlayerMatch["stats"]): Stat {
-  const { passes, passesCompleted } = stats;
-  if (passes.value === null || passesCompleted.value === null || passes.value === 0) return NOT_AVAILABLE;
-  return { value: (passesCompleted.value / passes.value) * 100 };
+/**
+ * Values that need a word: one the service deduced, and the missing ones whose
+ * reason is not a plain absence. Each has a visible mark, its meaning in the
+ * legend under the stats and, for screen readers, next to the value. A
+ * calculated percentage (pass accuracy) is a quotient by definition: no mark.
+ */
+type Note = "derived" | "inconsistent" | "conflicting" | "invalid";
+const NOTES: Record<Note, { mark: string; spoken: string; legend: string }> = {
+  derived: { mark: "*", spoken: "deducido",
+    legend: "Deducido: la fuente no lo da, pero sus tiros fuera y bloqueados suman todos sus tiros (o no tiró)." },
+  inconsistent: { mark: "†", spoken: "cifras contradictorias en la fuente",
+    legend: "Cifras contradictorias en la fuente: no se muestra ninguna." },
+  conflicting: { mark: "‡", spoken: "versiones de la fuente que no coinciden",
+    legend: "Las versiones de la fuente no coinciden: no se elige ninguna." },
+  invalid: { mark: "§", spoken: "valor no válido en la fuente", legend: "Valor no válido en la fuente." },
+};
+const NOTE_ORDER: readonly Note[] = ["derived", "inconsistent", "conflicting", "invalid"];
+function noteOf(stat: Stat): Note | null {
+  if (stat.value !== null) return stat.derivation?.source === "derived" ? "derived" : null;
+  return stat.reason === "inconsistent" || stat.reason === "conflicting" || stat.reason === "invalid" ? stat.reason : null;
 }
+const MISSING_LABEL: Record<Extract<Stat, { value: null }>["reason"], string> = {
+  not_available: "Dato no disponible",
+  not_collected: "Dato no recogido",
+  inconsistent: "Cifras contradictorias en la fuente",
+  conflicting: "Versiones de la fuente que no coinciden",
+  invalid: "Valor no válido en la fuente",
+};
 
 /**
  * «Partidos» of a real player: the recorded call-ups (newest first) in a
@@ -133,11 +154,24 @@ export function ObservedMatches({ load, usualPosition, initialMatchId = null, ma
 }
 
 function MatchValue({ stat, decimals = 0, percent = false }: { stat: Stat; decimals?: number; percent?: boolean }) {
+  const note = noteOf(stat);
+  const mark = note ? <><sup className={css.noteMark} aria-hidden="true">{NOTES[note].mark}</sup>
+    <span className={css.srOnly}> ({NOTES[note].spoken})</span></> : null;
   if (stat.value === null) {
-    const reason = stat.reason === "not_collected" ? "Dato no recogido" : "Dato no disponible";
-    return <span className={shared.missing} title={reason} aria-label={reason}>—</span>;
+    const reason = MISSING_LABEL[stat.reason];
+    return <><span className={shared.missing} title={reason} aria-label={reason}>—</span>{mark}</>;
   }
-  return <>{statText(stat, percent ? 1 : decimals)}{percent ? " %" : null}</>;
+  return <>{statText(stat, percent ? 1 : decimals)}{percent ? " %" : null}{mark}</>;
+}
+
+/** The meaning of the marks shown in the selected match, only those present. */
+function NotesLegend({ stats, groups }: { stats: ObservedPlayerMatch["stats"]; groups: typeof FIELD_GROUPS }) {
+  const present = new Set(groups.flatMap(group => group.metrics.map(metric => noteOf(stats[metric.key]))));
+  const notes = NOTE_ORDER.filter(note => present.has(note));
+  if (!notes.length) return null;
+  return <ul className={css.notesLegend} aria-label="Notas sobre los datos">
+    {notes.map(note => <li key={note}><span aria-hidden="true">{NOTES[note].mark}</span> {NOTES[note].legend}</li>)}
+  </ul>;
 }
 function Score({ row }: { row: ObservedPlayerMatch }) {
   const { score } = row.match;
@@ -157,8 +191,7 @@ function matchOption(row: ObservedPlayerMatch, rows: readonly ObservedPlayerMatc
 }
 
 function MetricValue({ metric, stats }: { metric: Metric; stats: ObservedPlayerMatch["stats"] }) {
-  return <MatchValue stat={metric.key === "passAccuracy" ? passAccuracy(stats) : stats[metric.key]}
-    decimals={metric.decimals} percent={metric.percent} />;
+  return <MatchValue stat={stats[metric.key]} decimals={metric.decimals} percent={metric.percent} />;
 }
 
 function Venue({ side }: { side: ObservedPlayerMatch["side"] }) {
@@ -186,18 +219,21 @@ function MatchDetail({ row, usualPosition, href }: {
         {row.position ? <span>{positionLabel(row.position)}</span> : null}
       </div>
     </div>
-    {row.participation === "confirmed" ? <div className={css.statGroups} data-keeper={keeper || undefined}>
-      {(keeper ? [0] : [0, 1]).map(column => <div className={css.statColumn} key={column}>
-        {(keeper ? KEEPER_GROUPS : FIELD_GROUPS).map((group, index) => index % 2 === column ? <section className={css.statBlock} style={{ order: index }} key={group.title} aria-label={group.title}>
-          <h3 className={output.unitTitle}>{group.title}</h3>
-          <dl className={css.statSecondary}>
-            {group.metrics.map(metric => <div key={metric.key}>
-              <dt>{metric.label}</dt><dd><MetricValue metric={metric} stats={row.stats} /></dd>
-            </div>)}
-          </dl>
-        </section> : null)}
-      </div>)}
-    </div> : <p className={shared.message}>
+    {row.participation === "confirmed" ? <>
+      <div className={css.statGroups} data-keeper={keeper || undefined}>
+        {(keeper ? [0] : [0, 1]).map(column => <div className={css.statColumn} key={column}>
+          {(keeper ? KEEPER_GROUPS : FIELD_GROUPS).map((group, index) => index % 2 === column ? <section className={css.statBlock} style={{ order: index }} key={group.title} aria-label={group.title}>
+            <h3 className={output.unitTitle}>{group.title}</h3>
+            <dl className={css.statSecondary}>
+              {group.metrics.map(metric => <div key={metric.key}>
+                <dt>{metric.label}</dt><dd><MetricValue metric={metric} stats={row.stats} /></dd>
+              </div>)}
+            </dl>
+          </section> : null)}
+        </div>)}
+      </div>
+      <NotesLegend stats={row.stats} groups={keeper ? KEEPER_GROUPS : FIELD_GROUPS} />
+    </> : <p className={shared.message}>
       {row.participation === "unused"
         ? "Convocado, no utilizado: no entró en el partido."
         : "Convocado. Los datos no permiten confirmar su participación: sin minutos ni estadísticas individuales en este partido."}

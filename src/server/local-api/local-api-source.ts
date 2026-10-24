@@ -4,6 +4,7 @@ import {
   TEAM_STAT_KEYS,
   type LocalReplacement,
   type MatchStatus,
+  type MissingReason,
   type ObservedMatch,
   type ObservedGoal,
   type ObservedLineupPlayer,
@@ -33,6 +34,7 @@ import {
   type PreferredFoot,
   type Side,
   type Stat,
+  type StatDerivation,
   type TeamMatchStats,
   type TeamStatKey,
 } from "@/contract";
@@ -165,25 +167,42 @@ const STATUSES: Readonly<Record<string, MatchStatus>> = {
   postponed: "postponed",
 };
 
-/** Where each stat comes from in the source's `statistics` object. */
-const STAT_FIELDS: Readonly<Record<Exclude<ObservedMatchStatKey, "minutes">, string>> = {
-  goals: "goals",
-  assists: "goalAssist",
-  shots: "totalShots",
-  // totalShots = onTargetScoringAttempt + shotOffTarget + blockedScoringAttempt in the stored data.
-  shotsOnTarget: "onTargetScoringAttempt",
-  xg: "expectedGoals",
-  passesCompleted: "accuratePass",
-  passes: "totalPass",
-  dribbles: "totalContest",
-  dribblesWon: "wonContest",
-  recoveries: "ballRecovery",
-  possessionLost: "possessionLostCtrl",
-  duelsWon: "duelWon",
-  duelsLost: "duelLost",
+/** Each per-match stat in the service's normalization of a call-up (`normalized.stats`). */
+const NORMALIZED_STAT_FIELDS: Readonly<Record<Exclude<ObservedMatchStatKey, "minutes" | "goals" | "assists">, string>> = {
+  shots: "shots",
+  shotsOnTarget: "shots_on_target",
+  xg: "xg",
+  passesCompleted: "passes_accurate",
+  passes: "passes",
+  passAccuracy: "pass_accuracy",
+  dribbles: "dribbles",
+  dribblesWon: "dribbles_won",
+  recoveries: "ball_recoveries",
+  possessionLost: "possession_lost",
+  duelsWon: "duels_won",
+  duelsLost: "duels_lost",
   fouls: "fouls",
   saves: "saves",
   rating: "rating",
+};
+/** Stats that are not counts: any finite non-negative number. */
+const DECIMAL_STATS: ReadonlySet<ObservedMatchStatKey> = new Set(["xg", "passAccuracy", "rating"]);
+
+/**
+ * Why the service has no value, as the interface tells it apart: what the
+ * source does not give (or gives as null, or does not apply) is unavailable;
+ * figures that contradict each other, disagreeing versions or duplicates and
+ * values out of domain keep their own reason.
+ */
+const NORMALIZED_REASONS: Readonly<Record<string, MissingReason>> = {
+  not_reported: "not_available",
+  reported_null: "not_available",
+  participation_unknown: "not_available",
+  not_applicable: "not_available",
+  inconsistent: "inconsistent",
+  version_conflict: "conflicting",
+  duplicate_disagree: "conflicting",
+  invalid: "invalid",
 };
 
 const NOT_AVAILABLE: Stat = { value: null, reason: "not_available" };
@@ -485,11 +504,43 @@ function parseNormalized(value: unknown, field: string): NormalizedCallUp {
   return { participation, minutes, goals, assists };
 }
 
+/** The only derivation the service may give each stat; any other is an unusable answer. */
+const STAT_DERIVATIONS: Partial<Record<ObservedMatchStatKey, StatDerivation>> = {
+  shotsOnTarget: { source: "derived", rule: "shots_partition" },
+  passAccuracy: { source: "calculated", rule: "ratio" },
+};
+
+/**
+ * One stat of `normalized.stats`, `{ value, source, rule, reason }`: the
+ * source's value (`reported`, or 0 of an `unused` substitute), one the
+ * service fixed by a documented rule (`derived`, `calculated`), or none with
+ * its reason. The rules are the service's; this only checks the answer holds.
+ */
+function normalizedStat(value: unknown, key: ObservedMatchStatKey, field: string): Stat {
+  if (!isRecord(value)) throw invalid(field);
+  if (value.value === null) {
+    const reason = typeof value.reason === "string" ? NORMALIZED_REASONS[value.reason] : undefined;
+    if (!reason || value.source !== null || value.rule !== null) throw invalid(`${field}.reason`);
+    return { value: null, reason };
+  }
+  if (value.reason !== null) throw invalid(`${field}.reason`);
+  const number = DECIMAL_STATS.has(key) ? decimal(value.value, `${field}.value`) : count(value.value, `${field}.value`);
+  if ((value.source === "reported" || value.source === "unused") && value.rule === null) return { value: number };
+  const derivation = STAT_DERIVATIONS[key];
+  if (!derivation || value.source !== derivation.source || value.rule !== derivation.rule) throw invalid(`${field}.source`);
+  return { value: number, derivation };
+}
+
+function decimal(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw invalid(field);
+  return value;
+}
+
 /**
  * One call-up row, with the service's normalization: participation, minutes,
- * goals and assists come from it (an unused substitute has 0 of each). Every
- * other stat is the source's own, only for a confirmed appearance; omitted,
- * it stays missing, never 0.
+ * goals and assists (an unused substitute has 0 of each) and every other
+ * stat (`normalized.stats`) come from it, so the service's rules are never
+ * repeated here. Only a confirmed appearance shows stats.
  */
 function parseMatchRow(row: unknown, index: number, playerSourceId: number, scope: readonly SourceCompetition[]): RawObservedMatch {
   const at = (field: string) => `data[${index}].${field}`;
@@ -501,22 +552,24 @@ function parseMatchRow(row: unknown, index: number, playerSourceId: number, scop
     const value = row[flag];
     if (value !== undefined && value !== null && typeof value !== "boolean") throw invalid(at(flag));
   }
-  const statistics = row.statistics ?? null;
-  if (statistics !== null && !isRecord(statistics)) throw invalid(at("statistics"));
 
   assertInScope(row.match, scope, (field) => at(`match.${field}`));
   const match = parseMatch(row.match, id, (field) => at(`match.${field}`));
 
   const normalized = parseNormalized(row.normalized, at("normalized"));
   const confirmed = normalized.participation === "confirmed";
+  const served = isRecord(row.normalized) ? row.normalized.stats : undefined;
+  if (!isRecord(served)) throw invalid(`${at("normalized.stats")}: falta la normalización del servicio`);
   const stats = {} as Record<ObservedMatchStatKey, Stat>;
   for (const key of OBSERVED_MATCH_STAT_KEYS) {
     if (key === "minutes" || key === "goals" || key === "assists") {
       stats[key] = normalized[key];
       continue;
     }
-    const value = statistics ? optionalNumber(statistics[STAT_FIELDS[key]], at(`statistics.${STAT_FIELDS[key]}`)) : null;
-    stats[key] = confirmed && value !== null ? { value } : NOT_AVAILABLE;
+    const field = NORMALIZED_STAT_FIELDS[key];
+    const stat = normalizedStat(served[field], key, at(`normalized.stats.${field}`));
+    if (normalized.participation === "unknown" && stat.value !== null) throw invalid(`${at("normalized.stats")}: sin participación no hay cifras`);
+    stats[key] = confirmed ? stat : NOT_AVAILABLE;
   }
 
   return {

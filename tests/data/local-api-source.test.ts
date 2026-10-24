@@ -239,16 +239,30 @@ describe("local API adapter: player profile", () => {
  * normalization (`normalized`).
  */
 const normalizedFigure = (value: number | null, source: string | null = value === null ? null : "reported") => ({ value, source });
+/** One stat of the service's `normalized.stats`. */
+const served = (value: number | null, source: string | null = value === null ? null : "reported",
+  rule: string | null = null, reason: string | null = value === null ? "not_reported" : null) => ({ value, source, rule, reason });
+const SERVED_STATS = ["shots", "shots_on_target", "xg", "passes", "passes_accurate", "pass_accuracy", "dribbles", "dribbles_won",
+  "ball_recoveries", "possession_lost", "duels_won", "duels_lost", "fouls", "saves", "rating"];
+/** `normalized.stats` as the service gives it for a participation: `given` for an appearance, the rest not reported. */
+const servedStats = (participation: string, given: Record<string, unknown> = {}) => Object.fromEntries(SERVED_STATS.map((name) => [name,
+  participation === "unknown" ? served(null, null, null, "participation_unknown")
+    : participation === "unused" ? ["xg", "rating", "pass_accuracy"].includes(name) ? served(null, null, null, "not_applicable") : served(0, "unused")
+      : given[name] ?? served(null)]));
 const normalized = (participation: string, minutes: number | null, goals: number | null, assists: number | null,
-  sources: { goals?: string } = {}) => ({
+  sources: { goals?: string } = {}, stats: Record<string, unknown> = {}) => ({
   participation, basis: "minutes", minutes: normalizedFigure(minutes, participation === "unused" && minutes !== null ? "unused" : undefined),
   goals: normalizedFigure(goals, participation === "unused" && goals !== null ? "unused" : sources.goals),
-  assists: normalizedFigure(assists, participation === "unused" && assists !== null ? "unused" : undefined), issues: [],
+  assists: normalizedFigure(assists, participation === "unused" && assists !== null ? "unused" : undefined),
+  stats: servedStats(participation, stats), issues: [],
 });
+/** What the service serves for the default row's statistics. */
+const DEFAULT_STATS = { shots: served(4), xg: served(0.454), passes: served(24), passes_accurate: served(19),
+  pass_accuracy: served((19 / 24) * 100, "calculated", "ratio"), rating: served(7.4) };
 const callUp = (overrides: Record<string, unknown> = {}, match: Record<string, unknown> = {}) => ({
   source: "Sofascore", match_id: 16599363, team_id: 2841, player_id: 966303, side: "away",
   source_team_id: 2841, substitute: false, match_position: "F", shirt_number: 19, minutes_played: 83,
-  played: true, fetched_at: "2026-10-21T12:07:31+00:00", normalized: normalized("played", 83, 1, 0),
+  played: true, fetched_at: "2026-10-21T12:07:31+00:00", normalized: normalized("played", 83, 1, 0, {}, DEFAULT_STATS),
   statistics: { totalPass: 24, accuratePass: 19, goalAssist: 0, goals: 1, minutesPlayed: 83, rating: 7.4,
     expectedGoals: 0.454, totalShots: 4, statisticsType: { sportSlug: "football", statisticsType: "player" } },
   match: { source: "Sofascore", match_id: 16599363, kickoff_utc: "2026-08-30T17:15:00+00:00", status: "finished",
@@ -307,7 +321,8 @@ describe("local API adapter: observed matches", () => {
       stats: {
         minutes: { value: 83 }, goals: { value: 1 }, assists: { value: 0 }, shots: { value: 4 },
         xg: { value: 0.454 }, passesCompleted: { value: 19 }, passes: { value: 24 }, rating: { value: 7.4 },
-        // Keys this row omits stay missing, never 0, although other stats are given.
+        passAccuracy: { value: (19 / 24) * 100, derivation: { source: "calculated", rule: "ratio" } },
+        // Stats the service does not have stay missing, never 0, although other stats are given.
         shotsOnTarget: missing, dribbles: missing, dribblesWon: missing, recoveries: missing, possessionLost: missing,
         duelsWon: missing, duelsLost: missing, fouls: missing, saves: missing,
       },
@@ -317,12 +332,11 @@ describe("local API adapter: observed matches", () => {
     expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:8001/api/v1/players/966303/matches", expect.anything());
   });
 
-  it("maps each individual metric from its own source key, keeping real zeros", async () => {
-    const statistics = { minutesPlayed: 90, totalShots: 3, onTargetScoringAttempt: 0, shotOffTarget: 2, blockedScoringAttempt: 1,
-      totalContest: 4, wonContest: 1, ballRecovery: 6, possessionLostCtrl: 9, duelWon: 7, duelLost: 0, fouls: 2, saves: 3,
-      wasFouled: 5, touches: 40 };
-    const result = await matchesSource(matchesApi([callUp({ statistics, match_position: "G",
-      normalized: normalized("played", 90, 0, 0, { goals: "omitted_zero" }) })]))("sofascore-player-966303");
+  it("maps each metric from the service's normalization, keeping real zeros", async () => {
+    const stats = { shots: served(3), shots_on_target: served(0), dribbles: served(4), dribbles_won: served(1),
+      ball_recoveries: served(6), possession_lost: served(9), duels_won: served(7), duels_lost: served(0), fouls: served(2), saves: served(3) };
+    const result = await matchesSource(matchesApi([callUp({ match_position: "G",
+      normalized: normalized("played", 90, 0, 0, { goals: "omitted_zero" }, stats) })]))("sofascore-player-966303");
     const [row] = result!.matches;
     expect(row.position).toBe("goalkeeper");
     expect(row.stats).toMatchObject({
@@ -331,6 +345,27 @@ describe("local API adapter: observed matches", () => {
       fouls: { value: 2 }, saves: { value: 3 }, passes: missing,
       // Goals the source omits in a full appearance: 0 from the service's rule, not from this adapter.
       minutes: { value: 90 }, goals: { value: 0 },
+    });
+    // A reported value carries no derivation.
+    expect(row.stats.shotsOnTarget).toEqual({ value: 0 });
+  });
+
+  it("keeps the service's derivation and the reason of each missing value, without reading the raw row", async () => {
+    // Moha Keita against Rayo Majadahonda: 2 shots, both blocked, no shots-on-target key in the raw row.
+    const statistics = { minutesPlayed: 90, totalShots: 2, blockedScoringAttempt: 2, totalContest: 4, fouls: 1, wonContest: 9 };
+    const stats = { shots: served(2), shots_on_target: served(0, "derived", "shots_partition"), dribbles: served(4),
+      dribbles_won: served(null, null, null, "inconsistent"), fouls: served(null, null, null, "version_conflict"),
+      duels_lost: served(null, null, null, "duplicate_disagree"), saves: served(null, null, null, "invalid"),
+      xg: served(null, null, null, "reported_null"), pass_accuracy: served(null, null, null, "not_applicable") };
+    const result = await matchesSource(matchesApi([callUp({ statistics,
+      normalized: normalized("played", 90, 0, 0, {}, stats) })]))("sofascore-player-966303");
+    expect(result!.matches[0].stats).toMatchObject({
+      shots: { value: 2 }, shotsOnTarget: { value: 0, derivation: { source: "derived", rule: "shots_partition" } },
+      dribbles: { value: 4 },
+      // The raw row's wonContest is not shown: the service says its figures contradict each other.
+      dribblesWon: { value: null, reason: "inconsistent" },
+      fouls: { value: null, reason: "conflicting" }, duelsLost: { value: null, reason: "conflicting" },
+      saves: { value: null, reason: "invalid" }, xg: missing, passAccuracy: missing,
     });
   });
 
@@ -367,15 +402,29 @@ describe("local API adapter: observed matches", () => {
 
   it("keeps every other omitted stat missing, never 0, when participation is confirmed", async () => {
     const result = await matchesSource(matchesApi([callUp({ statistics: { totalPass: 3, totalShots: 0, minutesPlayed: 22 },
-      normalized: normalized("played", 22, null, null) })]))("sofascore-player-966303");
+      normalized: normalized("played", 22, null, null, {}, { shots: served(0), passes: served(3) }) })]))("sofascore-player-966303");
     const { stats } = result!.matches[0];
     expect(stats.shots).toEqual({ value: 0 });
     expect(stats.passes).toEqual({ value: 3 });
-    for (const key of ["goals", "assists", "xg", "passesCompleted", "rating"] as const) expect(stats[key], key).toEqual(missing);
+    for (const key of ["goals", "assists", "xg", "passesCompleted", "passAccuracy", "rating"] as const) expect(stats[key], key).toEqual(missing);
   });
 
+  const withStat = (name: string, stat: unknown) => {
+    const row = normalized("played", 83, 1, 0, {}, DEFAULT_STATS);
+    return { normalized: { ...row, stats: { ...row.stats, [name]: stat } } };
+  };
   it.each([
     ["no normalization (an older service)", { normalized: undefined }],
+    ["no normalized stats (a service before the stats normalization)", { normalized: { ...normalized("played", 83, 1, 0), stats: undefined } }],
+    ["a normalized stat missing", { normalized: { ...normalized("played", 83, 1, 0), stats: { shots: served(1) } } }],
+    ["a derivation the stat cannot have", withStat("fouls", served(0, "derived", "shots_partition"))],
+    ["an unknown rule", withStat("shots_on_target", served(0, "derived", "team_total"))],
+    ["an unknown reason", withStat("fouls", served(null, null, null, "maybe"))],
+    ["a value with a reason", withStat("fouls", served(1, "reported", null, "not_reported"))],
+    ["a decimal count", withStat("fouls", served(1.5))],
+    ["a non-numeric stat", withStat("shots", served("4" as unknown as number))],
+    ["an unknown call-up with a stat", { normalized: { ...normalized("unknown", null, null, null),
+      stats: { ...servedStats("unknown"), shots: served(0) } } }],
     ["an unknown participation", { normalized: { ...normalized("played", 83, 1, 0), participation: "maybe" } }],
     ["an unused substitute with minutes", { normalized: normalized("unused", 20, 0, 0) }],
     ["an unknown call-up with goals", { normalized: { ...normalized("unknown", null, null, null), goals: normalizedFigure(1) } }],
@@ -436,7 +485,6 @@ describe("local API adapter: observed matches", () => {
     ["no data array", { meta: {} }],
     ["another player", { data: [callUp({ player_id: 1 })] }],
     ["a bad side", { data: [callUp({ side: "neutral" })] }],
-    ["a non-numeric stat", { data: [callUp({ statistics: { totalShots: "4" } })] }],
     ["a bad kickoff", { data: [callUp({}, { kickoff_utc: "mañana" })] }],
     ["no team id", { data: [callUp({}, { home_team_id: null })] }],
   ])("rejects a response with %s", async (_case, body) => {
