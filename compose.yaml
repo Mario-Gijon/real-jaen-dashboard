@@ -5,7 +5,7 @@ services:
     build:
       context: ${RJ_BACKEND_CONTEXT:-../api-real-jaen}
       dockerfile: Dockerfile
-    image: ${COMPOSE_PROJECT_NAME:-rj-analyst-local}-backend:local
+    image: ${RJ_BACKEND_IMAGE:-${COMPOSE_PROJECT_NAME:-rj-analyst-local}-backend:local}
     init: true
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${COMPOSE_PROJECT_NAME:-rj-analyst-local}-frontend:local
+    image: ${RJ_FRONTEND_IMAGE:-${COMPOSE_PROJECT_NAME:-rj-analyst-local}-frontend:local}
     init: true
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
@@ -36,7 +36,7 @@ services:
       DATA_MODE: real
       LOCAL_DATA_API_URL: http://backend:8001
     ports:
-      - "127.0.0.1:${RJ_FRONTEND_PORT:-3200}:3000"
+      - "${RJ_FRONTEND_BIND:-127.0.0.1}:${RJ_FRONTEND_PORT:-3200}:3000"
     depends_on:
       backend:
         condition: service_healthy
