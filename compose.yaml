@@ -1,0 +1,47 @@
+name: ${COMPOSE_PROJECT_NAME:-rj-analyst-local}
+
+services:
+  backend:
+    build:
+      context: ${RJ_BACKEND_CONTEXT:-../api-real-jaen}
+      dockerfile: Dockerfile
+    image: ${COMPOSE_PROJECT_NAME:-rj-analyst-local}-backend:local
+    init: true
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    volumes:
+      - type: volume
+        source: state
+        target: /state
+        volume:
+          nocopy: true
+      - type: bind
+        source: ${RJ_IMPORT_DIR:?Define RJ_IMPORT_DIR as an existing directory of copies and import files}
+        target: /imports
+        read_only: true
+        bind:
+          create_host_path: false
+    # No host port. The API and its /health are reachable only inside this network.
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${COMPOSE_PROJECT_NAME:-rj-analyst-local}-frontend:local
+    init: true
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      DATA_MODE: real
+      LOCAL_DATA_API_URL: http://backend:8001
+    ports:
+      - "127.0.0.1:${RJ_FRONTEND_PORT:-3200}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  state:
+    external: true
+    name: ${RJ_STATE_VOLUME:?Define an explicitly created external volume RJ_STATE_VOLUME}

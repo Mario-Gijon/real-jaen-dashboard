@@ -13,6 +13,7 @@ playwright-report/
 # Entorno local
 .env*
 !.env.example
+!.env.docker.example
 .DS_Store
 desktop.ini
 

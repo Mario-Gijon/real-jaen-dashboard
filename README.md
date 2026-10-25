@@ -33,7 +33,8 @@ DataSource (src/server)  ──►  API local de datos (modo real) o temporada d
 
 **Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
 ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture.test.ts`.
-Sin base de datos, Docker, workers ni autenticación.
+El frontend no incorpora base de datos, workers ni autenticación. El despliegue local
+con Docker Compose y el backend independiente se documenta en [docs/docker.md](docs/docker.md).
 
 ## Modo de datos
 
