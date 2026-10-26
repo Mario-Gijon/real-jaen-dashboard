@@ -36,6 +36,10 @@ ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture
 El frontend no incorpora base de datos, workers ni autenticación. El despliegue local
 con Docker Compose y el backend independiente se documenta en [docs/docker.md](docs/docker.md).
 
+El diseño del botón «Actualizar» y la primera entrega interna con fixtures están en
+[docs/propuesta-actualizar.md](docs/propuesta-actualizar.md). El botón y el control público
+todavía no están implementados ni habilitados.
+
 ## Modo de datos
 
 `DATA_MODE` decide qué datos sirve `/api/v1` (en `.env.local`, ver `.env.example`; reinicia el
