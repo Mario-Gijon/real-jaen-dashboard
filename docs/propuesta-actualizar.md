@@ -1,8 +1,9 @@
 # Propuesta del botón «Actualizar»
 
-> Estado 28-10-2026: la descarga real funciona con el flujo normal del scraper también en el contenedor de
-> adquisición, y el servicio interno con su overlay de Compose publica por el coordinador (orden del backend, sin
-> botón todavía; ver [docker.md](docker.md), «Adquisición»). Estado vigente y pendientes:
+> Estado 28-10-2026: botón y `/api/v1/updates` implementados según [contrato-actualizaciones.md](contrato-actualizaciones.md),
+> con autorización local mínima de operador y **solo para el alcance del piloto** (calendario de la jornada 1 y un
+> partido); no es una actualización de jornada. Operación en [docker.md](docker.md), «Adquisición». Donde esta
+> propuesta difiera, prevalece el contrato. Estado vigente y pendientes:
 > [../../api-real-jaen/docs/adquisicion-sofascore.md](../../api-real-jaen/docs/adquisicion-sofascore.md).
 
 Estado: orientación y primera entrega interna con fixtures aprobadas. Consolidación del 26-10-2026.

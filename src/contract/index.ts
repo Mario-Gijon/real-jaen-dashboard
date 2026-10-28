@@ -761,8 +761,81 @@ export type RealSection = "observedPlayers" | "matches" | "teams";
 
 /** Error body of every `/api/v1` endpoint. */
 export type ApiError = { error: { code: ApiErrorCode; message: string } };
-/** `UPSTREAM_UNAVAILABLE` (503): a real source did not answer, or answered something unusable. */
-export type ApiErrorCode = "NOT_FOUND" | "BAD_REQUEST" | "UPSTREAM_UNAVAILABLE";
+/**
+ * `UPSTREAM_UNAVAILABLE` (503): a real source did not answer, or answered something unusable. The update
+ * routes (docs/contrato-actualizaciones.md) add `UNAUTHORIZED` (401, no operator session), `FORBIDDEN` (403,
+ * another origin), `UPDATE_UNAVAILABLE` (409, demonstration or not configured), `CONFLICT` (409, e.g. a job that
+ * can no longer be cancelled) and `TOO_MANY_REQUESTS` (429).
+ */
+export type ApiErrorCode =
+  | "NOT_FOUND"
+  | "BAD_REQUEST"
+  | "UPSTREAM_UNAVAILABLE"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "UPDATE_UNAVAILABLE"
+  | "CONFLICT"
+  | "TOO_MANY_REQUESTS";
 
 /** Filters of `GET /api/v1/seasons/{seasonId}/matches` (`?round=&team=`). */
 export type MatchFilter = { round?: number; teamId?: string };
+
+/**
+ * What an update consults. Today only the pilot recipe: the round-1 calendar and one match; the rest of the data
+ * is kept as published. Never a full round or season update while `kind` is "pilot".
+ */
+export type UpdateScope = {
+  kind: "pilot";
+  /** Spanish description to show as is. */
+  label: string;
+  round: number;
+  /** Public ids of the matches consulted. */
+  matchIds: string[];
+};
+
+export type UpdateJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
+/** Phase of the current step; there is no percentage, only the step being done. */
+export type UpdatePhase = "queued" | "acquiring" | "verifying" | "publishing" | "finished";
+export type UpdateErrorCode =
+  | "ACQUISITION_FAILED"
+  | "ACQUISITION_INTERRUPTED"
+  | "ACQUISITION_UNAVAILABLE"
+  | "CANCELLED"
+  | "BUNDLE_REJECTED"
+  | "GENERATION_CHANGED"
+  | "PUBLICATION_FAILED"
+  | "INTERRUPTED"
+  | "INTERNAL_ERROR";
+
+/** One update. Whatever its outcome, the last valid published data keep being served. */
+export type UpdateJob = {
+  id: string;
+  status: UpdateJobStatus;
+  phase: UpdatePhase;
+  /** Only while acquiring and not yet requested. */
+  cancellable: boolean;
+  cancelRequested: boolean;
+  /** True only when the new data were verified and published. */
+  published: boolean;
+  /** UTC ISO-8601. */
+  requestedAt: string;
+  finishedAt: string | null;
+  pollAfterSeconds: number;
+  error: { code: UpdateErrorCode; message: string; retryable: boolean } | null;
+  /** `reusedBundle`: a retry that published already verified data without consulting again. */
+  result: { publishedAt: string; reusedBundle: boolean } | null;
+};
+
+/** `GET /api/v1/updates/current`. Without an operator session, only the public part. */
+export type UpdateStatus = {
+  available: boolean;
+  operator: boolean;
+  scope: UpdateScope | null;
+  /** Last data published by an update; `null` if none yet (not the server start time). */
+  lastPublished: { at: string } | null;
+  activeJob?: UpdateJob | null;
+  lastJob?: UpdateJob | null;
+};
+
+/** `POST /api/v1/updates`: `reused` when the key or the active job already existed. */
+export type UpdateStart = { job: UpdateJob; reused: boolean };

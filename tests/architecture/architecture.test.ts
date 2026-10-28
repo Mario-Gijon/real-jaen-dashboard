@@ -51,13 +51,33 @@ describe("architecture boundary", { timeout: 30_000 }, () => {
     for (const file of readers) expect(file.startsWith("src/server/synthetic/"), file).toBe(true);
   });
 
-  it("keeps /api/v1 read-only: route handlers export GET and nothing else", async () => {
+  /**
+   * The only exception is the update control (docs/contrato-actualizaciones.md): exactly these routes and methods.
+   * The sporting routes stay read-only.
+   */
+  const UPDATE_ROUTES: Record<string, string[]> = {
+    "src/app/api/v1/updates/route.ts": ["POST"],
+    "src/app/api/v1/updates/current/route.ts": ["GET"],
+    "src/app/api/v1/updates/[updateId]/route.ts": ["GET"],
+    "src/app/api/v1/updates/[updateId]/cancel/route.ts": ["POST"],
+    "src/app/api/v1/updates/session/route.ts": ["DELETE", "POST"],
+  };
+
+  it("keeps /api/v1 read-only: route handlers export GET and nothing else, except the update control", async () => {
     const routes = sourceFiles("src/app/api").filter((file) => file.endsWith("route.ts"));
     expect(routes.length).toBeGreaterThanOrEqual(7);
+    const updates: string[] = [];
     for (const file of routes) {
-      const exported = Object.keys(await import(/* @vite-ignore */ pathToFileURL(file).href));
-      expect(exported, relative(root, file)).toEqual(["GET"]);
+      const name = relative(root, file).replaceAll("\\", "/");
+      const exported = Object.keys(await import(/* @vite-ignore */ pathToFileURL(file).href)).sort();
+      if (name.startsWith("src/app/api/v1/updates/")) {
+        updates.push(name);
+        expect(exported, name).toEqual(UPDATE_ROUTES[name]);
+      } else {
+        expect(exported, name).toEqual(["GET"]);
+      }
     }
+    expect(updates.sort()).toEqual(Object.keys(UPDATE_ROUTES).sort());
   });
 
   it("keeps the server independent from screens and the browser client", async () => {

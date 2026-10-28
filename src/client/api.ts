@@ -15,6 +15,9 @@ import type {
   SourceInfo,
   TeamSeason,
   TeamStanding,
+  UpdateJob,
+  UpdateStart,
+  UpdateStatus,
 } from "@/contract";
 
 /** A failed `/api/v1` request, with the contract's error code when present. */
@@ -46,6 +49,29 @@ async function get<T>(path: string, options?: RequestOptions): Promise<T> {
     );
   }
   return (await response.json()) as T;
+}
+
+/**
+ * A state change of the update routes (POST/DELETE): same origin with the operator's session cookie, never
+ * cached. The internal secrets stay on the server; the browser only ever holds the HttpOnly session.
+ */
+async function send<T>(method: "POST" | "DELETE", path: string, init: { body?: unknown; headers?: Record<string, string> } = {}): Promise<T | null> {
+  const response = await fetch(`/api/v1${path}`, {
+    method,
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json", ...(init.body === undefined ? {} : { "Content-Type": "application/json" }), ...init.headers },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as ApiError | null;
+    throw new ApiRequestError(
+      response.status,
+      body?.error.code ?? "HTTP_ERROR",
+      body?.error.message ?? `Error ${response.status} en /api/v1${path}`,
+    );
+  }
+  return response.status === 204 ? null : ((await response.json()) as T);
 }
 
 const segment = encodeURIComponent;
@@ -128,4 +154,31 @@ export function getPlayerObservedMatches(playerId: string, options?: RequestOpti
 /** A real player's personal data, in no season; `source` says where they come from. */
 export function getPlayerProfile(playerId: string, options?: RequestOptions) {
   return get<PlayerProfile>(`/players/${segment(playerId)}/profile`, options);
+}
+
+/** Whether updates exist, their real scope and, for an operator, the active and last jobs. */
+export function getUpdateStatus(options?: RequestOptions) {
+  return get<UpdateStatus>("/updates/current", options);
+}
+
+/** Progress or result of one update (operator). */
+export function getUpdate(id: string, options?: RequestOptions) {
+  return get<UpdateJob>(`/updates/${segment(id)}`, options);
+}
+
+/** Starts the update; the same key always answers the same job, so a repeated click never starts another. */
+export async function startUpdate(idempotencyKey: string) {
+  return (await send<UpdateStart>("POST", "/updates", { headers: { "Idempotency-Key": idempotencyKey } }))!;
+}
+
+export async function cancelUpdate(id: string) {
+  return (await send<UpdateJob>("POST", `/updates/${segment(id)}/cancel`))!;
+}
+
+export async function openOperatorSession(key: string) {
+  await send<null>("POST", "/updates/session", { body: { key } });
+}
+
+export async function closeOperatorSession() {
+  await send<null>("DELETE", "/updates/session");
 }

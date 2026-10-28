@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { UpdateControl } from "@/features/updates/UpdateControl";
 import { AppShell } from "@/ui/AppShell";
 import "@/ui/tokens.css";
 import "@/ui/base.css";
@@ -17,7 +18,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
       <body>
-        <AppShell>{children}</AppShell>
+        <AppShell actions={<UpdateControl />}>{children}</AppShell>
       </body>
     </html>
   );

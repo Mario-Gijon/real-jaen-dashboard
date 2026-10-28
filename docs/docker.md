@@ -214,8 +214,15 @@ una imagen construida para amd64 en arm64. No se han publicado imágenes ni cred
 `compose.acquisition.yaml` añade el servicio interno `acquisition`, que ejecuta la receta fija de SofaScore
 (calendario de la ronda 1 y partido 16599363) con el flujo normal del scraper y su navegador. Contrato, garantías y
 pruebas: `../api-real-jaen/docs/contrato-adquisicion-interno.md`; estado y ejecuciones reales:
-`../api-real-jaen/docs/adquisicion-sofascore.md`. No hay botón ni endpoint: la actualización se lanza con una orden
-del backend, con la API detenida. Sin el overlay, la instalación de dos servicios no cambia.
+`../api-real-jaen/docs/adquisicion-sofascore.md`. Con el overlay, el backend arranca en **modo control**
+(`control.py`): sirve las mismas rutas desde el coordinador y ofrece la actualización a una sesión de operador
+desde la interfaz (apartado «Actualización desde la interfaz»). La orden del backend con la API detenida sigue
+disponible. Sin el overlay, la instalación de dos servicios no cambia.
+
+**Alcance real: solo el piloto.** La única receta aprobada consulta el calendario de la jornada 1 y un partido
+(16599363). El botón se llama «Actualizar piloto» y la pantalla lo explica; **no actualiza una jornada completa
+ni la temporada**: el resto de los datos se conserva tal como está publicado. Otro alcance exige otra receta
+revisada y su huella aprobada en `../api-real-jaen/productores-adquisicion.json`.
 
 Requisitos además de los anteriores: la imagen base del scraper auditada (`RJ_SCRAPER_RUNTIME_IMAGE`, construida con
 `../api-real-jaen/docker/scraper`; la imagen de adquisición se construye sin red sobre ella), dos volúmenes externos
@@ -241,7 +248,9 @@ la base coincida con la del código, y la base actual se cargó antes de que exi
 anteriores. Hay que hacer el mantenimiento explícito (copia, `reconstruir --confirmar` y verificación, con la API
 detenida). Las actualizaciones siguientes no lo necesitan; solo vuelve a hacer falta al desplegar código nuevo de
 persistencia o de la API (motivos en `../api-real-jaen/docs/contrato-adquisicion-interno.md`, «Activación y
-compatibilidad»). Cada actualización es una operación de mantenimiento:
+compatibilidad»). Con el overlay, el backend en modo control **no arranca** hasta hacer ese mantenimiento: el
+coordinador rechaza la base, y la generación anterior tampoco se sirve. Sin interfaz, cada actualización es una
+operación de mantenimiento:
 
 ```sh
 set -eu
@@ -267,6 +276,46 @@ dca --profile admin run --rm --no-deps acquisition-admin recover-profile \
 dca up -d --no-build --wait acquisition
 ```
 
+### Actualización desde la interfaz
+
+Contrato: [contrato-actualizaciones.md](contrato-actualizaciones.md). Requiere, además, dos archivos secretos nuevos
+con los mismos requisitos (`RJ_CONTROL_SECRET_FILE`, compartido solo por el servidor de Next y el backend, y
+`RJ_OPERATOR_KEY_FILE`, la clave que escribe el operador), legibles por UID 10001 (backend) y 1000 (frontend). Sin
+cualquiera de ellos, en demostración o sin el overlay, la actualización no existe: la interfaz no muestra el
+control y `/api/v1/updates` responde `409 UPDATE_UNAVAILABLE`. Ningún secreto llega al navegador.
+
+```sh
+set -eu
+dca up -d --no-build --wait --wait-timeout 120   # backend en modo control, frontend y acquisition
+```
+
+El operador entra en `/operador` (sin enlace en la navegación) con su clave. La sesión dura 8 horas y termina al
+reiniciar el frontend. Después ve en la cabecera «Actualizar piloto» y el estado del trabajo, y en `/operador`
+el alcance, la última publicación, la fase («Consultando datos», «Comprobando los datos recibidos», «Publicando»)
+y el resultado.
+
+- **Un único trabajo activo.** Repetir la pulsación, otra pestaña u otro operador recuperan el mismo trabajo.
+- **Cancelar** solo mientras se consulta; nunca durante la comprobación o la publicación.
+- **Fallos.** Cualquier fallo, cancelación o reinicio deja publicada la última generación válida. Si falló solo
+  la publicación, la siguiente pulsación la reintenta con los datos ya verificados, sin volver a consultar.
+- **Reinicio del backend durante un trabajo.** El trabajo queda interrumpido y no se reanuda. Si la publicación ya
+  se había confirmado, queda como publicada.
+- **Tras publicar,** la interfaz ofrece «Recargar datos».
+
+**Limitaciones de autorización para el servidor del grupo.** Es un mecanismo local mínimo:
+
+- una única clave compartida, sin identidades ni auditoría por persona;
+- la protección contra peticiones de otros sitios compara la cabecera `Origin` con `Host`, así que detrás de un
+  proxy hay que conservar `Host`;
+- el límite de intentos fallidos se lleva por la primera dirección de `X-Forwarded-For` o, sin ella, es común a
+  todos los clientes; sin un proxy que reescriba esa cabecera, un cliente puede cambiarla y saltarse el límite;
+- las sesiones viven en memoria del proceso;
+- la cookie solo lleva `Secure` si la petición llega por HTTPS o con `X-Forwarded-Proto: https`.
+
+Antes de exponerlo fuera de la máquina hacen falta HTTPS, un proxy que fije esas cabeceras y elimine las del
+cliente y, preferiblemente, la identidad y el rol de operador del proxy del grupo en lugar de la clave
+compartida. Eso sigue pendiente.
+
 **Red y observación (no es un registro exhaustivo).** El backend habla con `acquisition` solo por
 `acquisition-control`, interna y sin salida. `acquisition` es el único servicio en `acquisition-egress`, con salida a
 Internet: Docker no la filtra por dominio y no hay proxy, así que desde ese contenedor es alcanzable cualquier
@@ -282,6 +331,20 @@ construcción sin red, inicialización del perfil, servicio healthy con el prove
 trabajos, montajes limitados a perfil, trabajos y secreto, redes de control y salida, y autenticación desde el
 backend por la red de control (404 con el secreto, 401 sin él). El recorrido completo hasta la publicación se
 validó con la pila de prueba aislada de `../api-real-jaen/docker/acquisition`, sin salida a Internet.
+
+La actualización desde la interfaz se validó también el 28-10-2026 con
+`../api-real-jaen/docker/acquisition/test_updates.py`. La pila es temporal, con el proveedor local; la base es una
+copia aislada de una copia inactiva y el backend corre en modo control con Next de producción. Comprobado:
+
+- cancelación sin cambios en los datos;
+- tres pulsaciones que producen un solo inicio y una publicación;
+- SIGKILL del backend durante la consulta: el trabajo queda interrumpido, con la misma generación y los mismos
+  datos;
+- rechazo del proveedor: fallido, sin cambios;
+- reinicio con el estado conservado;
+- cookie `HttpOnly` y `SameSite=Strict`, y ningún secreto en respuestas, logs del backend ni del servidor de Next.
+
+El overlay real con el modo control **no** se ha arrancado sobre la base activa.
 
 ## Validación y límites
 

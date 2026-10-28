@@ -89,6 +89,9 @@ function teamIdFromSource(sourceId: number): string {
 const MATCH_ID_PREFIX = "sofascore-match-";
 const matchIdFromSource = (sourceId: number) => `${MATCH_ID_PREFIX}${sourceId}`;
 
+/** Our match id for the provider's id (the update scope declares its matches with the provider's ids). */
+export const publicMatchId = matchIdFromSource;
+
 /** The provider's id behind one of our derived match ids; `null` for any other id (e.g. a synthetic one). */
 export function sourceMatchId(matchId: string): number | null {
   if (!matchId.startsWith(MATCH_ID_PREFIX)) return null;

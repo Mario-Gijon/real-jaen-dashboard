@@ -1,6 +1,8 @@
 # Acquisition overlay (opt-in). Use together with compose.yaml:
 #   docker compose --env-file .env.docker -f compose.yaml -f compose.acquisition.yaml ...
-# Adds the internal acquisition service (real SofaScore provider, fixed recipe) and its administrative command.
+# Adds the internal acquisition service (real SofaScore provider, fixed recipe), its administrative command and the
+# update control: the backend runs in control mode (control.py, owner of the coordinator) and Next offers
+# /api/v1/updates to an operator session (docs/contrato-actualizaciones.md).
 # Procedure, limits and what is and is not observed: docs/docker.md, section "Adquisición".
 #
 # Boundaries:
@@ -11,9 +13,12 @@
 #   /acquisition-jobs, owned by UID 10001 (no root chown). Never point them at a volume with other content.
 services:
   backend:
+    # Control mode: the same sporting routes and /health, served from the current generation of the coordinator.
+    command: [control.py, --base, /state/real-jaen.sqlite, --ambito, /app/ambito.json, --host, 0.0.0.0, --port, "8001"]
     environment:
       RJ_ACQUISITION_URL: http://acquisition:8002
       RJ_ACQUISITION_SECRET_FILE: /run/secrets/acquisition-token
+      RJ_CONTROL_SECRET_FILE: /run/secrets/control-token
     volumes:
       - type: bind
         source: ${RJ_ACQUISITION_SECRET_FILE:?Define RJ_ACQUISITION_SECRET_FILE as an existing secret file outside code and images}
@@ -21,7 +26,33 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ${RJ_CONTROL_SECRET_FILE:?Define RJ_CONTROL_SECRET_FILE as an existing secret file outside code and images}
+        target: /run/secrets/control-token
+        read_only: true
+        bind:
+          create_host_path: false
     networks: [default, acquisition-control]
+
+  # The Next server checks the operator session and calls the backend with the control secret; the browser never
+  # receives either secret, and the frontend never has the acquisition token.
+  frontend:
+    environment:
+      RJ_CONTROL_SECRET_FILE: /run/secrets/control-token
+      RJ_OPERATOR_KEY_FILE: /run/secrets/operator-key
+    volumes:
+      - type: bind
+        source: ${RJ_CONTROL_SECRET_FILE:?Define RJ_CONTROL_SECRET_FILE as an existing secret file outside code and images}
+        target: /run/secrets/control-token
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RJ_OPERATOR_KEY_FILE:?Define RJ_OPERATOR_KEY_FILE as an existing operator key file outside code and images}
+        target: /run/secrets/operator-key
+        read_only: true
+        bind:
+          create_host_path: false
 
   acquisition:
     build:

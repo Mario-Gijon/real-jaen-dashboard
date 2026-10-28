@@ -8,8 +8,9 @@ import css from "./AppShell.module.css";
 /**
  * Analyst frame: Real Jaén identity, the two sections and the data-source
  * notice in one top bar (no sidebar for two entries), then the page content.
+ * `actions`: an optional control at the right end of the bar (the update control of an operator).
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
     <>
       <a className={css.skip} href="#contenido">
@@ -33,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <MainNav />
           <SourceBadge />
+          {actions}
         </div>
       </header>
       <main className={css.main} id="contenido">
