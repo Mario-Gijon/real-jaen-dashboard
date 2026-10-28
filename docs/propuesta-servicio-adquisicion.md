@@ -1,10 +1,11 @@
-# Servicio de adquisición separado: propuesta, sin integrar
+# Servicio de adquisición separado: propuesta (implementada)
 
-> Estado 27-10-2026: sigue siendo el diseño objetivo para Docker Compose. La receta real que ha funcionado (SDK
-> normal con tráfico reducido, solo en Windows nativo por ahora) y lo pendiente para validarla en este servicio:
-> [../../api-real-jaen/docs/adquisicion-sofascore.md](../../api-real-jaen/docs/adquisicion-sofascore.md).
+> Estado 28-10-2026: implementado como servicio interno con el overlay `compose.acquisition.yaml`
+> ([docker.md](docker.md), «Adquisición»). Contrato vigente:
+> [../../api-real-jaen/docs/contrato-adquisicion-interno.md](../../api-real-jaen/docs/contrato-adquisicion-interno.md).
+> Este documento conserva el diseño y sus motivos; donde difiera, prevalece el contrato.
 
-> Política final del perfil: [diseño administrativo manual](../../api-real-jaen/docs/perfil-adquisicion-diseno-final.md). Prevalece sobre las propuestas anteriores de confirmación del lanzador mediante JSON. Servicio y CLI aún sin implementar.
+> Política final del perfil: [diseño administrativo manual](../../api-real-jaen/docs/perfil-adquisicion-diseno-final.md). Prevalece sobre las propuestas anteriores de confirmación del lanzador mediante JSON. Implementados el servicio y la CLI administrativa.
 
 Diseño autorizado el 26-10-2026; no se han creado servicios, endpoints ni configuración
 Compose ejecutable. Tampoco se implementan autenticación, botón o políticas históricas.

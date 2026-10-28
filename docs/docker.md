@@ -209,6 +209,80 @@ imports: **no ejecutar build**, usar `up --no-build --pull never` y las mismas e
 deben corresponder a la arquitectura destino; los digests base multi-arquitectura no convierten
 una imagen construida para amd64 en arm64. No se han publicado imágenes ni credenciales.
 
+## Adquisición (overlay opcional)
+
+`compose.acquisition.yaml` añade el servicio interno `acquisition`, que ejecuta la receta fija de SofaScore
+(calendario de la ronda 1 y partido 16599363) con el flujo normal del scraper y su navegador. Contrato, garantías y
+pruebas: `../api-real-jaen/docs/contrato-adquisicion-interno.md`; estado y ejecuciones reales:
+`../api-real-jaen/docs/adquisicion-sofascore.md`. No hay botón ni endpoint: la actualización se lanza con una orden
+del backend, con la API detenida. Sin el overlay, la instalación de dos servicios no cambia.
+
+Requisitos además de los anteriores: la imagen base del scraper auditada (`RJ_SCRAPER_RUNTIME_IMAGE`, construida con
+`../api-real-jaen/docker/scraper`; la imagen de adquisición se construye sin red sobre ella), dos volúmenes externos
+nuevos y vacíos, y un archivo secreto de 32 a 256 caracteres ASCII legible por UID 10001, fuera del código, de las
+imágenes y de `.env.docker`. Variables en `.env.docker.example` (bloque comentado). La política seccomp de cinco
+reglas solo se aplica a `acquisition` y a su administración; el backend conserva la predeterminada.
+
+```sh
+set -eu
+dca() { docker compose --env-file .env.docker -f compose.yaml -f compose.acquisition.yaml "$@"; }
+for vol in rj-analyst-local-acquisition-profiles rj-analyst-local-acquisition-jobs; do
+  if docker volume ls --format '{{.Name}}' | grep -Fxq "$vol"; then echo "Volumen existente: $vol" >&2; exit 1; fi
+  docker volume create --label rj.installation=rj-analyst-local "$vol"
+done
+dca config --quiet
+dca build acquisition
+dca --profile admin run --rm --no-deps acquisition-admin initialize-profile --confirm-new-profile
+dca up -d --no-build --wait --wait-timeout 120 acquisition
+```
+
+Antes del primer uso sobre la base activa, una sola vez: el coordinador exige que la huella de reglas registrada en
+la base coincida con la del código, y la base actual se cargó antes de que existiera esa huella y con reglas
+anteriores. Hay que hacer el mantenimiento explícito (copia, `reconstruir --confirmar` y verificación, con la API
+detenida). Las actualizaciones siguientes no lo necesitan; solo vuelve a hacer falta al desplegar código nuevo de
+persistencia o de la API (motivos en `../api-real-jaen/docs/contrato-adquisicion-interno.md`, «Activación y
+compatibilidad»). Cada actualización es una operación de mantenimiento:
+
+```sh
+set -eu
+solicitud=$(cat /proc/sys/kernel/random/uuid)   # anotar: repetirla reanuda la misma solicitud
+dca stop backend
+dca run --rm --no-deps backend -m persistencia adquirir --base /state/real-jaen.sqlite \
+  --ambito /app/ambito.json --solicitud "$solicitud"
+dca run --rm --no-deps backend -m persistencia verificar --base /state/real-jaen.sqlite
+dca start backend
+```
+
+La orden imprime la generación publicada. Si falla, no se publica nada y la generación anterior sigue vigente.
+Repetir la **misma** solicitud reutiliza su trabajo y su bundle verificado sin volver a consultar a SofaScore y
+reintenta solo la importación, mientras la generación no haya cambiado. Una adquisición fallida, cancelada o
+interrumpida no importa nada; para consultar de nuevo hace falta una solicitud nueva. Tras un 403 o un 429 el
+servicio queda bloqueado para nuevas consultas hasta la revisión del operador. Si el servicio se detiene durante
+un trabajo, el perfil queda pendiente de recuperación y el servicio no arranca hasta recuperarlo a mano:
+
+```sh
+dca stop acquisition
+dca --profile admin run --rm --no-deps acquisition-admin recover-profile \
+  --confirm-service-stopped --confirm-no-external-users
+dca up -d --no-build --wait acquisition
+```
+
+**Red y observación (no es un registro exhaustivo).** El backend habla con `acquisition` solo por
+`acquisition-control`, interna y sin salida. `acquisition` es el único servicio en `acquisition-egress`, con salida a
+Internet: Docker no la filtra por dominio y no hay proxy, así que desde ese contenedor es alcanzable cualquier
+destino, también el anfitrión y la red local. El código limita lo que inicia (curl y `fetch()` a las rutas
+permitidas de SofaScore; el navegador a `/robots.txt`, el captcha y el challenge de Cloudflare), pero Chromium abre
+conexiones de fondo, por ejemplo a Google, que no se pueden impedir. El informe de cada trabajo
+(`/internal/v1/acquisitions/{id}/report`) registra los envíos del adaptador, las peticiones de las páginas y una
+muestra de los sockets del contenedor cada 0,2 s: IP y puerto, sin nombres DNS ni contenido. Puede perder
+conexiones que el servidor cierre en menos de ese intervalo y no ve UDP sin conectar.
+
+Comprobado el 28-10-2026 en un proyecto desechable con volúmenes propios (retirados después): configuración,
+construcción sin red, inicialización del perfil, servicio healthy con el proveedor real configurado y sin lanzar
+trabajos, montajes limitados a perfil, trabajos y secreto, redes de control y salida, y autenticación desde el
+backend por la red de control (404 con el secreto, 401 sin él). El recorrido completo hasta la publicación se
+validó con la pila de prueba aislada de `../api-real-jaen/docker/acquisition`, sin salida a Internet.
+
 ## Validación y límites
 
 La prueba anterior en Docker Desktop Linux pasó build, salud/DNS, UID, ext4, bloqueo entre

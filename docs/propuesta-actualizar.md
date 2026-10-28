@@ -1,8 +1,8 @@
 # Propuesta del botón «Actualizar»
 
-> Estado 27-10-2026: la descarga real solo se ha demostrado con el flujo normal del scraper (con resolución
-> automática del challenge y tráfico reducido) en Windows nativo; falta validarla en el contenedor de adquisición
-> de Docker Compose. Estado vigente, experimentos sustituidos y pendientes:
+> Estado 28-10-2026: la descarga real funciona con el flujo normal del scraper también en el contenedor de
+> adquisición, y el servicio interno con su overlay de Compose publica por el coordinador (orden del backend, sin
+> botón todavía; ver [docker.md](docker.md), «Adquisición»). Estado vigente y pendientes:
 > [../../api-real-jaen/docs/adquisicion-sofascore.md](../../api-real-jaen/docs/adquisicion-sofascore.md).
 
 Estado: orientación y primera entrega interna con fixtures aprobadas. Consolidación del 26-10-2026.
