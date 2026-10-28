@@ -39,6 +39,9 @@ con Docker Compose y el backend independiente se documenta en [docs/docker.md](d
 El diseño del botón «Actualizar» y la primera entrega interna con fixtures están en
 [docs/propuesta-actualizar.md](docs/propuesta-actualizar.md). El botón y el control público
 todavía no están implementados ni habilitados.
+La separación propuesta de adquisición, también sin integrar, se detalla en
+[docs/propuesta-servicio-adquisicion.md](docs/propuesta-servicio-adquisicion.md).
+La política final del perfil queda en el [diseño de recuperación manual](../api-real-jaen/docs/perfil-adquisicion-diseno-final.md), sin implementación ni integración todavía.
 
 ## Modo de datos
 

@@ -1,5 +1,10 @@
 # Propuesta del botón «Actualizar»
 
+> Estado 27-10-2026: la descarga real solo se ha demostrado con el flujo normal del scraper (con resolución
+> automática del challenge y tráfico reducido) en Windows nativo; falta validarla en el contenedor de adquisición
+> de Docker Compose. Estado vigente, experimentos sustituidos y pendientes:
+> [../../api-real-jaen/docs/adquisicion-sofascore.md](../../api-real-jaen/docs/adquisicion-sofascore.md).
+
 Estado: orientación y primera entrega interna con fixtures aprobadas. Consolidación del 26-10-2026.
 El botón, la red, el scraper y los contratos públicos de esta propuesta **no están implementados**.
 La especificación concreta figura debajo; detalles en
@@ -100,21 +105,21 @@ No se debe deducir que cualquier seguimiento preexistente del scraper pertenece 
 
 ## 2. Elección mínima y responsabilidades
 
-Mantener dos servicios. Añadir un **coordinador interno al backend**, un único propietario de
-SQLite y de la publicación. Empaquetar una revisión fijada del scraper y un adaptador pequeño
-en la imagen backend; ejecutar la descarga en un proceso hijo administrado, con argumentos
-cerrados, sin shell. El hijo solo usa su almacén de adquisición y exporta evidencia; nunca
-importa ni publica la base deportiva. El proceso HTTP sigue atendiendo lecturas.
+**Actualización de diseño del 26-10-2026:** la opción de adquisición embebida queda superada
+por [el servicio de adquisición separado](propuesta-servicio-adquisicion.md), cuyo diseño
+está autorizado pero no integrado. Compose sigue teniendo solo sus dos servicios actuales.
+La propuesta futura añade acquisition con caché/perfil propios y sin volumen deportivo;
+backend sigue siendo el único propietario de SQLite, journal, importación y publicación.
+El motivo es aislar cualquier política específica que necesite el sandbox del navegador,
+sin relajar el backend. No se ha encontrado incompatibilidad de dependencias Python.
 
-No instalar la UI web del scraper ni otro servidor, Redis, cola, cron, worker remoto o
-servicio Docker de control. No montar socket Docker, no lanzar docker exec desde Next ni
-detener el contenedor. El coste concreto es una imagen backend mayor y dependencias de
-navegador; su compatibilidad con Python/SQL debe validarse antes de adoptar esta opción.
-Si hay conflicto real de dependencias o de aislamiento, separar adquisición sería la
-alternativa siguiente, con API interna y permisos propios, no una dependencia inicial.
+No añadir la UI del scraper, Redis, cola o servicio de control Docker. No montar socket
+Docker, ejecutar comandos desde Next ni detener contenedores para publicar. La interfaz
+interna propuesta entrega exportaciones inmutables por HTTP y no acepta comandos arbitrarios.
 
 Flujo: **UI → cliente tipado de actualización → /api/v1/updates de Next → servicio de
-actualización del servidor → API interna backend → coordinador → scraper / importador**.
+actualización del servidor → API interna backend → coordinador → acquisition / importador**.
+El scraper permanece dentro de acquisition; únicamente el importador opera la base del backend.
 El nuevo servicio de control es hermano del DataSource de lectura; no se añaden métodos de
 escritura a cada fuente deportiva. Los identificadores y respuestas públicas no exponen al
 proveedor. La UI nunca conoce rutas de archivos ni ejecutables. Todo cambio de contrato
@@ -252,7 +257,8 @@ atiende una cola serial de operaciones, mientras el HTTP sirve en otro hilo y su
 Esto importa: `bloqueo.py` permite reentrada por proceso **e hilo**, no desde cualquier worker.
 Las llamadas al importador/verificador se ejecutan en ese hilo propietario, con los decoradores
 existentes; no crear un subprocess de importación contra la base activa que chocaría con la API.
-El proceso hijo de descarga no tiene ese papel. No heredar descriptores de bloqueo en hijos.
+El servicio acquisition no tiene ese papel ni comparte descriptores del backend; sus hijos
+pertenecen a su propio proceso/almacenamiento. No se heredan bloqueos deportivos entre servicios.
 
 ### Preparar fuera de la base vigente
 
@@ -326,8 +332,9 @@ interrupted recuperable (presentado como fallido/interrumpido), sin reanudar pet
 automáticamente. El usuario puede reintentar reutilizando evidencia/caché. El trabajo y su
 progreso sobreviven al contenedor; no depende de PID o booleanos en RAM.
 
-Cancelar: durante descarga usar cancelación cooperativa del scraper, cerrar navegador y
-esperar al hijo; timeout termina solo ese hijo y conserva parciales. Antes de promoción,
+Cancelar: durante descarga pedir cancelación cooperativa a acquisition; ese servicio cierra
+su scraper/navegador y espera a sus hijos, con timeout propio y conservando parciales. Backend
+no recibe un PID remoto ni ejecuta comandos para terminarlos. Antes de promoción,
 descartar candidata operativa. Durante restauración/intercambio no cortar ni matar al dueño:
 devolver conflicto «confirmando datos; espera» y acabar publicación o recuperación. Cancelación
 no equivale a deshacer un trabajo ya confirmado. SIGTERM del contenedor drena el tramo crítico
@@ -335,7 +342,7 @@ con tiempo de gracia; SIGKILL se resuelve por journal al reiniciar.
 
 ## 6. Docker, navegador y acceso de escritura
 
-Dos servicios, rutas internas configurables y revisión del scraper fijada desde una tercera
+Tres servicios propuestos (solo dos implementados), rutas internas configurables y revisión del scraper fijada desde una tercera
 fuente de build o paquete de entrega inmutable. No montar el checkout instalado del anfitrión.
 Actualizar la entrega documentada para incluir esa fuente/imagen; el scraper no aparece por
 tenerlo instalado en Windows. Dependencias exactas con constraints, base por digest y sin
@@ -346,20 +353,21 @@ arquitectura forzada; comprobar compatibilidad del paquete editable y recursos l
 |---|---|
 | frontend | Sin volúmenes de datos; URL backend por nombre de servicio; secreto interno de control RO si se adopta; puerto/proxy configurable |
 | backend /state | RW: principal, .lock, copias, candidatas y journal de trabajos en subdirectorios separados; UID/GID interno sin root |
-| backend /acquisition | Volumen persistente RW: Store/caché del scraper, perfil exclusivo de navegador, raw/exportaciones/manifiestos por trabajo. No compartir perfil con otro scraper activo |
+| acquisition /acquisition | Volumen propio RW: Store/caché, perfil exclusivo y exportaciones; sin montaje de /state, journal ni copias del backend |
 | configuración | Ámbito/20 equipos/política en imagen o montaje RO; secretos en archivos de secrets, no en imagen ni ejemplo .env |
 | /imports actual | Mantener RO para mantenimiento manual/primera instalación; el botón no intenta escribir ahí |
 
-El hijo de adquisición recibe solo rutas/configuración fijas; no se le pasa /state ni una
-capacidad para ejecutar mantenimiento. En el mismo contenedor esto no es aislamiento fuerte
-entre procesos del mismo UID: se confía en el código fijado. Si se exige separar permisos
-efectivos a nivel de montaje, habrá que elegir el servicio de adquisición separado.
+El proceso de adquisición recibe solo configuración fijada y no tiene montaje ni acceso
+al volumen deportivo. La interfaz entrega un bundle validable, no una ruta arbitraria o un
+volumen RW compartido con el backend. El coordinador conserva su autoridad exclusiva.
 Copias/exportaciones y datos personales requieren retención, cuota y acceso restrictivo.
 No borrar B ni evidencia de un trabajo ambiguo por una limpieza automática.
 
 El puente existente usa Chromium headless; **no necesita una sesión de escritorio Windows**.
-Linux es viable según el diseño/Dockerfile del scraper, pero no se ha construido ni probado
-su navegador aquí. Requiere binario patchright compatible, bibliotecas del sistema, memoria,
+El empaquetado Linux ya se construyó y las dependencias se validaron en una prueba posterior.
+El navegador protegido sigue bloqueado; se observó `clone(CLONE_NEWUSER | SIGCHLD) → EPERM`
+con el perfil diagnóstico vigente. El permiso adicional está propuesto, no aplicado; ver el
+informe de sandbox del backend. Requiere binario patchright compatible, bibliotecas del sistema, memoria,
 /dev/shm dimensionada y perfil escribible/exclusivo. Usar init para recoger hijos. Validar
 el sandbox con usuario sin privilegios y restricciones actuales; no añadir privileged,
 SYS_ADMIN o desactivar controles como solución automática. Si un challenge exige intervención
@@ -456,8 +464,8 @@ aria-live moderado; escritorio y 390 px sin nuevas cards o detalles de filesyste
 | Soltar bloqueo para que escriba CLI | Rechazada: ventana de carreras y API sirviendo una generación sin coordinación |
 | Importar directamente en principal y luego recargar | Menos copias, pero fallo posterior al COMMIT exige recuperar principal ya cambiado; candidata reduce esa exposición |
 | Familias de bases inmutables y puntero CURRENT | Publicación/reversión elegante, pero cambia ruta/bloqueos y todos los comandos de mantenimiento; demasiado para la primera versión |
-| Servicio scraper separado | Buen aislamiento de Chromium; requiere protocolo, tercer servicio y permisos compartidos. Reservado para conflicto real o requisito de aislamiento |
-| Coordinador en backend + candidata | Elegida: conserva bloqueo/ruta/herramientas, dos servicios, lectura disponible y punto de recuperación explícito |
+| Servicio scraper separado | Elegida para el diseño de adquisición: frontera de permisos, política propia revisada, sin volumen deportivo; no integrado |
+| Coordinador en backend + candidata | Implementado solo para fixtures: conserva bloqueo/ruta/herramientas, lectura y recuperación. Se mantiene con adquisición separada |
 
 Fases pequeñas, cada una revisable antes de la siguiente:
 
@@ -501,8 +509,8 @@ sus límites ni suficiencia de la muestra/presupuesto. Ninguno se ha probado en 
   así como retención de intentos, raw, copias y claves de idempotencia.
 - Elegir autenticación/rol del proxy del grupo y mecanismo local de operador. Hasta entonces,
   control de escritura deshabilitado, incluso si el dashboard se puede leer públicamente.
-- Fijar revisión reproducible del scraper con parche y fichas, sin el cambio local ajeno;
-  resolver dependencias/recursos, sandbox y almacenamiento Linux. Aprobar separación en otro
-  servicio solo si las pruebas demuestran necesidad.
+- La revisión del scraper ya está fijada y su cambio ajeno excluido. La separación está
+  aprobada para diseño; siguen pendientes sandbox funcional, contrato/autorización interna,
+  recursos y almacenamiento Linux antes de implementar cualquier servicio.
 - Autorizar por separado la prueba de red controlada y sus límites. No interpretar este
   documento como autorización para descargas, implementación o activación.
