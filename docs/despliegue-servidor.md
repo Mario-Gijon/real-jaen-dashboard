@@ -14,8 +14,11 @@ referencia de cada pieza. Todo se hace desde una shell POSIX en Linux; nada depe
 | Imagen del frontend | `rj-analyst-frontend:d7dfe26` (`sha256:ca43216e9428…`) |
 | Imagen de adquisición | `rj-analyst-acquisition:2c4008b` (`sha256:49fd238c03b8…`); byte a byte el código de la ejecución real del 29-10 |
 | Imagen de comprobación (opcional) | `rj-acq-real-test:5c5fa98c20bd` (`sha256:efa70ddde7f9…`): solo para verificar el sandbox de Chromium sin red |
+| Imagen base del scraper | `rj-scraper-package-efcadb386d:candidate` (`sha256:e13cef0eff2f…`): base de la de adquisición; hace falta para construir las imágenes de prueba o una nueva de adquisición. Contiene `611e436` (archivo Git `19c53bf0…`) |
 
-Las cuatro imágenes son linux/amd64. Otra arquitectura exige construirlas y validarlas allí.
+Las cinco imágenes son linux/amd64. Otra arquitectura exige construirlas y validarlas allí. Los identificadores son
+los del almacén containerd de Docker Desktop (el `digest` de `index.json` en `imagenes.tar.gz`); con el almacén
+clásico de Docker Engine, `docker images` muestra el de la configuración (para la del scraper, `sha256:a430ea9dc692…`).
 
 ## 1. Entrega
 
@@ -27,11 +30,13 @@ D=entrega-$(date +%Y%m%d); mkdir "$D"
 git -C rj-analyst archive --prefix=rj-analyst/ HEAD | tar -x -C "$D"
 git -C api-real-jaen archive --prefix=api-real-jaen/ HEAD | tar -x -C "$D"
 docker image save rj-analyst-backend:2c4008b rj-analyst-frontend:d7dfe26 rj-analyst-acquisition:2c4008b \
-  rj-acq-real-test:5c5fa98c20bd | gzip > "$D/imagenes.tar.gz"
+  rj-acq-real-test:5c5fa98c20bd rj-scraper-package-efcadb386d:candidate | gzip > "$D/imagenes.tar.gz"
 (cd "$D" && sha256sum imagenes.tar.gz > imagenes.tar.gz.sha256)
 ```
 
-Se añade aparte el **respaldo** del estado (apartado 4). La entrega no lleva:
+Se añade aparte el **respaldo** del estado (apartado 4) y, para las pruebas de `api-real-jaen`, la copia del 27-10
+`real-jaen.20261027-083912-846469.piloto-16599363.sqlite` (SHA256 `ebe99c6d…`; la única con la jornada 9 sin jugar,
+que necesita `test_group.py`: `api-real-jaen/README.md`, «Pruebas en Docker»). La entrega no lleva:
 - secretos, `.env.*` locales ni `.git`;
 - bases activas ni perfiles de navegador;
 - capturas ni evidencias temporales.
