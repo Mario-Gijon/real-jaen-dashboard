@@ -165,6 +165,10 @@ El ámbito se incluye en la imagen; modificarlo exige reconstruir.
 
 ## Copia y recuperación Linux
 
+**Instalación completa** (base, registros de actualización, procedencia y trabajos de adquisición juntos):
+`scripts/respaldo-instalacion.sh` y `scripts/restaurar-instalacion.sh`, descritos en
+[despliegue-servidor.md](despliegue-servidor.md). Lo siguiente cubre solo la base.
+
 Con backend detenido:
 
 ```sh
@@ -228,6 +232,9 @@ head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > ../deployment/secrets/sess
 ```
 
 **Cerrar sesión:** el botón de la cabecera borra la cookie de ese navegador.
+
+**Cambiar la contraseña:** reescribir `access-password` en su sitio; el frontend la ve al momento. En Windows,
+`scripts/cambiar-contrasena-acceso.ps1` la pide de forma oculta, guarda la anterior y comprueba la nueva.
 
 **Revocar todas las sesiones:** rotar el secreto en su sitio, sin `mv` ni reinicio. Cambiar la contraseña también
 las revoca.
