@@ -1,8 +1,8 @@
 # Ampliación del contrato /api/v1: actualización de datos
 
-Redactado el 28-10-2026 antes de implementar; implementado y validado ese mismo día (resultados al final). Concreta las secciones 4 a 8 de
-[propuesta-actualizar.md](propuesta-actualizar.md) sobre el servicio de adquisición definitivo
-(`../../api-real-jaen/docs/contrato-adquisicion-interno.md`). Es la única excepción a la regla «`/api/v1` de solo
+Redactado el 28-10-2026 antes de implementar; implementado y validado ese mismo día (resultados al final). Concreta,
+sobre el servicio de adquisición definitivo (`../../api-real-jaen/docs/contrato-adquisicion-interno.md`), la propuesta
+inicial del botón (retirada el 29-10-2026; recuperable en el historial de Git). Es la única excepción a la regla «`/api/v1` de solo
 lectura»: las respuestas deportivas, el `DataSource` y sus rutas no cambian.
 
 ## Alcance real

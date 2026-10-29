@@ -29,19 +29,25 @@ DataSource (src/server)  ──►  API local de datos (modo real) o temporada d
 | `src/ui` | Tokens visuales, base y componentes compartidos |
 | `src/features/{matches,teams,players}` | Componentes de cada área |
 | `data/synthetic` | Temporada ficticia de la demostración (sólo la lee el adaptador sintético) |
-| `scripts` | Generador de la temporada de demostración (`npm run data:generate`) |
+| `scripts` | Generador de la temporada de demostración (`npm run data:generate`); copia, recuperación y cambio de contraseña de la instalación; mitades de navegador de las validaciones Docker de `api-real-jaen` |
+| `compose*.yaml`, `Dockerfile` | Instalación Docker: frontend y backend (`compose.yaml`), adquisición (`compose.acquisition.yaml`), backend en localhost para desarrollo (`compose.dev.yaml`) |
 
 **Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
 ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture.test.ts`.
-El frontend no incorpora base de datos, workers ni autenticación. El despliegue local
-con Docker Compose y el backend independiente se documenta en [docs/docker.md](docs/docker.md).
+El frontend no incorpora base de datos ni workers. El acceso a toda la aplicación exige una contraseña
+compartida (`src/proxy.ts`, `src/server/auth`; [docs/docker.md](docs/docker.md), «Acceso»).
 
-El diseño del botón «Actualizar» y la primera entrega interna con fixtures están en
-[docs/propuesta-actualizar.md](docs/propuesta-actualizar.md). El botón y el control público
-todavía no están implementados ni habilitados.
-La separación propuesta de adquisición, también sin integrar, se detalla en
-[docs/propuesta-servicio-adquisicion.md](docs/propuesta-servicio-adquisicion.md).
-La política final del perfil queda en el [diseño de recuperación manual](../api-real-jaen/docs/perfil-adquisicion-diseno-final.md), sin implementación ni integración todavía.
+Los datos reales los sirve el backend independiente [api-real-jaen](../api-real-jaen/README.md). Documentación:
+
+| Documento | Para qué |
+|---|---|
+| [docs/docker.md](docs/docker.md) | Instalación Docker, operación, acceso, copias y adquisición |
+| [docs/despliegue-servidor.md](docs/despliegue-servidor.md) | Despliegue en el servidor del grupo, copias y recuperación |
+| [docs/contrato-actualizaciones.md](docs/contrato-actualizaciones.md) | Botón «Actualizar» y `/api/v1/updates` |
+| [docs/activacion-docker-habitual.md](docs/activacion-docker-habitual.md) | Registro de la activación de la instalación habitual (29-10-2026) |
+| [../api-real-jaen/docs/adquisicion-sofascore.md](../api-real-jaen/docs/adquisicion-sofascore.md) | Estado vigente de la adquisición |
+| [docs/historico/](docs/historico/README.md) | Documentos retirados: solo trazabilidad |
+| [AGENTS.md](AGENTS.md) | Instrucciones para agentes de IA |
 
 ## Modo de datos
 
@@ -444,7 +450,7 @@ goles frente al marcador, minutos, estadísticas frente a eventos).
 
 ```bash
 npm install          # dependencias
-npm run dev          # desarrollo en http://localhost:3000
+npm run dev          # desarrollo en http://localhost:3000 (antes, .env.local a partir de .env.example)
 npm run lint         # ESLint (incluye la frontera de arquitectura)
 npm run typecheck    # TypeScript
 npm test             # Vitest + Testing Library
