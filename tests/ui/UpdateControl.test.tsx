@@ -52,7 +52,7 @@ describe("UpdateControl (top bar)", () => {
     });
     render(<UpdateControl />);
     const start = await screen.findByRole("button", { name: /Actualizar piloto: Actualización piloto/ });
-    expect(start).toHaveTextContent("Actualizar piloto");
+    expect(start).toHaveTextContent(/^Actualizar$/);
     expect(screen.queryByText(/jornada completa|temporada/i)).toBeNull();
     const user = userEvent.setup();
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -159,7 +159,7 @@ describe("Group 2 scope", () => {
   it("labels the top bar with the group's action and the same pending line", async () => {
     api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: done }) }));
     render(<UpdateControl />);
-    expect(await screen.findByRole("button", { name: /Actualizar Grupo 2: Actualización del Grupo 2/ })).toHaveTextContent("Actualizar Grupo 2");
+    expect(await screen.findByRole("button", { name: /Actualizar Grupo 2: Actualización del Grupo 2/ })).toHaveTextContent(/^Actualizar$/);
     expect(screen.getAllByText(/^Actualización completada con pendientes/).length).toBeGreaterThan(0);
   });
 

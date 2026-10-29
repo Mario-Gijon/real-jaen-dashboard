@@ -9,8 +9,8 @@ import css from "./Updates.module.css";
 
 /**
  * Compact update control of the top bar, in an installation that has updates (the session that consults the data
- * can update them). Its texts are the real scope the backend declares (the pilot's or the group's). Details at
- * /operador.
+ * can update them). The button just says «Actualizar»; its accessible name and tooltip give the real scope the
+ * backend declares (the pilot's or the group's). Details at /operador.
  */
 export function UpdateControl() {
   const { status, job, busy, publishedNow, start, cancel, reload } = useUpdates();
@@ -39,7 +39,7 @@ export function UpdateControl() {
           title={scope.description}
           variant="primary"
         >
-          {scope.actionLabel}
+          Actualizar
         </Button>
       )}
     </div>

@@ -68,7 +68,7 @@ test("the top bar shows the update control only where updates exist, labelled as
   await page.goto("/teams");
   const control = page.getByRole("banner").getByRole("button", { name: /Actualizar piloto: Actualización piloto/ });
   await expect(control).toBeVisible();
-  await expect(control).toHaveText("Actualizar piloto");
+  await expect(control).toHaveText("Actualizar");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
 });
@@ -90,7 +90,7 @@ test("a group update that published with pending resources says so and keeps new
   await expect(main.getByText("35", { exact: true })).toBeVisible();
   await expect(main.getByRole("link", { name: "Real Jaén – CE Europa" })).toHaveAttribute("href", "/matches/sofascore-match-16599967");
   await expect(main.getByText("estadísticas (respuesta sin datos, sin datos publicados)")).toBeVisible();
-  await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar Grupo 2/ })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar Grupo 2/ })).toHaveText("Actualizar");
   await expect(main.getByText(/piloto/)).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
