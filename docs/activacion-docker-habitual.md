@@ -1,7 +1,7 @@
 # Activación de Docker como instalación habitual
 
-Preparado el 29-10-2026 para revisión. **No ejecutado.** Revisiones: api-real-jaen `2c4008b9fd2a` y rj-analyst
-`3cd0df99f472`.
+Preparado y **ejecutado el 29-10-2026** («Registro de la activación», al final). Código de las imágenes:
+api-real-jaen `2c4008b9fd2a` y rj-analyst `3cd0df99f472`.
 
 ## Situación de partida
 
@@ -74,8 +74,12 @@ RJ_IMPORT_DIR=../datos-importados/docker/imports
 
 En el servidor se usa el mismo archivo con sus rutas relativas o POSIX. `compose.yaml` no lleva ninguna ruta fija.
 
+En Git Bash (Windows) hay que exportar `MSYS_NO_PATHCONV=1`: si no, convierte `/state/...` en rutas de Windows dentro
+de los contenedores. La copia de la base Windows del paso 2 se lanza desde `../api-real-jaen` (`.venv`).
+
 ```sh
 set -eu
+export MSYS_NO_PATHCONV=1                        # solo en Git Bash
 cd rj-analyst                                   # desde la carpeta que contiene los dos repositorios
 dh()  { docker compose --env-file .env.habitual --file compose.yaml --file compose.dev.yaml "$@"; }   # habitual, en esta máquina
 dl()  { docker compose --env-file .env.docker   --file compose.yaml "$@"; }   # instalación anterior (vuelta atrás)
@@ -296,3 +300,47 @@ En esta máquina, `dh` añade `compose.dev.yaml`. Esa capa publica la API de lec
 - La base Windows queda congelada como archivo: no se vuelve a usar como instalación.
 - La próxima actualización real, sin restricción, aplicará los diez cambios de calendario detectados el 29-10.
 - Los volúmenes de pruebas se conservan hasta decidir su limpieza.
+
+## Registro de la activación (29-10-2026)
+
+Ejecutado según este procedimiento, con la promoción aprobada de la base de la prueba real. Su historial se conserva
+tal cual: `import_run` 4 (`rebuild`, «acquisition test copy: explicit rule adoption») y 5 (importación de J9).
+
+| Paso | Resultado |
+|---|---|
+| 0 | El código de las imágenes es el de `2c4008b` y `3cd0df9`; repositorios limpios; ningún servicio; `rj-analyst-state` no existía. Digests: base Windows y `rj-analyst-local-state` = `737a5cc5…`, base de la prueba = `d881106f…`. Bundle de J9 verificado de nuevo (generación `e227be73…`, 48 intentos). |
+| 1 | `rj-analyst-backend:2c4008b` = `sha256:63bf24d4c7b8f85ef44c2193e98a09f1e35d9645b2a124282bf2b42818c5aa5e` (28 archivos de `/app` idénticos a la imagen de la prueba real); `rj-analyst-frontend:3cd0df9` = `sha256:9efa5891c6638c3b16cf644335a17529ddefed2b460c5b5fdc5c8043f29e1f84`. |
+| 2 | Copias consistentes, detalladas debajo. |
+| 3 | `rj-analyst-state` creado (etiqueta `rj.installation=rj-analyst`), base inicializada (revisión 0004, huella `4c41adc2…`), `verificar` correcto, digest `d881106f…`, procedencia archivada en `/state/procedencia/2026-10-29-j9` (solo lectura). |
+| 4 | No se repite: la base promovida ya trae el mantenimiento. |
+| 5 | El coordinador acredita las reglas: generación `19963c69-9326-4ab8-b62f-dcfd24726415`, 382 eventos, 380 vigentes. |
+| 6 | Backend y frontend sanos, solo en `127.0.0.1`. |
+
+**Copias del paso 2:**
+
+| Origen | Copia | sha256 |
+|---|---|---|
+| Base Windows | `datos-importados/base/copias/real-jaen.20261029-111631-470923.antes-de-docker-habitual.sqlite` | `ebe99c6d…a970e5ca`, idéntica a la copia del 27-10 |
+| `rj-analyst-local-state` | `/state/copias/real-jaen.20261029-111634-342317.antes-de-docker-habitual.sqlite`; exportada como `datos-importados/docker/imports/anterior-docker-20261029.sqlite` | `e7961d27…afa87172c` |
+| Base de la prueba real | `/state/copias/base.20261029-111619-702038.promocion-habitual.sqlite` en `rj-real-group-real-9207547e-state`; exportada como `datos-importados/docker/imports/promocion-j9-20261029.sqlite` | `beb9666e…5382bdb1` |
+| Procedencia de J9 | `datos-importados/docker/imports/procedencia-j9-20261029.tar` (32 entradas) | `b23738ca…18cba87` |
+
+Las sumas completas están en `datos-importados/docker/imports/respaldos-20261029.sha256`.
+
+**Comprobaciones posteriores:**
+- J9: los diez partidos con su resultado y sus tres secciones a través de la API del dashboard, sin avisos de revisión.
+  El cambio de hora de J12, fuera de alcance, sigue con su hora publicada.
+- Navegación a 1440 y 390 px (Partidos, Atlético Madrileño – Real Jaén, CE Europa – Real Zaragoza, Equipos, Inicio):
+  sin desbordamientos ni errores.
+- Persistencia: tras `up --force-recreate`, contenedores nuevos con la misma base (`d881106f…`, 5 importaciones), J9
+  intacta y la procedencia en el volumen.
+- Desarrollo: `http://127.0.0.1:8001` sirve la instalación Docker.
+- Instalaciones anteriores intactas:
+  - base Windows: mismo sha256 (`5d2a3f16…`) y misma fecha (25-10), digest `737a5cc5…`. Solo cambió la fecha de su
+    `-shm`, el índice temporal que SQLite actualiza al abrirla para la copia;
+  - `rj-analyst-local-state` y la base de la prueba: mismos digests. Solo se añadió en cada uno su copia en `copias/`.
+- El botón de actualización no se ha activado ni pulsado: no hubo consultas a SofaScore.
+
+**Pendiente:**
+- una copia de `respaldos-20261029.*` y de la copia Windows fuera de este disco;
+- decidir cuándo activar la capa de adquisición (botón) y la actualización sin restricción.
