@@ -52,25 +52,25 @@ describe("architecture boundary", { timeout: 30_000 }, () => {
   });
 
   /**
-   * The only exception is the update control (docs/contrato-actualizaciones.md): exactly these routes and methods.
-   * The sporting routes stay read-only.
+   * The only exceptions are the update control (docs/contrato-actualizaciones.md) and the access session
+   * (docs/docker.md, «Acceso»): exactly these routes and methods. The sporting routes stay read-only.
    */
   const UPDATE_ROUTES: Record<string, string[]> = {
     "src/app/api/v1/updates/route.ts": ["POST"],
     "src/app/api/v1/updates/current/route.ts": ["GET"],
     "src/app/api/v1/updates/[updateId]/route.ts": ["GET"],
     "src/app/api/v1/updates/[updateId]/cancel/route.ts": ["POST"],
-    "src/app/api/v1/updates/session/route.ts": ["DELETE", "POST"],
+    "src/app/api/v1/session/route.ts": ["DELETE", "GET", "POST"],
   };
 
-  it("keeps /api/v1 read-only: route handlers export GET and nothing else, except the update control", async () => {
+  it("keeps /api/v1 read-only: route handlers export GET and nothing else, except the update control and the session", async () => {
     const routes = sourceFiles("src/app/api").filter((file) => file.endsWith("route.ts"));
     expect(routes.length).toBeGreaterThanOrEqual(7);
     const updates: string[] = [];
     for (const file of routes) {
       const name = relative(root, file).replaceAll("\\", "/");
       const exported = Object.keys(await import(/* @vite-ignore */ pathToFileURL(file).href)).sort();
-      if (name.startsWith("src/app/api/v1/updates/")) {
+      if (name in UPDATE_ROUTES) {
         updates.push(name);
         expect(exported, name).toEqual(UPDATE_ROUTES[name]);
       } else {

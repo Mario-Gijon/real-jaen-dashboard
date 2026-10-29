@@ -8,12 +8,13 @@ import { jobLine, updateTime } from "./labels";
 import css from "./Updates.module.css";
 
 /**
- * Compact update control of the top bar, only for an operator session in an installation that has updates.
- * Its texts are the real scope the backend declares (the pilot's or the group's). Details at /operador.
+ * Compact update control of the top bar, in an installation that has updates (the session that consults the data
+ * can update them). Its texts are the real scope the backend declares (the pilot's or the group's). Details at
+ * /operador.
  */
 export function UpdateControl() {
   const { status, job, busy, publishedNow, start, cancel, reload } = useUpdates();
-  if (!status?.available || !status.operator || !status.scope) return null;
+  if (!status?.available || !status.scope) return null;
   const scope = status.scope;
   const running = isActive(job);
   const line = job ? jobLine(job) : status.lastPublished ? `Publicado el ${updateTime(status.lastPublished.at)}` : "Sin publicaciones";

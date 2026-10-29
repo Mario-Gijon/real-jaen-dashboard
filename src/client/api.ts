@@ -1,4 +1,5 @@
 import type {
+  AccessSession,
   ApiError,
   Competition,
   MatchDetail,
@@ -34,12 +35,23 @@ export class ApiRequestError extends Error {
 /** Options of every call; `signal` cancels it (e.g. when a screen unmounts). */
 export type RequestOptions = { signal?: AbortSignal };
 
+/**
+ * A session that expired or was revoked while a screen was open: back to the access page, returning here after.
+ * The access page itself never redirects to itself.
+ */
+function signInAgain(response: Response) {
+  if (response.status !== 401 || typeof window === "undefined" || window.location.pathname === "/acceso") return;
+  const here = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(here === "/" ? "/acceso" : `/acceso?next=${encodeURIComponent(here)}`);
+}
+
 /** The only way screens read data: a typed GET against `/api/v1`. */
 async function get<T>(path: string, options?: RequestOptions): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
     signal: options?.signal,
     headers: { Accept: "application/json" },
   });
+  signInAgain(response);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiRequestError(
@@ -52,8 +64,8 @@ async function get<T>(path: string, options?: RequestOptions): Promise<T> {
 }
 
 /**
- * A state change of the update routes (POST/DELETE): same origin with the operator's session cookie, never
- * cached. The internal secrets stay on the server; the browser only ever holds the HttpOnly session.
+ * A state change (POST/DELETE): same origin with the session cookie, never cached. The internal secrets stay on
+ * the server; the browser only ever holds the HttpOnly session.
  */
 async function send<T>(method: "POST" | "DELETE", path: string, init: { body?: unknown; headers?: Record<string, string> } = {}): Promise<T | null> {
   const response = await fetch(`/api/v1${path}`, {
@@ -63,6 +75,7 @@ async function send<T>(method: "POST" | "DELETE", path: string, init: { body?: u
     headers: { Accept: "application/json", ...(init.body === undefined ? {} : { "Content-Type": "application/json" }), ...init.headers },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
+  if (path !== "/session") signInAgain(response);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiRequestError(
@@ -156,12 +169,12 @@ export function getPlayerProfile(playerId: string, options?: RequestOptions) {
   return get<PlayerProfile>(`/players/${segment(playerId)}/profile`, options);
 }
 
-/** Whether updates exist, their real scope and, for an operator, the active and last jobs. */
+/** Whether updates exist, their real scope, the last publication and the active and last jobs. */
 export function getUpdateStatus(options?: RequestOptions) {
   return get<UpdateStatus>("/updates/current", options);
 }
 
-/** Progress or result of one update (operator). */
+/** Progress or result of one update. */
 export function getUpdate(id: string, options?: RequestOptions) {
   return get<UpdateJob>(`/updates/${segment(id)}`, options);
 }
@@ -175,10 +188,16 @@ export async function cancelUpdate(id: string) {
   return (await send<UpdateJob>("POST", `/updates/${segment(id)}/cancel`))!;
 }
 
-export async function openOperatorSession(key: string) {
-  await send<null>("POST", "/updates/session", { body: { key } });
+/** Whether this installation asks for the password and whether this browser has a session. */
+export function getSession(options?: RequestOptions) {
+  return get<AccessSession>("/session", options);
 }
 
-export async function closeOperatorSession() {
-  await send<null>("DELETE", "/updates/session");
+/** Opens a 90-day session with the shared password; the browser keeps only the HttpOnly cookie. */
+export async function signIn(password: string) {
+  await send<null>("POST", "/session", { body: { password } });
+}
+
+export async function signOut() {
+  await send<null>("DELETE", "/session");
 }

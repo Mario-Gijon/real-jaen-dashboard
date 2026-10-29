@@ -1,19 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  cancelUpdate,
-  closeOperatorSession,
-  getUpdate,
-  getUpdateStatus,
-  openOperatorSession,
-  startUpdate,
-} from "@/client/api";
+import { cancelUpdate, getUpdate, getUpdateStatus, startUpdate } from "@/client/api";
 import type { UpdateJob, UpdateStatus } from "@/contract";
 import { failureReason } from "../use-api";
 
 const KEY_STORAGE = "rj-update-idempotency-key";
-/** Told to every control on the page (top bar and /operador) when a session or a job changes. */
+/** Told to every control on the page (top bar and /operador) when a job changes. */
 const CHANGED = "rj-updates-changed";
 /** `job`: the job the action just obtained, shown at once by every control without waiting for the status. */
 const announce = (job?: UpdateJob) => window.dispatchEvent(new CustomEvent<UpdateJob | undefined>(CHANGED, { detail: job }));
@@ -42,7 +35,7 @@ function forgetKey() {
 export const isActive = (job: UpdateJob | null) => job !== null && (job.status === "queued" || job.status === "running");
 
 /**
- * Update status, the job being followed, and the operator's actions. Polls only while a job is active, at the
+ * Update status, the job being followed, and its actions (any session). Polls only while a job is active, at the
  * interval the server asks for; a start or a cancel already in flight ignores further clicks.
  */
 export function useUpdates() {
@@ -148,16 +141,6 @@ export function useUpdates() {
         const cancelled = await cancelUpdate(job.id);
         setJob(cancelled);
         announce(cancelled);
-      }),
-    login: (key: string) =>
-      run(async () => {
-        await openOperatorSession(key);
-        announce();
-      }),
-    logout: () =>
-      run(async () => {
-        await closeOperatorSession();
-        announce();
       }),
     reload: () => window.location.reload(),
   };

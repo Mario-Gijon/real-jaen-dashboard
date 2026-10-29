@@ -12,7 +12,7 @@ const job = (over: Partial<UpdateJob> = {}): UpdateJob => ({
   id: "7f1c2a3b-4d5e-4f60-8a1b-2c3d4e5f6a7b", status: "running", phase: "acquiring", cancellable: true, cancelRequested: false,
   published: false, requestedAt: "2026-10-28T17:00:00Z", finishedAt: null, pollAfterSeconds: 1, error: null, result: null, ...over });
 const operatorStatus = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({
-  available: true, operator: true, scope: SCOPE, lastPublished: null, activeJob: null, lastJob: null, ...over });
+  available: true, scope: SCOPE, lastPublished: null, activeJob: null, lastJob: null, lastCoverage: null, ...over });
 
 type Handler = (url: string, init?: RequestInit) => { status?: number; body?: unknown };
 function api(handler: Handler) {
@@ -33,9 +33,8 @@ afterEach(() => {
 });
 
 describe("UpdateControl (top bar)", () => {
-  it("is hidden without an operator session or where updates do not exist", async () => {
-    for (const status of [{ available: true, operator: false, scope: SCOPE, lastPublished: null },
-      { available: false, operator: false, scope: null, lastPublished: null }]) {
+  it("is hidden where updates do not exist (the session that reads the data can update them)", async () => {
+    for (const status of [{ available: false, scope: null, lastPublished: null, activeJob: null, lastJob: null, lastCoverage: null }]) {
       const fetch = api(() => ({ body: status }));
       const { container, unmount } = render(<UpdateControl />);
       await waitFor(() => expect(fetch).toHaveBeenCalled());
@@ -95,28 +94,14 @@ describe("UpdateControl (top bar)", () => {
 });
 
 describe("OperatorView (/operador)", () => {
-  it("asks for the operator key and says what the pilot does and does not update", async () => {
-    let operator = false;
-    const fetch = api((url, init) => {
-      if (url === "/api/v1/updates/session") {
-        const ok = JSON.parse(String(init?.body)).key === "the-right-key";
-        operator = ok;
-        return ok ? { status: 204 } : { status: 401, body: { error: { code: "UNAUTHORIZED", message: "Clave de operador no válida." } } };
-      }
-      return { body: operator ? operatorStatus() : { available: true, operator: false, scope: SCOPE, lastPublished: null } };
-    });
+  it("offers the update to the access session, without a second key, and says what the pilot does not update", async () => {
+    const fetch = api(() => ({ body: operatorStatus() }));
     render(<OperatorView />);
     expect(await screen.findByText(/No actualiza el resto de la jornada ni de la temporada/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Ver el partido del piloto" })).toHaveAttribute("href", "/matches/sofascore-match-16599363");
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Clave de operador"), "wrong");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Clave de operador no válida.");
-    await user.clear(screen.getByLabelText("Clave de operador"));
-    await user.type(screen.getByLabelText("Clave de operador"), "the-right-key");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
-    expect(await screen.findByRole("button", { name: "Actualizar piloto" })).toBeVisible();
-    expect(posts(fetch, "/api/v1/updates/session")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Actualizar piloto" })).toBeVisible();
+    expect(screen.queryByLabelText(/Clave/)).toBeNull();
+    expect(fetch.mock.calls.map(([url]) => String(url))).not.toContain("/api/v1/session");
   });
 
   it("shows a failed update as failed, keeping the previous data, and cancels only while consulting", async () => {

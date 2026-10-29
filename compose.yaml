@@ -35,6 +35,25 @@ services:
     environment:
       DATA_MODE: real
       LOCAL_DATA_API_URL: http://backend:8001
+      # Access to the whole application: shared password and persistent session secret (docs/docker.md, «Acceso»).
+      RJ_ACCESS_PASSWORD_FILE: /run/secrets/access-password
+      RJ_SESSION_SECRET_FILE: /run/secrets/session/session-secret
+      # Only behind a proxy that overwrites this header with the client's address; empty: one limit for everyone.
+      RJ_TRUSTED_CLIENT_IP_HEADER: ${RJ_TRUSTED_CLIENT_IP_HEADER:-}
+    volumes:
+      - type: bind
+        source: ${RJ_ACCESS_PASSWORD_FILE:?Define RJ_ACCESS_PASSWORD_FILE as an existing password file outside code and images}
+        target: /run/secrets/access-password
+        read_only: true
+        bind:
+          create_host_path: false
+      # The directory, not the file: rotating the secret in place (revoking every session) is seen at once.
+      - type: bind
+        source: ${RJ_SESSION_SECRET_DIR:?Define RJ_SESSION_SECRET_DIR as an existing directory with the file session-secret}
+        target: /run/secrets/session
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "${RJ_FRONTEND_BIND:-127.0.0.1}:${RJ_FRONTEND_PORT:-3200}:3000"
     depends_on:

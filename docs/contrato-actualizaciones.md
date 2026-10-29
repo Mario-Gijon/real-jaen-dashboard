@@ -51,7 +51,7 @@ UI → cliente tipado (`src/client/api.ts`) → `/api/v1/updates/*` de Next → 
 (`src/server/updates/`) → API interna del backend (`/internal/v1/updates/*`) → control de actualizaciones →
 cliente de adquisición → servicio `acquisition` y coordinador.
 
-- **Next** comprueba la sesión del operador, el origen y el modo, y llama al backend con el **secreto interno de
+- **Next** comprueba la sesión de acceso, el origen y el modo, y llama al backend con el **secreto interno de
   control** (`RJ_CONTROL_SECRET_FILE`), que solo lee el servidor de Next. Nunca llega al navegador ni aparece en
   respuestas o logs. Es distinto del secreto entre backend y adquisición, que Next no conoce.
 - **Backend**: en modo control (`control.py`), el mismo proceso que sirve la API es el dueño del coordinador. Cada
@@ -61,21 +61,20 @@ cliente de adquisición → servicio `acquisition` y coordinador.
 - **Demo** (`DATA_MODE=demo`) o falta de configuración: la interfaz no muestra el control y las operaciones
   responden `409 UPDATE_UNAVAILABLE` sin llamar al backend.
 
-## Autorización del operador
+## Autorización
 
-Mecanismo local mínimo, hasta que el servidor del grupo aporte su proxy con identidad y rol:
+No hay una autenticación propia de las actualizaciones. La **sesión de acceso a la aplicación** permite consultar
+y actualizar (`docker.md`, «Acceso»):
+- la protege una contraseña compartida;
+- dura 90 días;
+- la verifican `src/proxy.ts` y, de nuevo, estas rutas.
 
-- Clave de operador en un archivo del servidor (`RJ_OPERATOR_KEY_FILE`, de 32 a 256 caracteres ASCII), fuera del
-  código, de las imágenes y de `.env.docker`. Sin ella, la actualización está deshabilitada.
-- `POST /api/v1/updates/session` con `{"key": "…"}`: comparación en tiempo constante. Si es correcta, una cookie
-  `rj_operator` firmada (HMAC con una clave aleatoria del proceso), `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/updates`,
-  `Secure` bajo HTTPS y de 8 h de duración. Reiniciar Next invalida las sesiones. Tras 5 intentos fallidos en
-  15 min desde la misma dirección, `429`.
-- `DELETE /api/v1/updates/session` la cierra.
-- Toda operación que cambia estado exige la sesión y una cabecera `Origin` igual al origen de la petición
-  (protección CSRF además de `SameSite`). Sin sesión, `401 UNAUTHORIZED`; con un origen distinto, `403 FORBIDDEN`.
-- La pantalla del operador es `/operador`, sin enlace en la navegación. La cabecera muestra el control solo con
-  sesión de operador.
+Reglas:
+- Sin sesión, las rutas de actualización responden `401 UNAUTHORIZED`, igual que las de datos.
+- Toda operación que cambia estado exige además una cabecera `Origin` igual al origen de la petición (protección
+  CSRF además de `SameSite`). Con un origen distinto, `403 FORBIDDEN`.
+- La pantalla de actualización es `/operador`, sin enlace en la navegación: se llega desde el estado de la cabecera.
+  La cabecera muestra el control a cualquier sesión, donde haya actualizaciones.
 
 ## Rutas públicas nuevas
 
@@ -83,12 +82,13 @@ Todas responden con `Cache-Control: no-store`.
 
 | Método y ruta | Quién | Respuesta |
 |---|---|---|
-| GET /api/v1/updates/current | Cualquiera | `UpdateStatus`. Sin sesión de operador: solo `available`, `operator: false`, `scope` y `lastPublished`. Con sesión, además `activeJob` y `lastJob` |
-| POST /api/v1/updates | Operador | Cuerpo vacío y cabecera `Idempotency-Key` (UUID). `202 {job, reused}`. La misma clave devuelve el mismo trabajo, aunque haya terminado. Con otro trabajo activo, devuelve ese con `reused: true` y no crea otro |
-| GET /api/v1/updates/{id} | Operador | `200 UpdateJob`; `404` si no existe |
-| POST /api/v1/updates/{id}/cancel | Operador | `202 UpdateJob`. Idempotente. `409 NOT_CANCELLABLE` si ya verifica, publica o terminó |
-| POST /api/v1/updates/session | Cualquiera | `204` y cookie; `401` si la clave no es válida; `429` si hay demasiados intentos |
-| DELETE /api/v1/updates/session | Cualquiera | `204` y cookie borrada |
+| GET /api/v1/updates/current | Sesión | `UpdateStatus`: alcance, última publicación, trabajos activo y último, y cobertura de la última publicación |
+| POST /api/v1/updates | Sesión | Cuerpo vacío y cabecera `Idempotency-Key` (UUID). `202 {job, reused}`. La misma clave devuelve el mismo trabajo, aunque haya terminado. Con otro trabajo activo, devuelve ese con `reused: true` y no crea otro |
+| GET /api/v1/updates/{id} | Sesión | `200 UpdateJob`; `404` si no existe |
+| POST /api/v1/updates/{id}/cancel | Sesión | `202 UpdateJob`. Idempotente. `409 NOT_CANCELLABLE` si ya verifica, publica o terminó |
+| GET /api/v1/session | Cualquiera | `{required, signedIn}`; `503` si se exige y no está configurado |
+| POST /api/v1/session | Cualquiera | `{"password": "…"}`: `204` y cookie de 90 días; `401` si no es válida; `429` si hay demasiados intentos |
+| DELETE /api/v1/session | Cualquiera | `204` y cookie borrada |
 
 ```ts
 type UpdateScope = {
@@ -113,12 +113,11 @@ type UpdateJob = {
 };
 type UpdateStatus = {
   available: boolean;
-  operator: boolean;
   scope: UpdateScope | null;
   lastPublished: { at: string } | null;    // última generación publicada por este flujo; null si nunca
-  activeJob?: UpdateJob | null;
-  lastJob?: UpdateJob | null;
-  lastCoverage?: UpdateCoverage | null;    // solo con sesión: cobertura de esa última publicación (grupo)
+  activeJob: UpdateJob | null;
+  lastJob: UpdateJob | null;
+  lastCoverage: UpdateCoverage | null;     // cobertura de esa última publicación (grupo)
 };
 ```
 
@@ -139,7 +138,7 @@ control no arranca. Las rutas deportivas y `/health` no cambian.
 
 ## Comportamiento
 
-- **Un único trabajo activo.** Una segunda pulsación, otra pestaña u otro operador reciben el mismo trabajo. La
+- **Un único trabajo activo.** Una segunda pulsación, otra pestaña u otra persona reciben el mismo trabajo. La
   interfaz deshabilita el botón mientras espera respuesta y reutiliza la misma clave de idempotencia hasta obtener
   el trabajo.
 - **Progreso por fase**, sin porcentajes inventados. En `acquiring` se puede cancelar: el backend pide la

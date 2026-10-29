@@ -34,22 +34,15 @@ services:
           create_host_path: false
     networks: [default, acquisition-control]
 
-  # The Next server checks the operator session and calls the backend with the control secret; the browser never
-  # receives either secret, and the frontend never has the acquisition token.
+  # The Next server checks the access session (compose.yaml) and calls the backend with the control secret; the
+  # browser never receives it, and the frontend never has the acquisition token.
   frontend:
     environment:
       RJ_CONTROL_SECRET_FILE: /run/secrets/control-token
-      RJ_OPERATOR_KEY_FILE: /run/secrets/operator-key
     volumes:
       - type: bind
         source: ${RJ_CONTROL_SECRET_FILE:?Define RJ_CONTROL_SECRET_FILE as an existing secret file outside code and images}
         target: /run/secrets/control-token
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${RJ_OPERATOR_KEY_FILE:?Define RJ_OPERATOR_KEY_FILE as an existing operator key file outside code and images}
-        target: /run/secrets/operator-key
         read_only: true
         bind:
           create_host_path: false

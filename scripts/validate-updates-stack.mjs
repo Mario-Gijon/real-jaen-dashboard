@@ -2,9 +2,9 @@
  * Browser half of the full update validation (driven by api-real-jaen/docker/acquisition/test_updates.py): a real
  * Next production server, the backend in control mode and the acquisition service with its local provider.
  *
- *   node scripts/validate-updates-stack.mjs <phase> <baseUrl> <operatorKeyFile> <outDir> <secretFile>...
+ *   node scripts/validate-updates-stack.mjs <phase> <baseUrl> <accessPasswordFile> <outDir> <secretFile>...
  *
- * Phases: "publish" (sign in, cancel one update while it acquires, then publish another with repeated clicks) and
+ * Phases: "publish" (sign in at /acceso, cancel one update while it acquires, then publish another with repeated clicks) and
  * "refusal" (the provider refuses: failed, previous data kept). Screenshots at 1440 and 390 px go to outDir; every
  * response the browser receives is checked for the secrets. Prints one JSON report line.
  */
@@ -49,10 +49,11 @@ const observed = async () => (await page.request.get(`${baseUrl}/api/v1/matches/
 
 try {
   await page.goto(`${baseUrl}/operador`);
-  await main().getByText("No actualiza el resto de la jornada", { exact: false }).waitFor();
+  await page.waitForURL(/\/acceso\?next=%2Foperador$/);
   if (phase === "publish") await shot("login");
-  await main().getByLabel("Clave de operador").fill(key);
+  await main().getByLabel("Contraseña").fill(key);
   await main().getByRole("button", { name: "Entrar" }).click();
+  await main().getByText("No actualiza el resto de la jornada", { exact: false }).waitFor();
   await main().getByRole("button", { name: /Actualizar piloto|Cancelar/ }).waitFor();
   report.cookies = (await context.cookies()).map((c) => ({ name: c.name, httpOnly: c.httpOnly, sameSite: c.sameSite, path: c.path }));
   step("signed-in");
@@ -93,8 +94,8 @@ try {
     await shot("refused");
   }
   await page.goto(`${baseUrl}/operador`);
-  await main().getByRole("button", { name: "Cerrar sesión" }).click();
-  await main().getByLabel("Clave de operador").waitFor();
+  await page.getByRole("banner").getByRole("button", { name: "Cerrar sesión" }).click();
+  await main().getByLabel("Contraseña").waitFor();
   step("signed-out");
   report.ok = report.leaks.length === 0;
 } catch (error) {

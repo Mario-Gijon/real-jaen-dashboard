@@ -1,0 +1,52 @@
+.form {
+  display: grid;
+  gap: var(--rj-space-2);
+  max-width: 360px;
+}
+.form label {
+  font-weight: 700;
+}
+.form input {
+  min-height: var(--rj-control-height);
+  padding: 0 var(--rj-space-3);
+  border: 1px solid var(--rj-control-border);
+  border-radius: var(--rj-radius-sm);
+  font: inherit;
+}
+.form input:focus-visible {
+  outline: var(--rj-focus-ring);
+  outline-offset: 1px;
+}
+.note {
+  margin: 0;
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-sm);
+}
+.problem {
+  margin: 0;
+  color: var(--rj-danger);
+  font-weight: 700;
+}
+.signOut {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: var(--rj-radius-sm);
+  background: transparent;
+  color: var(--rj-text-inverse);
+  cursor: pointer;
+}
+.signOut:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+.signOut:focus-visible {
+  outline: var(--rj-focus-ring);
+  outline-offset: 2px;
+}
+.signOut:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -1,21 +1,17 @@
 import type { NextResponse } from "next/server";
 import type { ApiError, UpdateStatus } from "@/contract";
 import { controlStatus } from "@/server/updates/control-client";
-import { isOperator, updatesConfigured } from "@/server/updates/operator";
-import { fromControl, noStore } from "@/server/updates/responses";
+import { fromControl, noStore, refuse, updatesConfigured } from "@/server/updates/responses";
 
-/**
- * Whether updates exist here, their real scope and the last publication. Only an operator session also sees the
- * active and last jobs.
- */
+const NONE: UpdateStatus = { available: false, scope: null, lastPublished: null, activeJob: null, lastJob: null, lastCoverage: null };
+
+/** Whether updates exist here, their real scope, the last publication and the active and last jobs (any session). */
 export async function GET(request: Request): Promise<NextResponse<UpdateStatus | ApiError>> {
-  if (!updatesConfigured()) return noStore<UpdateStatus>({ available: false, operator: false, scope: null, lastPublished: null });
+  if (!updatesConfigured()) return noStore<UpdateStatus>(NONE);
+  const refused = refuse(request, { changesState: false });
+  if (refused) return refused;
   try {
-    const status = await controlStatus();
-    const operator = isOperator(request);
-    return noStore<UpdateStatus>(operator
-      ? { available: true, operator, ...status }
-      : { available: true, operator, scope: status.scope, lastPublished: status.lastPublished });
+    return noStore<UpdateStatus>({ available: true, ...(await controlStatus()) });
   } catch (error) {
     return fromControl(error, "estado");
   }

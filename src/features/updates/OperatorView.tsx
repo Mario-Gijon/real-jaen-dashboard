@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { isActive, useUpdates } from "./use-updates";
@@ -10,12 +9,12 @@ import { PHASE_LABELS, STEPS, hasPending, jobLine, updateTime } from "./labels";
 import css from "./Updates.module.css";
 
 /**
- * The operator's update screen (not in the navigation): session, real scope, last publication, the job's step,
- * cancel while still consulting, and its outcome. Whatever happens, the last valid data stay published.
+ * The update screen (not in the navigation, reached from the top bar): real scope, last publication, the job's
+ * step, cancel while still consulting, and its outcome. The session that consults the data can update them.
+ * Whatever happens, the last valid data stay published.
  */
 export function OperatorView() {
-  const { status, job, busy, problem, publishedNow, start, cancel, login, logout, reload } = useUpdates();
-  const [key, setKey] = useState("");
+  const { status, job, busy, problem, publishedNow, start, cancel, reload } = useUpdates();
 
   if (status === null) {
     return <><PageHeader title="Actualización de datos" />{problem ? <p className={css.problem} role="alert">{problem}</p> : <p>Cargando…</p>}</>;
@@ -28,20 +27,12 @@ export function OperatorView() {
       </>
     );
   }
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void login(key).then(() => setKey(""));
-  };
   const running = isActive(job);
   const scope = status.scope;
 
   return (
     <>
-      <PageHeader
-        title="Actualización de datos"
-        description={scope ? scope.label : undefined}
-        actions={status.operator ? <Button disabled={busy} onClick={logout} size="sm" variant="ghost">Cerrar sesión</Button> : undefined}
-      />
+      <PageHeader title="Actualización de datos" description={scope ? scope.label : undefined} />
       {scope ? (
         <section className={css.section} aria-labelledby="alcance">
           <h2 id="alcance">Alcance</h2>
@@ -57,60 +48,45 @@ export function OperatorView() {
         </section>
       ) : null}
 
-      {!status.operator ? (
-        <form className={css.login} onSubmit={submit}>
-          <label htmlFor="operator-key">Clave de operador</label>
-          <input
-            autoComplete="current-password"
-            id="operator-key"
-            onChange={(event) => setKey(event.target.value)}
-            type="password"
-            value={key}
-          />
-          <Button disabled={busy || key.length === 0} type="submit" variant="primary">Entrar</Button>
-          {problem ? <p className={css.problem} role="alert">{problem}</p> : null}
-        </form>
-      ) : (
-        <section className={css.section} aria-labelledby="estado">
-          <h2 id="estado">Estado</h2>
-          {job ? (
-            <>
-              {running ? (
-                <ol className={css.steps}>
-                  {STEPS.map((step) => (
-                    <li aria-current={job.phase === step ? "step" : undefined} key={step}>{PHASE_LABELS[step]}</li>
-                  ))}
-                </ol>
-              ) : null}
-              <p aria-live="polite" className={hasPending(job) ? css.warn : job.status === "completed" ? css.ok : running || job.status === "cancelled" ? undefined : css.problem} role="status">
-                {jobLine(job)}
-              </p>
-              <p className={css.muted}>Solicitada el {updateTime(job.requestedAt)}.</p>
-              {job.status === "completed" && job.result?.coverage ? <CoverageSummary coverage={job.result.coverage} /> : null}
-            </>
-          ) : (
-            <p className={css.muted}>No hay actualizaciones todavía.</p>
-          )}
-          {status.lastCoverage && status.lastPublished && !(job?.status === "completed" && job.result?.coverage) ? (
-            // A later update did not publish: what the last publication left pending or deferred is still what is served.
-            <section aria-labelledby="ultima-publicacion" className={css.coverage}>
-              <h3 id="ultima-publicacion">Última publicación ({updateTime(status.lastPublished.at)})</h3>
-              <CoverageSummary coverage={status.lastCoverage} />
-            </section>
-          ) : null}
-          <div className={css.actions}>
+      <section className={css.section} aria-labelledby="estado">
+        <h2 id="estado">Estado</h2>
+        {job ? (
+          <>
             {running ? (
-              <Button disabled={busy || !job?.cancellable} onClick={cancel}>
-                {job?.cancelRequested ? "Cancelando…" : job?.cancellable ? "Cancelar" : "Ya no se puede cancelar"}
-              </Button>
-            ) : (
-              <Button disabled={busy} onClick={start} variant="primary">{scope?.actionLabel ?? "Actualizar"}</Button>
-            )}
-            {publishedNow ? <Button onClick={reload}>Recargar datos</Button> : null}
-          </div>
-          {problem ? <p className={css.problem} role="alert">{problem}</p> : null}
-        </section>
-      )}
+              <ol className={css.steps}>
+                {STEPS.map((step) => (
+                  <li aria-current={job.phase === step ? "step" : undefined} key={step}>{PHASE_LABELS[step]}</li>
+                ))}
+              </ol>
+            ) : null}
+            <p aria-live="polite" className={hasPending(job) ? css.warn : job.status === "completed" ? css.ok : running || job.status === "cancelled" ? undefined : css.problem} role="status">
+              {jobLine(job)}
+            </p>
+            <p className={css.muted}>Solicitada el {updateTime(job.requestedAt)}.</p>
+            {job.status === "completed" && job.result?.coverage ? <CoverageSummary coverage={job.result.coverage} /> : null}
+          </>
+        ) : (
+          <p className={css.muted}>No hay actualizaciones todavía.</p>
+        )}
+        {status.lastCoverage && status.lastPublished && !(job?.status === "completed" && job.result?.coverage) ? (
+          // A later update did not publish: what the last publication left pending or deferred is still what is served.
+          <section aria-labelledby="ultima-publicacion" className={css.coverage}>
+            <h3 id="ultima-publicacion">Última publicación ({updateTime(status.lastPublished.at)})</h3>
+            <CoverageSummary coverage={status.lastCoverage} />
+          </section>
+        ) : null}
+        <div className={css.actions}>
+          {running ? (
+            <Button disabled={busy || !job?.cancellable} onClick={cancel}>
+              {job?.cancelRequested ? "Cancelando…" : job?.cancellable ? "Cancelar" : "Ya no se puede cancelar"}
+            </Button>
+          ) : (
+            <Button disabled={busy} onClick={start} variant="primary">{scope?.actionLabel ?? "Actualizar"}</Button>
+          )}
+          {publishedNow ? <Button onClick={reload}>Recargar datos</Button> : null}
+        </div>
+        {problem ? <p className={css.problem} role="alert">{problem}</p> : null}
+      </section>
     </>
   );
 }

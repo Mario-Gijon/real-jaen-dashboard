@@ -4,7 +4,8 @@ import nextTs from "eslint-config-next/typescript";
 /*
  * Architectural boundary (see README): UI → src/client → /api/v1 → DataSource.
  * Pages, features, UI and the client never import server code or data files;
- * only the API route handlers (src/app/api) reach src/server.
+ * only the API route handlers (src/app/api) and the access gate (src/proxy.ts),
+ * which runs on the server before every request, reach src/server.
  */
 const serverAndData = {
   group: ["@/server", "@/server/*", "**/server/*", "**/data/*", "*.json"],
@@ -24,7 +25,7 @@ const eslintConfig = [
   ...nextTs,
   {
     files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/**", "src/server/**", "tests/api/**", "tests/data/**"],
+    ignores: ["src/app/api/**", "src/proxy.ts", "src/server/**", "tests/api/**", "tests/data/**"],
     rules: {
       "no-restricted-imports": ["error", { patterns: [serverAndData] }],
     },

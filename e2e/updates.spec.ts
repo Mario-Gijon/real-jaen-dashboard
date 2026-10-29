@@ -17,21 +17,18 @@ const job = (over: Record<string, unknown> = {}) => ({
 const completed = job({ status: "completed", phase: "finished", cancellable: false, published: true,
   finishedAt: "2026-10-28T17:02:00Z", result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage: null } });
 
-async function serveUpdates(page: Page, { operator = true } = {}) {
-  const state = { started: 0, polls: 0, operator };
+/** Simulated update routes; `available: false` is an installation without updates. */
+async function serveUpdates(page: Page, { available = true } = {}) {
+  const state = { started: 0, polls: 0 };
   await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));
   await page.route("**/api/v1/updates/**", async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (path === "/api/v1/updates/session" && request.method() === "POST") {
-      state.operator = true;
-      return route.fulfill({ status: 204 });
-    }
+    const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/updates/current") {
       const finished = state.polls >= 2;
-      return route.fulfill({ json: { available: true, operator: state.operator, scope: SCOPE,
-        lastPublished: finished ? { at: "2026-10-28T17:02:00Z" } : null,
-        ...(state.operator ? { activeJob: state.started && !finished ? job() : null, lastJob: finished ? completed : null } : {}) } });
+      return route.fulfill({ json: available
+        ? { available: true, scope: SCOPE, lastPublished: finished ? { at: "2026-10-28T17:02:00Z" } : null,
+          activeJob: state.started && !finished ? job() : null, lastJob: finished ? completed : null, lastCoverage: null }
+        : { available: false, scope: null, lastPublished: null, activeJob: null, lastJob: null, lastCoverage: null } });
     }
     state.polls += 1;
     return route.fulfill({ json: state.polls >= 2 ? completed : job({ phase: "publishing", cancellable: false }) });
@@ -43,17 +40,14 @@ async function serveUpdates(page: Page, { operator = true } = {}) {
   return state;
 }
 
-test("an operator signs in, sees the real scope and follows one update to its publication", async ({ page }) => {
-  const state = await serveUpdates(page, { operator: false });
+test("the update screen shows the real scope and follows one update to its publication, without a second key", async ({ page }) => {
+  const state = await serveUpdates(page);
   await page.goto("/operador");
   await expect(page.getByRole("heading", { name: "Actualización de datos" })).toBeVisible();
   await expect(page.getByText("No actualiza el resto de la jornada ni de la temporada", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Actualizar/ })).toHaveCount(0);
-  await page.getByLabel("Clave de operador").fill("operator-key");
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByLabel(/Clave/)).toHaveCount(0);
   const start = page.getByRole("main").getByRole("button", { name: "Actualizar piloto" });
   await expect(start).toBeVisible();
-  // The top bar follows the new session at once, without navigating.
   await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar piloto: Actualización piloto/ })).toBeVisible();
   await start.dblclick();
   // The top bar follows the job started from this screen.
@@ -65,12 +59,12 @@ test("an operator signs in, sees the real scope and follows one update to its pu
   expect(overflow).toBe(false);
 });
 
-test("the top bar shows the update control only to an operator, labelled as the pilot", async ({ page }) => {
-  await serveUpdates(page, { operator: false });
+test("the top bar shows the update control only where updates exist, labelled as the pilot", async ({ page }) => {
+  await serveUpdates(page, { available: false });
   await page.goto("/teams");
   await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar/ })).toHaveCount(0);
   await page.unrouteAll();
-  await serveUpdates(page, { operator: true });
+  await serveUpdates(page);
   await page.goto("/teams");
   const control = page.getByRole("banner").getByRole("button", { name: /Actualizar piloto: Actualización piloto/ });
   await expect(control).toBeVisible();
@@ -88,7 +82,7 @@ test("a group update that published with pending resources says so and keeps new
   const done = job({ status: "completed", phase: "finished", cancellable: false, published: true, finishedAt: "2026-10-28T17:02:00Z",
     result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage } });
   await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));
-  await page.route("**/api/v1/updates/**", (route) => route.fulfill({ json: { available: true, operator: true, scope: group,
+  await page.route("**/api/v1/updates/**", (route) => route.fulfill({ json: { available: true, scope: group,
     lastPublished: { at: "2026-10-28T17:02:00Z" }, activeJob: null, lastJob: done } }));
   await page.goto("/operador");
   const main = page.getByRole("main");
@@ -110,7 +104,7 @@ test("after a refused update, the last publication's deferred refreshes stay vis
   const failed = job({ status: "failed", phase: "finished", cancellable: false, finishedAt: "2026-10-28T18:00:00Z",
     error: { code: "ACQUISITION_FAILED", message: "La fuente rechazó la consulta", retryable: false } });
   await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));
-  await page.route("**/api/v1/updates/**", (route) => route.fulfill({ json: { available: true, operator: true, scope: group,
+  await page.route("**/api/v1/updates/**", (route) => route.fulfill({ json: { available: true, scope: group,
     lastPublished: { at: "2026-10-28T17:02:00Z" }, activeJob: null, lastJob: failed, lastCoverage } }));
   await page.goto("/operador");
   const main = page.getByRole("main");

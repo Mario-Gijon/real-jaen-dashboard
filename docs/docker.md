@@ -193,6 +193,65 @@ como base activa. Restaurar prepara y verifica antes de reemplazar, integra WAL 
 exclusividad y conserva copia anterior. No borrar diarios a mano. Volver a revisión 0002
 requiere revisión explícita y código fase 3 compatible (`c56dc83`), no esta imagen 0004.
 
+## Acceso
+
+Toda la aplicación (páginas, rutas de datos y de actualización) exige una **sesión**, que se abre en `/acceso` con
+una **contraseña compartida**. La comprueba `src/proxy.ts` antes de cada petición; las rutas de actualización la
+vuelven a comprobar.
+
+**Sesión:**
+- cookie `rj_session`, firmada con HMAC-SHA256 y válida 90 días, con `HttpOnly`, `SameSite=Strict`, `Path=/` y
+  `Secure` cuando la petición llega por HTTPS (o con `X-Forwarded-Proto: https` de un proxy);
+- el navegador nunca guarda la contraseña: solo esa cookie;
+- sobrevive a reinicios y recreaciones de los contenedores, porque la clave de firma sale de un archivo persistente,
+  no del proceso.
+
+**Rutas:** sin sesión, una página lleva a `/acceso?next=…` y una ruta `/api` responde `401`. Un cambio de estado
+desde otro origen se rechaza con `403`.
+
+**Configuración (frontend):** dos secretos fuera del código, de las imágenes, de Git y de `.env.docker`, legibles
+por UID 1000.
+
+| Variable | Contenido |
+|---|---|
+| `RJ_ACCESS_PASSWORD_FILE` | Archivo con la contraseña compartida (12 a 256 caracteres ASCII imprimibles) |
+| `RJ_SESSION_SECRET_DIR` | Directorio con el archivo `session-secret` (32 a 256 caracteres aleatorios), que firma las sesiones |
+
+Se monta el directorio, no el archivo, para que una rotación se vea al momento. Sin ellos, con datos reales, la
+aplicación no sirve nada: `503`, y el healthcheck del frontend falla. La demostración (`DATA_MODE=demo`) queda
+abierta salvo que se configuren.
+
+```sh
+umask 077; mkdir -p ../deployment/secrets/session
+# La contraseña: se elige, se escribe sin salto de línea final y se comunica por un canal seguro.
+head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > ../deployment/secrets/session/session-secret
+```
+
+**Cerrar sesión:** el botón de la cabecera borra la cookie de ese navegador.
+
+**Revocar todas las sesiones:** rotar el secreto en su sitio, sin `mv` ni reinicio. Cambiar la contraseña también
+las revoca.
+
+```sh
+head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > ../deployment/secrets/session/session-secret
+```
+
+**Límite de intentos:** 5 fallos en 15 minutos bloquean nuevos intentos (`429`) hasta que pase la ventana.
+- Una cabecera como `X-Forwarded-For` la puede fijar cualquier cliente, así que no se usa: por defecto el límite es
+  común a todos.
+- Detrás de un proxy que sobrescriba una cabecera con la dirección del cliente, `RJ_TRUSTED_CLIENT_IP_HEADER`
+  (p. ej. `x-real-ip`) lo hace por dirección.
+- Los intentos se cuentan en memoria y un reinicio los olvida.
+
+**Limitaciones:**
+- una contraseña compartida, sin identidades ni auditoría por persona;
+- cerrar sesión no invalida una cookie ya copiada: para eso se revocan todas;
+- la comprobación de origen compara `Origin` con `Host`: detrás de un proxy hay que conservar `Host`;
+- con el límite común, alguien con acceso a la página puede bloquear los intentos de los demás durante 15 minutos.
+
+Antes de exponerla fuera de la máquina hacen falta HTTPS y un proxy que fije las cabeceras y elimine las del
+cliente.
+
 ## Proxy inverso y entrega sin fuentes en el servidor
 
 Un proxy del host puede usar 127.0.0.1:3200. Para otra interfaz, configurar RJ_FRONTEND_BIND
@@ -215,7 +274,7 @@ una imagen construida para amd64 en arm64. No se han publicado imágenes ni cred
 (calendario de la ronda 1 y partido 16599363) con el flujo normal del scraper y su navegador. Contrato, garantías y
 pruebas: `../api-real-jaen/docs/contrato-adquisicion-interno.md`; estado y ejecuciones reales:
 `../api-real-jaen/docs/adquisicion-sofascore.md`. Con el overlay, el backend arranca en **modo control**
-(`control.py`): sirve las mismas rutas desde el coordinador y ofrece la actualización a una sesión de operador
+(`control.py`): sirve las mismas rutas desde el coordinador y ofrece la actualización a la sesión de acceso
 desde la interfaz (apartado «Actualización desde la interfaz»). La orden del backend con la API detenida sigue
 disponible. Sin el overlay, la instalación de dos servicios no cambia.
 
@@ -288,23 +347,22 @@ dca up -d --no-build --wait acquisition
 
 ### Actualización desde la interfaz
 
-Contrato: [contrato-actualizaciones.md](contrato-actualizaciones.md). Requiere, además, dos archivos secretos nuevos
-con los mismos requisitos (`RJ_CONTROL_SECRET_FILE`, compartido solo por el servidor de Next y el backend, y
-`RJ_OPERATOR_KEY_FILE`, la clave que escribe el operador), legibles por UID 10001 (backend) y 1000 (frontend). Sin
-cualquiera de ellos, en demostración o sin el overlay, la actualización no existe: la interfaz no muestra el
-control y `/api/v1/updates` responde `409 UPDATE_UNAVAILABLE`. Ningún secreto llega al navegador.
+Contrato: [contrato-actualizaciones.md](contrato-actualizaciones.md). Requiere, además, el secreto interno
+`RJ_CONTROL_SECRET_FILE` (mismos requisitos), compartido solo por el servidor de Next y el backend y legible por UID
+10001 (backend) y 1000 (frontend). Sin él, en demostración o sin el overlay, la actualización no existe: la interfaz
+no muestra el control y `/api/v1/updates` responde `409 UPDATE_UNAVAILABLE`. Ningún secreto llega al navegador.
+No hay clave de operador: la misma sesión de acceso (apartado «Acceso») permite consultar y actualizar.
 
 ```sh
 set -eu
 dca up -d --no-build --wait --wait-timeout 120   # backend en modo control, frontend y acquisition
 ```
 
-El operador entra en `/operador` (sin enlace en la navegación) con su clave. La sesión dura 8 horas y termina al
-reiniciar el frontend. Después ve en la cabecera «Actualizar piloto» y el estado del trabajo, y en `/operador`
-el alcance, la última publicación, la fase («Consultando datos», «Comprobando los datos recibidos», «Publicando»)
-y el resultado.
+Con la sesión abierta, la cabecera muestra «Actualizar Grupo 2» (o «Actualizar piloto», según la receta) y el
+estado del trabajo. Ese estado enlaza con `/operador`, que da el alcance, la última publicación, la fase
+(«Consultando datos», «Comprobando los datos recibidos», «Publicando») y el resultado.
 
-- **Un único trabajo activo.** Repetir la pulsación, otra pestaña u otro operador recuperan el mismo trabajo.
+- **Un único trabajo activo.** Repetir la pulsación, otra pestaña u otra persona recuperan el mismo trabajo.
 - **Cancelar** solo mientras se consulta; nunca durante la comprobación o la publicación.
 - **Fallos.** Cualquier fallo, cancelación o reinicio deja publicada la última generación válida. Si falló solo
   la publicación, la siguiente pulsación la reintenta con los datos ya verificados, sin volver a consultar.
@@ -312,19 +370,7 @@ y el resultado.
   se había confirmado, queda como publicada.
 - **Tras publicar,** la interfaz ofrece «Recargar datos».
 
-**Limitaciones de autorización para el servidor del grupo.** Es un mecanismo local mínimo:
-
-- una única clave compartida, sin identidades ni auditoría por persona;
-- la protección contra peticiones de otros sitios compara la cabecera `Origin` con `Host`, así que detrás de un
-  proxy hay que conservar `Host`;
-- el límite de intentos fallidos se lleva por la primera dirección de `X-Forwarded-For` o, sin ella, es común a
-  todos los clientes; sin un proxy que reescriba esa cabecera, un cliente puede cambiarla y saltarse el límite;
-- las sesiones viven en memoria del proceso;
-- la cookie solo lleva `Secure` si la petición llega por HTTPS o con `X-Forwarded-Proto: https`.
-
-Antes de exponerlo fuera de la máquina hacen falta HTTPS, un proxy que fije esas cabeceras y elimine las del
-cliente y, preferiblemente, la identidad y el rol de operador del proxy del grupo en lugar de la clave
-compartida. Eso sigue pendiente.
+Las limitaciones de autorización son las de la sesión de acceso (apartado «Acceso»).
 
 **Red y observación (no es un registro exhaustivo).** El backend habla con `acquisition` solo por
 `acquisition-control`, interna y sin salida. `acquisition` es el único servicio en `acquisition-egress`, con salida a

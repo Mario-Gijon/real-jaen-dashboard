@@ -129,26 +129,6 @@
   flex-wrap: wrap;
   gap: var(--rj-space-3);
 }
-.login {
-  display: grid;
-  gap: var(--rj-space-2);
-  max-width: 360px;
-}
-.login label {
-  font-weight: 700;
-}
-.login input {
-  min-height: var(--rj-control-height);
-  padding: 0 var(--rj-space-3);
-  border: 1px solid var(--rj-control-border);
-  border-radius: var(--rj-radius-sm);
-  font: inherit;
-}
-.login input:focus-visible {
-  outline: var(--rj-focus-ring);
-  outline-offset: 1px;
-}
-
 /* Phones: the bar keeps only the action; its state is one tap away at /operador. */
 @media (max-width: 640px) {
   .barState {

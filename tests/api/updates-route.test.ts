@@ -8,10 +8,11 @@ import { GET as current } from "@/app/api/v1/updates/current/route";
 import { POST as start } from "@/app/api/v1/updates/route";
 import { GET as job } from "@/app/api/v1/updates/[updateId]/route";
 import { POST as cancel } from "@/app/api/v1/updates/[updateId]/cancel/route";
-import { DELETE as logout, POST as login } from "@/app/api/v1/updates/session/route";
-import { clearFailures } from "@/server/updates/operator";
+import { DELETE as logout, POST as login } from "@/app/api/v1/session/route";
+import { clearFailures } from "@/server/auth/session";
 
-const OPERATOR_KEY = "operator-key-for-tests-0123456789abcdef";
+const PASSWORD = "shared-password-for-tests";
+const SESSION_SECRET = "session-secret-for-tests-0123456789abcdef";
 const CONTROL_SECRET = "control-secret-for-tests-ABCDEFGHIJKLMNOP";
 const ORIGIN = "http://localhost:3000";
 const JOB_ID = "7f1c2a3b-4d5e-4f60-8a1b-2c3d4e5f6a7b";
@@ -50,18 +51,20 @@ function request(path: string, { method = "GET", cookie, origin = ORIGIN, header
 }
 
 async function session(): Promise<string> {
-  const response = await login(request("/api/v1/updates/session", { method: "POST", body: { key: OPERATOR_KEY } }));
+  const response = await login(request("/api/v1/session", { method: "POST", body: { password: PASSWORD } }));
   expect(response.status).toBe(204);
   return response.headers.get("set-cookie")!.split(";")[0];
 }
 
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), "rj-updates-"));
-  writeFileSync(join(folder, "operator"), OPERATOR_KEY);
+  writeFileSync(join(folder, "password"), PASSWORD);
+  writeFileSync(join(folder, "session"), SESSION_SECRET);
   writeFileSync(join(folder, "control"), CONTROL_SECRET);
   vi.stubEnv("DATA_MODE", "real");
   vi.stubEnv("LOCAL_DATA_API_URL", "http://backend:8001");
-  vi.stubEnv("RJ_OPERATOR_KEY_FILE", join(folder, "operator"));
+  vi.stubEnv("RJ_ACCESS_PASSWORD_FILE", join(folder, "password"));
+  vi.stubEnv("RJ_SESSION_SECRET_FILE", join(folder, "session"));
   vi.stubEnv("RJ_CONTROL_SECRET_FILE", join(folder, "control"));
   clearFailures();
 });
@@ -76,47 +79,52 @@ afterEach(() => {
 describe("update routes", () => {
   it("are unavailable in the demonstration or without configuration, without asking the backend", async () => {
     backend(() => json(backendStatus));
-    for (const env of [{ DATA_MODE: "demo" }, { RJ_OPERATOR_KEY_FILE: join(folder, "missing") }, { RJ_CONTROL_SECRET_FILE: "" }]) {
+    for (const env of [{ DATA_MODE: "demo" }, { RJ_ACCESS_PASSWORD_FILE: join(folder, "missing") }, { RJ_SESSION_SECRET_FILE: "" },
+      { RJ_CONTROL_SECRET_FILE: "" }]) {
       for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
       expect(await (await current(request("/api/v1/updates/current"))).json()).toEqual(
-        { available: false, operator: false, scope: null, lastPublished: null });
+        { available: false, scope: null, lastPublished: null, activeJob: null, lastJob: null, lastCoverage: null });
       const refused = await start(request("/api/v1/updates", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } }));
       expect(refused.status).toBe(409);
       expect(((await refused.json()) as ApiError).error.code).toBe("UPDATE_UNAVAILABLE");
       vi.stubEnv("DATA_MODE", "real");
-      vi.stubEnv("RJ_OPERATOR_KEY_FILE", join(folder, "operator"));
+      vi.stubEnv("RJ_ACCESS_PASSWORD_FILE", join(folder, "password"));
+      vi.stubEnv("RJ_SESSION_SECRET_FILE", join(folder, "session"));
       vi.stubEnv("RJ_CONTROL_SECRET_FILE", join(folder, "control"));
     }
     expect(calls).toEqual([]);
   });
 
-  it("show only the public status without a session, and the real scope with public ids", async () => {
+  it("show nothing without a session, and with one the real scope with public ids and the jobs", async () => {
     backend(() => json(backendStatus));
-    const response = await current(request("/api/v1/updates/current"));
+    const anonymous = await current(request("/api/v1/updates/current"));
+    expect(anonymous.status).toBe(401);
+    expect(calls).toEqual([]);
+    const response = await current(request("/api/v1/updates/current", { cookie: await session() }));
     expect(response.headers.get("cache-control")).toBe("no-store");
     const body = (await response.json()) as UpdateStatus;
-    expect(body).toEqual({ available: true, operator: false, lastPublished: { at: "2026-10-27T10:00:00+00:00" },
+    expect(body).toMatchObject({ available: true, lastPublished: { at: "2026-10-27T10:00:00+00:00" }, lastJob: null, lastCoverage: null,
       scope: { kind: "pilot", label: "Actualización piloto: calendario de la jornada 1 y un partido", round: 1,
         description: "Consulta el calendario de la jornada 1 y un partido. No actualiza el resto de la jornada ni de la temporada: los demás partidos se conservan tal como están publicados.", actionLabel: "Actualizar piloto", matchIds: ["sofascore-match-16599363"] } });
     expect(calls[0].url).toBe("http://backend:8001/internal/v1/updates/current");
     expect(calls[0].headers.get("authorization")).toBe(`Bearer ${CONTROL_SECRET}`);
   });
 
-  it("open a signed HttpOnly session only with the key, from the same origin, and throttle guesses", async () => {
-    const wrongOrigin = await login(request("/api/v1/updates/session", { method: "POST", origin: "https://evil.example", body: { key: OPERATOR_KEY } }));
+  it("open a signed HttpOnly 90-day session only with the password, from the same origin, and throttle guesses", async () => {
+    const wrongOrigin = await login(request("/api/v1/session", { method: "POST", origin: "https://evil.example", body: { password: PASSWORD } }));
     expect(wrongOrigin.status).toBe(403);
-    const cookie = (await login(request("/api/v1/updates/session", { method: "POST", body: { key: OPERATOR_KEY } }))).headers.get("set-cookie")!;
-    expect(cookie).toMatch(/^rj_operator=[^;]+; HttpOnly; SameSite=Strict; Path=\/api\/v1\/updates; Max-Age=28800$/);
-    expect(cookie).not.toContain(OPERATOR_KEY);
+    const cookie = (await login(request("/api/v1/session", { method: "POST", body: { password: PASSWORD } }))).headers.get("set-cookie")!;
+    expect(cookie).toMatch(/^rj_session=v1\.\d+\.[^;]+; HttpOnly; SameSite=Strict; Path=\/; Max-Age=7776000$/);
+    expect(cookie).not.toContain(PASSWORD);
     for (let attempt = 0; attempt < 5; attempt++) {
-      expect((await login(request("/api/v1/updates/session", { method: "POST", body: { key: "wrong" } }))).status).toBe(401);
+      expect((await login(request("/api/v1/session", { method: "POST", body: { password: "wrong" } }))).status).toBe(401);
     }
-    expect((await login(request("/api/v1/updates/session", { method: "POST", body: { key: OPERATOR_KEY } }))).status).toBe(429);
-    const closed = await logout(request("/api/v1/updates/session", { method: "DELETE" }));
+    expect((await login(request("/api/v1/session", { method: "POST", body: { password: PASSWORD } }))).status).toBe(429);
+    const closed = await logout(request("/api/v1/session", { method: "DELETE" }));
     expect(closed.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
-  it("start one update per key for an operator, never forwarding the secret or internal fields", async () => {
+  it("start one update per key with the access session, never forwarding the secret or internal fields", async () => {
     backend((url, method) => method === "POST" ? json({ job: backendJob(), reused: false }, 202) : json(backendStatus));
     const key = crypto.randomUUID();
     expect((await start(request("/api/v1/updates", { method: "POST", headers: { "Idempotency-Key": key } }))).status).toBe(401);
@@ -135,7 +143,6 @@ describe("update routes", () => {
     expect(calls[0]).toMatchObject({ url: "http://backend:8001/internal/v1/updates", method: "POST" });
     expect(calls[0].headers.get("idempotency-key")).toBe(key);
     const status = (await (await current(request("/api/v1/updates/current", { cookie }))).json()) as UpdateStatus;
-    expect(status.operator).toBe(true);
     expect(status.activeJob?.id).toBe(JOB_ID);
   });
 
@@ -173,14 +180,12 @@ describe("update routes", () => {
       matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" } });
   });
 
-  it("show the last publication's coverage only to an operator, after a later update failed", async () => {
+  it("show the last publication's coverage after a later update failed, only with a session", async () => {
     const failed = backendJob({ status: "failed", phase: "finished", cancellable: false, finished_at: "2026-10-28T19:00:00+00:00",
       error: { code: "ACQUISITION_FAILED", message: "rechazada", retryable: false } });
     backend(() => json({ ...backendStatus, active_job: null, last_job: failed, last_published: { at: "2026-10-28T18:00:00+00:00",
       coverage: { new: 35, kept: 608, deferred: [16599970], new_matches: [], pending: [], names: { "16599970": "Huesca – UD Ibiza" } } } }));
-    const publicBody = (await (await current(request("/api/v1/updates/current"))).json()) as UpdateStatus;
-    expect(publicBody).not.toHaveProperty("lastCoverage");
-    expect(publicBody.lastPublished).toEqual({ at: "2026-10-28T18:00:00+00:00" });
+    expect((await current(request("/api/v1/updates/current"))).status).toBe(401);
     const cookie = await session();
     const status = (await (await current(request("/api/v1/updates/current", { cookie }))).json()) as UpdateStatus;
     expect(status.lastJob?.status).toBe("failed");
@@ -192,8 +197,9 @@ describe("update routes", () => {
     backend(() => json(backendStatus));
     const cookie = await session();
     const [name, value] = cookie.split("=");
-    const [expires, nonce] = value.split(".");
-    for (const forged of [`${name}=${expires}.${nonce}.AAAA`, `${name}=1.${nonce}.${value.split(".")[2]}`, `${name}=`]) {
+    const [version, expires, nonce, signature] = value.split(".");
+    for (const forged of [`${name}=${version}.${expires}.${nonce}.AAAA`, `${name}=${version}.1.${nonce}.${signature}`,
+      `${name}=v0.${expires}.${nonce}.${signature}`, `${name}=`]) {
       expect((await start(request("/api/v1/updates", { method: "POST", cookie: forged, headers: { "Idempotency-Key": crypto.randomUUID() } }))).status).toBe(401);
     }
   });

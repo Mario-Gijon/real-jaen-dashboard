@@ -118,7 +118,21 @@
 }
 
 /* Phones: brand and notice on one row, the two sections as equal tabs below. */
+.session {
+  display: flex;
+  flex: none;
+}
+.session:empty {
+  display: none;
+}
 @media (max-width: 640px) {
+  .session {
+    order: 4;
+  }
+  /* With «Cerrar sesión», the navigation row leaves room for it at its end. */
+  .inner:has(.session button) .nav {
+    flex-basis: calc(100% - 36px - var(--rj-space-3));
+  }
   .inner {
     flex-wrap: wrap;
     gap: 0 var(--rj-space-3);

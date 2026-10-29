@@ -11,7 +11,7 @@ import type {
   UpdateStatus,
 } from "@/contract";
 import { clearTeamNameCache, publicMatchId } from "../local-api/local-api-source";
-import { controlSecret } from "./operator";
+import { controlSecret } from "../auth/session";
 
 /**
  * Server-side client of the backend's update control (`/internal/v1/updates`, docs/contrato-actualizaciones.md).
@@ -146,7 +146,7 @@ async function call(method: "GET" | "POST", path: string, headers: Record<string
   return { status: response.status, body };
 }
 
-export async function controlStatus(): Promise<Required<Omit<UpdateStatus, "available" | "operator">>> {
+export async function controlStatus(): Promise<Omit<UpdateStatus, "available">> {
   const { body } = await call("GET", "/current");
   const value = body as BackendStatus;
   if (!value?.scope) throw new ControlUnavailableError("Respuesta de control no válida");

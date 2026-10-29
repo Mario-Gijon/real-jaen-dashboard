@@ -781,7 +781,7 @@ export type RealSection = "observedPlayers" | "matches" | "teams";
 export type ApiError = { error: { code: ApiErrorCode; message: string } };
 /**
  * `UPSTREAM_UNAVAILABLE` (503): a real source did not answer, or answered something unusable. The update
- * routes (docs/contrato-actualizaciones.md) add `UNAUTHORIZED` (401, no operator session), `FORBIDDEN` (403,
+ * routes (docs/contrato-actualizaciones.md) add `UNAUTHORIZED` (401, no session), `FORBIDDEN` (403,
  * another origin), `UPDATE_UNAVAILABLE` (409, demonstration or not configured), `CONFLICT` (409, e.g. a job that
  * can no longer be cancelled) and `TOO_MANY_REQUESTS` (429).
  */
@@ -877,21 +877,27 @@ export type UpdateJob = {
   result: { publishedAt: string; reusedBundle: boolean; coverage: UpdateCoverage | null } | null;
 };
 
-/** `GET /api/v1/updates/current`. Without an operator session, only the public part. */
+/** `GET /api/v1/updates/current` (any session: the same session that consults the data can update them). */
 export type UpdateStatus = {
   available: boolean;
-  operator: boolean;
   scope: UpdateScope | null;
   /** Last data published by an update; `null` if none yet (not the server start time). */
   lastPublished: { at: string } | null;
-  activeJob?: UpdateJob | null;
-  lastJob?: UpdateJob | null;
+  activeJob: UpdateJob | null;
+  lastJob: UpdateJob | null;
   /**
-   * Operator only: the coverage of that last publication (group recipe), so its pending resources and deferred
-   * refreshes stay visible while their previous data are served, even after a later update failed or was cancelled.
+   * The coverage of that last publication (group recipe), so its pending resources and deferred refreshes stay
+   * visible while their previous data are served, even after a later update failed or was cancelled.
    */
-  lastCoverage?: UpdateCoverage | null;
+  lastCoverage: UpdateCoverage | null;
 };
+
+/**
+ * `GET /api/v1/session`: whether this installation asks for the shared password (always with real data) and
+ * whether the request has a valid session. `POST` with `{ password }` opens a 90-day session (HttpOnly cookie);
+ * `DELETE` closes this browser's session.
+ */
+export type AccessSession = { required: boolean; signedIn: boolean };
 
 /** `POST /api/v1/updates`: `reused` when the key or the active job already existed. */
 export type UpdateStart = { job: UpdateJob; reused: boolean };

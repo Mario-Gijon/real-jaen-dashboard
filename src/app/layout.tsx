@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { SessionControl } from "@/features/access/SessionControl";
 import { UpdateControl } from "@/features/updates/UpdateControl";
 import { AppShell } from "@/ui/AppShell";
 import "@/ui/tokens.css";
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
       <body>
-        <AppShell actions={<UpdateControl />}>{children}</AppShell>
+        <AppShell actions={<UpdateControl />} session={<SessionControl />}>{children}</AppShell>
       </body>
     </html>
   );

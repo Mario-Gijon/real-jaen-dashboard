@@ -5,7 +5,7 @@ import { failure, fromControl, noStore, refuse } from "@/server/updates/response
 
 type Context = { params: Promise<{ updateId: string }> };
 
-/** Progress or result of one update, for the operator. */
+/** Progress or result of one update. */
 export async function GET(request: Request, { params }: Context): Promise<NextResponse<UpdateJob | ApiError>> {
   const refused = refuse(request, { changesState: false });
   if (refused) return refused;

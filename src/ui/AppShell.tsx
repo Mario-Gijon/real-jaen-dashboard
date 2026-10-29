@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { HiddenOnAccess } from "./HiddenOnAccess";
 import { MainNav } from "./MainNav";
 import { SourceBadge } from "./SourceBadge";
 import css from "./AppShell.module.css";
@@ -8,9 +9,10 @@ import css from "./AppShell.module.css";
 /**
  * Analyst frame: Real Jaén identity, the two sections and the data-source
  * notice in one top bar (no sidebar for two entries), then the page content.
- * `actions`: an optional control at the right end of the bar (the update control of an operator).
+ * `actions`: an optional control at the right end of the bar (the update control); `session`: closing the
+ * session, last (on phones, at the end of the navigation row). On the access screen only the identity is shown.
  */
-export function AppShell({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
+export function AppShell({ children, actions, session }: { children: ReactNode; actions?: ReactNode; session?: ReactNode }) {
   return (
     <>
       <a className={css.skip} href="#contenido">
@@ -32,9 +34,12 @@ export function AppShell({ children, actions }: { children: ReactNode; actions?:
               <span>Análisis</span>
             </span>
           </Link>
-          <MainNav />
-          <SourceBadge />
-          {actions}
+          <HiddenOnAccess>
+            <MainNav />
+            <SourceBadge />
+            {actions}
+            {session ? <div className={css.session}>{session}</div> : null}
+          </HiddenOnAccess>
         </div>
       </header>
       <main className={css.main} id="contenido">

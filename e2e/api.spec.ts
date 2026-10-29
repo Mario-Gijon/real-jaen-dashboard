@@ -21,5 +21,7 @@ test("serves the synthetic season through /api/v1", async ({ request }, testInfo
   expect((await request.get(`/api/v1/players/${playerId}?season=${seasonId}`)).ok()).toBe(true);
 
   expect((await request.get("/api/v1/matches/no-existe")).status()).toBe(404);
-  expect((await request.post("/api/v1/competitions")).status()).toBe(405);
+  // A state change from no origin is refused by the access gate; from this origin, the read-only route has no POST.
+  expect((await request.post("/api/v1/competitions")).status()).toBe(403);
+  expect((await request.post("/api/v1/competitions", { headers: { Origin: "http://127.0.0.1:3100" } })).status()).toBe(405);
 });
