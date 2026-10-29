@@ -7,6 +7,47 @@ No es una versión reducida de RealHive: es una aplicación nueva. De RealHive
 sólo se reutilizan, de forma selectiva, elementos visuales y decisiones de UX;
 una vez copiados, este proyecto es la referencia.
 
+## Puesta en marcha con Docker
+
+**Requisitos:** Linux amd64 (o Docker Desktop con WSL2), Docker Engine con Compose v2, Git, una shell POSIX y unos
+5 GB libres. Sin Node ni Python en el anfitrión: todo corre en contenedores.
+
+**Dos repositorios en carpetas hermanas** (Compose construye y monta `../api-real-jaen`):
+
+```text
+carpeta/
+  rj-analyst/      # git clone -b feature/rj-analyst ssh://git@serezade.ujaen.es:8032/fjmimbre/app-real-jaen.git rj-analyst
+  api-real-jaen/   # git clone -b feature/stats-normalization http://serezade.ujaen.es:8030/alabella/api-real-jaen.git api-real-jaen
+  deployment/      # fuera de Git: imports/ (respaldos) y secrets/ (generados en cada instalación)
+```
+
+El scraper de SofaScore no se clona: va dentro de la imagen de adquisición, y sus dos commits propios se conservan en
+`api-real-jaen/docker/scraper/real-jaen-follow-next-pages.bundle`.
+
+| Desde Git | Se descarga aparte (carpeta con `SHA256SUMS`, compartida por el responsable) |
+|---|---|
+| Código, Dockerfiles, `compose*.yaml`, scripts de copia y recuperación, documentación, pruebas y sus recursos (incluido el bundle grabado de la ejecución real) | `imagenes.tar.gz`: imágenes del backend, frontend, adquisición, base del scraper y comprobación del sandbox |
+| `.env.docker.example` (plantilla de configuración) | `respaldo-habitual-AAAAMMDD/`: datos iniciales (base, registros de actualización, procedencia y trabajos) |
+| | `pruebas/copias/…piloto-16599363.sqlite`: solo para la prueba `test_group.py` del backend |
+
+Nunca se comparten secretos, `.env` locales, bases activas, perfiles de navegador ni cookies: los secretos se generan
+en cada instalación.
+
+**Comandos** (desde `rj-analyst/`, tras cargar las imágenes, crear `.env.servidor`, generar los secretos y restaurar el
+respaldo como explica la guía):
+
+```sh
+gunzip -c ../descarga/imagenes.tar.gz | docker image load
+dc() { docker compose --env-file .env.servidor -f compose.yaml -f compose.acquisition.yaml "$@"; }
+ENV_FILE=.env.servidor COMPOSE_FILES="-f compose.yaml -f compose.acquisition.yaml"   sh scripts/restaurar-instalacion.sh ../deployment/imports/respaldo-habitual-AAAAMMDD
+dc up -d --no-build --pull never --wait --wait-timeout 180
+dc ps
+```
+
+Paso a paso (configuración, secretos, HTTPS y proxy, copias, recuperación y lo pendiente de comprobar en el
+servidor): **[docs/despliegue-servidor.md](docs/despliegue-servidor.md)**. Referencia de cada pieza:
+[docs/docker.md](docs/docker.md). Desarrollo local sin Docker: «Comandos», al final.
+
 ## Arquitectura
 
 Una única aplicación Next.js (App Router) con su API interna:

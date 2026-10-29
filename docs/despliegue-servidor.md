@@ -11,7 +11,7 @@ referencia de cada pieza. Todo se hace desde una shell POSIX en Linux; nada depe
 | api-real-jaen (backend, adquisición) | `feature/stats-normalization`, código de `2c4008b` |
 | Scraper (dentro de la imagen de adquisición) | `sofascore_scraper` `611e436a1528b0f487aa56a045f023e8ae8ae098` |
 | Imagen del backend | `rj-analyst-backend:2c4008b` (`sha256:63bf24d4c7b8…`) |
-| Imagen del frontend | `rj-analyst-frontend:d7dfe26` (`sha256:ca43216e9428…`) |
+| Imagen del frontend | `rj-analyst-frontend:e94b8e9` (`sha256:54b5a1f13583…`) |
 | Imagen de adquisición | `rj-analyst-acquisition:2c4008b` (`sha256:49fd238c03b8…`); byte a byte el código de la ejecución real del 29-10 |
 | Imagen de comprobación (opcional) | `rj-acq-real-test:5c5fa98c20bd` (`sha256:efa70ddde7f9…`): solo para verificar el sandbox de Chromium sin red |
 | Imagen base del scraper | `rj-scraper-package-efcadb386d:candidate` (`sha256:e13cef0eff2f…`): base de la de adquisición; hace falta para construir las imágenes de prueba o una nueva de adquisición. Contiene `611e436` (archivo Git `19c53bf0…`) |
@@ -22,34 +22,44 @@ clásico de Docker Engine, `docker images` muestra el de la configuración (para
 
 ## 1. Entrega
 
-En la máquina de origen, desde la carpeta que contiene los dos repositorios:
-
-```sh
-set -eu
-D=entrega-$(date +%Y%m%d); mkdir "$D"
-git -C rj-analyst archive --prefix=rj-analyst/ HEAD | tar -x -C "$D"
-git -C api-real-jaen archive --prefix=api-real-jaen/ HEAD | tar -x -C "$D"
-docker image save rj-analyst-backend:2c4008b rj-analyst-frontend:d7dfe26 rj-analyst-acquisition:2c4008b \
-  rj-acq-real-test:5c5fa98c20bd rj-scraper-package-efcadb386d:candidate | gzip > "$D/imagenes.tar.gz"
-(cd "$D" && sha256sum imagenes.tar.gz > imagenes.tar.gz.sha256)
-```
-
-Se añade aparte el **respaldo** del estado (apartado 4) y, para las pruebas de `api-real-jaen`, la copia del 27-10
-`real-jaen.20261027-083912-846469.piloto-16599363.sqlite` (SHA256 `ebe99c6d…`; la única con la jornada 9 sin jugar,
-que necesita `test_group.py`: `api-real-jaen/README.md`, «Pruebas en Docker»). La entrega no lleva:
-- secretos, `.env.*` locales ni `.git`;
-- bases activas ni perfiles de navegador;
-- capturas ni evidencias temporales.
-
-En el servidor:
+**Desde Git**, el código, en dos carpetas hermanas (Compose usa `../api-real-jaen`):
 
 ```sh
 set -eu
 sudo mkdir -p /srv/rj-analyst && cd /srv/rj-analyst    # carpeta libre; se usan rutas relativas a ella
-# copiar aquí rj-analyst/, api-real-jaen/ e imagenes.tar.gz* de la entrega
-sha256sum -c imagenes.tar.gz.sha256
-gunzip -c imagenes.tar.gz | docker image load
+git clone -b feature/rj-analyst ssh://git@serezade.ujaen.es:8032/fjmimbre/app-real-jaen.git rj-analyst
+git clone -b feature/stats-normalization http://serezade.ujaen.es:8030/alabella/api-real-jaen.git api-real-jaen
 mkdir -p deployment/imports deployment/secrets/session
+```
+
+El scraper no hace falta clonarlo: va dentro de la imagen de adquisición y sus commits propios están en
+`api-real-jaen/docker/scraper/real-jaen-follow-next-pages.bundle` (solo para reconstruir su imagen).
+
+**Aparte**, porque no se versionan, una carpeta de descarga con `SHA256SUMS`:
+
+| Archivo | Para qué |
+|---|---|
+| `imagenes.tar.gz` (+ `.sha256`) | Las cinco imágenes de la tabla anterior |
+| `respaldo-habitual-AAAAMMDD/` | Datos iniciales: base, registros de actualización, procedencia y trabajos (apartado 4) |
+| `pruebas/copias/real-jaen.20261027-083912-846469.piloto-16599363.sqlite` | Solo para `test_group.py` (SHA256 `ebe99c6d…`; la única con la jornada 9 sin jugar: `api-real-jaen/README.md`, «Pruebas en Docker») |
+
+No lleva secretos (se generan en el servidor, apartado 3), `.env.*` locales, bases activas, perfiles de navegador,
+capturas ni evidencias temporales. En la máquina de origen se prepara así, desde la carpeta de los dos repositorios:
+
+```sh
+set -eu
+D=descarga-$(date +%Y%m%d); mkdir "$D"
+docker image save rj-analyst-backend:2c4008b rj-analyst-frontend:e94b8e9 rj-analyst-acquisition:2c4008b   rj-acq-real-test:5c5fa98c20bd rj-scraper-package-efcadb386d:candidate | gzip > "$D/imagenes.tar.gz"
+(cd "$D" && sha256sum imagenes.tar.gz > imagenes.tar.gz.sha256)
+# + el respaldo (scripts/respaldo-instalacion.sh) y la copia de pruebas; después: (cd "$D" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + > SHA256SUMS)
+```
+
+En el servidor, con la descarga copiada en `/srv/rj-analyst/descarga`:
+
+```sh
+cd /srv/rj-analyst/descarga && sha256sum -c SHA256SUMS
+gunzip -c imagenes.tar.gz | docker image load
+cp -r respaldo-habitual-AAAAMMDD ../deployment/imports/
 ```
 
 **Construir en el servidor**, en lugar de cargar las imágenes, es posible pero hace falta:
@@ -67,7 +77,7 @@ En `rj-analyst/.env.servidor` (ignorado por Git), con rutas relativas a `rj-anal
 COMPOSE_PROJECT_NAME=rj-analyst
 RJ_BACKEND_CONTEXT=../api-real-jaen
 RJ_BACKEND_IMAGE=rj-analyst-backend:2c4008b
-RJ_FRONTEND_IMAGE=rj-analyst-frontend:d7dfe26
+RJ_FRONTEND_IMAGE=rj-analyst-frontend:e94b8e9
 RJ_FRONTEND_BIND=127.0.0.1
 RJ_FRONTEND_PORT=3200
 RJ_STATE_VOLUME=rj-analyst-state
