@@ -877,6 +877,52 @@ describe("local API adapter: real line-ups", () => {
   });
 });
 
+describe("local API adapter: sections read before a correction of the event", () => {
+  const flagged = <T extends { meta: Record<string, unknown> }>(body: T, flags: Record<string, boolean>) =>
+    ({ ...body, meta: { ...body.meta, ...flags } });
+  const score = { predates_score_correction: true, predates_team_change: false };
+  const teams = { predates_score_correction: false, predates_team_change: true };
+
+  it("after a score correction: kept sections marked for review, incident goals withheld (never an empty list)", async () => {
+    const result = (await detailSource(detailApi(matchBody(), flagged(statsBody(), score), flagged(lineupsBody(), score),
+      flagged(incidentsBody(), score)))("sofascore-match-16599363"))!;
+    expect(result.review).toEqual({ corrections: ["score"], sections: ["statistics", "lineups", "incidents"] });
+    // Team stats and line-ups do not depend on the score: still served.
+    expect(result.statistics.state).toBe("stored");
+    expect(result.lineups.state).toBe("stored");
+    if (result.incidents.state !== "stored") throw new Error("expected stored incidents");
+    expect(result.incidents.goals).toBeNull();
+    expect(result.incidents.substitutions).toHaveLength(1);
+  });
+
+  it("after a team change: the previous teams' sections are outdated, never served as the current match's", async () => {
+    const result = (await detailSource(detailApi(matchBody(), flagged(statsBody(), teams), flagged(lineupsBody(), teams),
+      flagged(incidentsBody(), teams)))("sofascore-match-16599363"))!;
+    expect(result.review).toEqual({ corrections: ["teams"], sections: ["statistics", "lineups", "incidents"] });
+    for (const section of [result.statistics, result.lineups, result.incidents]) {
+      expect(section).toEqual({ state: "outdated", fetchedAt: expect.any(String) });
+    }
+  });
+
+  it("without flags (re-read, or a service that does not send them) there is nothing to review", async () => {
+    const clean = { predates_score_correction: false, predates_team_change: false };
+    for (const [stats, lineups, incidents] of [[statsBody(), lineupsBody(), incidentsBody()],
+      [flagged(statsBody(), clean), flagged(lineupsBody(), clean), flagged(incidentsBody(), clean)]]) {
+      const result = (await detailSource(detailApi(matchBody(), stats, lineups, incidents))("sofascore-match-16599363"))!;
+      expect(result.review).toBeUndefined();
+      if (result.incidents.state !== "stored") throw new Error("expected stored incidents");
+      expect(result.incidents.goals).toHaveLength(2);
+    }
+  });
+
+  it("takes a flag that is not a boolean as an unusable section, never as current data", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = (await detailSource(detailApi(matchBody(), flagged(statsBody(), { predates_team_change: "yes" } as never)))("sofascore-match-16599363"))!;
+    expect(result.statistics).toEqual({ state: "error", fetchedAt: null });
+    expect(result.review).toBeUndefined();
+  });
+});
+
 describe("local API adapter: real incidents", () => {
   const detail = (incidents: unknown | (() => Response)) =>
     detailSource(detailApi(matchBody(), statsBody(), lineupsBody(), incidents))("sofascore-match-16599363");
@@ -906,7 +952,7 @@ describe("local API adapter: real incidents", () => {
       { player: null, time: 30, incidentClass: "regular", incidentType: "goal" },
     ])))!;
     if (incidents.state !== "stored") throw new Error("expected stored incidents");
-    expect(incidents.goals.map((g) => [g.kind, g.scorer?.name ?? null, g.assist?.name ?? null])).toEqual([
+    expect(incidents.goals!.map((g) => [g.kind, g.scorer?.name ?? null, g.assist?.name ?? null])).toEqual([
       ["ownGoal", "Propia", "Nadie"], ["unknown", "Rara", null], ["regular", null, null],
     ]);
   });

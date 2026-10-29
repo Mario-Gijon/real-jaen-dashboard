@@ -306,3 +306,32 @@ test("Alineaciones reales: failed incidents keep line-ups and stats; failed line
   await page.getByRole("tab", { name: "Resumen" }).click();
   await expect(page.locator("dt", { hasText: "Posesión" })).toBeVisible();
 });
+
+test("Partido real: after a score correction, sections pending review are said so and their goals are not marked", async ({ page }) => {
+  await serveReal(page);
+  let review = true;
+  await page.route("**/api/v1/matches/*/observed", (route) => route.fulfill({ json: review
+    ? { ...DETAIL, lineups: LINEUPS, incidents: { ...INCIDENTS, goals: null },
+      review: { corrections: ["score"], sections: ["lineups", "incidents"] } }
+    : { ...DETAIL, lineups: LINEUPS, incidents: INCIDENTS } }));
+  await page.goto("/matches/sofascore-match-1?view=observed");
+  const main = page.getByRole("main");
+  const note = main.getByRole("note", { name: "Secciones pendientes de revisión" });
+  await expect(note).toContainText("El marcador se ha actualizado, pero algunas secciones siguen pendientes de revisión.");
+  await expect(note).toContainText("Pendientes: alineaciones e incidencias");
+  await main.getByRole("tab", { name: "Alineaciones" }).click();
+  const panel = main.getByRole("tabpanel", { name: "Alineaciones" });
+  await expect(panel.getByText(/Las incidencias son anteriores a la corrección del marcador/)).toBeVisible();
+  await expect(panel.getByRole("img", { name: /gol/ })).toHaveCount(0);
+  await expect(panel.getByLabel("Entra en el minuto 68′")).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+
+  // Once the sections are recovered, the notice goes and the goals are marked again.
+  review = false;
+  await page.reload();
+  await expect(main.getByRole("tab", { name: "Alineaciones" })).toBeVisible();
+  await expect(note).toHaveCount(0);
+  await main.getByRole("tab", { name: "Alineaciones" }).click();
+  await expect(panel.getByRole("img", { name: "2 goles (1 de penalti)" })).toBeVisible();
+});

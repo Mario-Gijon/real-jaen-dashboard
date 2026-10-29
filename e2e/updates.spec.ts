@@ -8,13 +8,14 @@ import { REAL_SOURCE } from "./sources";
  */
 
 const SCOPE = { kind: "pilot", label: "Actualización piloto: calendario de la jornada 1 y un partido", round: 1,
+  actionLabel: "Actualizar piloto", description: "Consulta el calendario de la jornada 1 y un partido. No actualiza el resto de la jornada ni de la temporada: los demás partidos se conservan tal como están publicados.",
   matchIds: ["sofascore-match-16599363"] };
 const job = (over: Record<string, unknown> = {}) => ({
   id: "7f1c2a3b-4d5e-4f60-8a1b-2c3d4e5f6a7b", status: "running", phase: "acquiring", cancellable: true, cancelRequested: false,
   published: false, requestedAt: "2026-10-28T17:00:00Z", finishedAt: null, pollAfterSeconds: 1, error: null, result: null, ...over,
 });
 const completed = job({ status: "completed", phase: "finished", cancellable: false, published: true,
-  finishedAt: "2026-10-28T17:02:00Z", result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false } });
+  finishedAt: "2026-10-28T17:02:00Z", result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage: null } });
 
 async function serveUpdates(page: Page, { operator = true } = {}) {
   const state = { started: 0, polls: 0, operator };
@@ -53,7 +54,7 @@ test("an operator signs in, sees the real scope and follows one update to its pu
   const start = page.getByRole("main").getByRole("button", { name: "Actualizar piloto" });
   await expect(start).toBeVisible();
   // The top bar follows the new session at once, without navigating.
-  await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar: Actualización piloto/ })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar piloto: Actualización piloto/ })).toBeVisible();
   await start.dblclick();
   // The top bar follows the job started from this screen.
   await expect(page.getByRole("banner").getByRole("button", { name: /^Cancelar|Recargar datos/ })).toBeVisible();
@@ -71,9 +72,52 @@ test("the top bar shows the update control only to an operator, labelled as the 
   await page.unrouteAll();
   await serveUpdates(page, { operator: true });
   await page.goto("/teams");
-  const control = page.getByRole("banner").getByRole("button", { name: /Actualizar: Actualización piloto/ });
+  const control = page.getByRole("banner").getByRole("button", { name: /Actualizar piloto: Actualización piloto/ });
   await expect(control).toBeVisible();
   await expect(control).toHaveText("Actualizar piloto");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+});
+
+test("a group update that published with pending resources says so and keeps new, kept and pending apart", async ({ page }) => {
+  const group = { kind: "group", label: "Actualización del Grupo 2 (Primera Federación 26/27)", round: null, matchIds: [],
+    actionLabel: "Actualizar Grupo 2", description: "Consulta los partidos finalizados que faltan, los aplazados y las correcciones recientes." };
+  const coverage = { newResources: 35, keptResources: 608, deferredMatchIds: [],
+    newMatches: [], matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" },
+    pending: [{ matchId: "sofascore-match-16599967", resources: [{ resource: "statistics", reason: "empty", kept: false }] }] };
+  const done = job({ status: "completed", phase: "finished", cancellable: false, published: true, finishedAt: "2026-10-28T17:02:00Z",
+    result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage } });
+  await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));
+  await page.route("**/api/v1/updates/**", (route) => route.fulfill({ json: { available: true, operator: true, scope: group,
+    lastPublished: { at: "2026-10-28T17:02:00Z" }, activeJob: null, lastJob: done } }));
+  await page.goto("/operador");
+  const main = page.getByRole("main");
+  await expect(main.getByText(/^Actualización completada con pendientes/)).toBeVisible();
+  await expect(main.getByText("35", { exact: true })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Real Jaén – CE Europa" })).toHaveAttribute("href", "/matches/sofascore-match-16599967");
+  await expect(main.getByText("estadísticas (respuesta sin datos, sin datos publicados)")).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("button", { name: /Actualizar Grupo 2/ })).toBeVisible();
+  await expect(main.getByText(/piloto/)).toHaveCount(0);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+});
+
+test("after a refused update, the last publication's deferred refreshes stay visible with their data served", async ({ page }) => {
+  const group = { kind: "group", label: "Actualización del Grupo 2 (Primera Federación 26/27)", round: null, matchIds: [],
+    actionLabel: "Actualizar Grupo 2", description: "Consulta los partidos finalizados que faltan, los aplazados y las correcciones recientes." };
+  const lastCoverage = { newResources: 12, keptResources: 631, pending: [], newMatches: [],
+    deferredMatchIds: ["sofascore-match-16599970"], matchNames: { "sofascore-match-16599970": "Real Jaén – CE Europa" } };
+  const failed = job({ status: "failed", phase: "finished", cancellable: false, finishedAt: "2026-10-28T18:00:00Z",
+    error: { code: "ACQUISITION_FAILED", message: "La fuente rechazó la consulta", retryable: false } });
+  await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));
+  await page.route("**/api/v1/updates/**", (route) => route.fulfill({ json: { available: true, operator: true, scope: group,
+    lastPublished: { at: "2026-10-28T17:02:00Z" }, activeJob: null, lastJob: failed, lastCoverage } }));
+  await page.goto("/operador");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: /^Última publicación/ })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Revisiones aplazadas" })).toBeVisible();
+  await expect(main.getByText(/Se siguen sirviendo sus datos anteriores/)).toBeVisible();
+  await expect(main.getByRole("link", { name: "Real Jaén – CE Europa" })).toHaveAttribute("href", "/matches/sofascore-match-16599970");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
 });

@@ -219,10 +219,19 @@ pruebas: `../api-real-jaen/docs/contrato-adquisicion-interno.md`; estado y ejecu
 desde la interfaz (apartado «Actualización desde la interfaz»). La orden del backend con la API detenida sigue
 disponible. Sin el overlay, la instalación de dos servicios no cambia.
 
-**Alcance real: solo el piloto.** La única receta aprobada consulta el calendario de la jornada 1 y un partido
-(16599363). El botón se llama «Actualizar piloto» y la pantalla lo explica; **no actualiza una jornada completa
-ni la temporada**: el resto de los datos se conserva tal como está publicado. Otro alcance exige otra receta
-revisada y su huella aprobada en `../api-real-jaen/productores-adquisicion.json`.
+**Alcance real.**
+
+- **Por defecto (`RJ_UPDATE_RECIPE` sin definir):** la receta del Grupo 2, botón «Actualizar Grupo 2».
+  - Consulta los resultados que faltan, los aplazados, los cambios de calendario (próximos y, por turnos, lejanos)
+    y las correcciones de las últimas 72 h.
+  - Hasta 120 envíos y 900 s por pulsación.
+  - Publica con cobertura parcial: lo que no se obtiene queda pendiente y conserva lo anterior; la interfaz dice
+    «Actualización completada con pendientes».
+  - **No se ha probado todavía contra SofaScore:** su primera ejecución real necesita autorización.
+- **`RJ_UPDATE_RECIPE=sofascore-pilot-16599363-v1`:** solo el piloto (calendario de la jornada 1 y un partido).
+
+Otro alcance exige otra receta revisada y su huella aprobada en `../api-real-jaen/productores-adquisicion.json`.
+Detalle: `../api-real-jaen/docs/diseno-receta-grupo2.md`.
 
 Requisitos además de los anteriores: la imagen base del scraper auditada (`RJ_SCRAPER_RUNTIME_IMAGE`, construida con
 `../api-real-jaen/docker/scraper`; la imagen de adquisición se construye sin red sobre ella), dos volúmenes externos

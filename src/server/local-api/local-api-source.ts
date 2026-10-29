@@ -9,6 +9,8 @@ import {
   type ObservedGoal,
   type ObservedLineupPlayer,
   type ObservedMatchDetail,
+  type ObservedSectionKey,
+  type ObservedSectionReview,
   type ObservedMatchStatKey,
   type ObservedPlayerMatch,
   type ObservedPlayerMatches,
@@ -1165,17 +1167,31 @@ function parseLineups(payload: unknown, body: Record<string, unknown>) {
   return { confirmed, home: parseLineupSide(payload, "home", normalized), away: parseLineupSide(payload, "away", normalized) };
 }
 
+/** The corrections of the event a section predates (`meta.predates_*`); a flag the service does not send is false. */
+function predates(meta: Record<string, unknown>): Set<"score" | "teams"> {
+  const found = new Set<"score" | "teams">();
+  for (const [field, correction] of [["predates_score_correction", "score"], ["predates_team_change", "teams"]] as const) {
+    const flag = meta[field];
+    if (flag !== undefined && typeof flag !== "boolean") throw invalid(`meta.${field}`);
+    if (flag === true) found.add(correction);
+  }
+  return found;
+}
+
 /**
  * One section of a real match (`statistics`, `lineups`), kept apart from the
  * match: if it cannot be read (the service fails, or answers something
  * unusable) its state is `error` and the rest of the detail is still served.
+ * A section read before the teams changed is `outdated`, without content; the
+ * corrections it predates are added to `review`.
  */
 async function matchSection<T extends object>(
   options: Options,
   sourceId: number,
-  section: "statistics" | "lineups" | "incidents",
-  parse: (data: unknown, body: Record<string, unknown>) => T,
-): Promise<({ state: "stored"; fetchedAt: string | null } & T) | { state: "empty" | "not_stored" | "error"; fetchedAt: string | null }> {
+  section: ObservedSectionKey,
+  parse: (data: unknown, body: Record<string, unknown>, corrections: ReadonlySet<"score" | "teams">) => T,
+  review: ObservedSectionReview,
+): Promise<({ state: "stored"; fetchedAt: string | null } & T) | { state: "empty" | "not_stored" | "error" | "outdated"; fetchedAt: string | null }> {
   try {
     const body = await getJson(options, `${baseOf(options)}/api/v1/matches/${sourceId}/${section}`);
     // The match exists, so a 404 here is an inconsistent answer, not a missing section.
@@ -1184,8 +1200,14 @@ async function matchSection<T extends object>(
     const state = body.meta.availability;
     if (typeof state !== "string" || !SECTION_STATES.has(state)) throw invalid("meta.availability");
     const fetchedAt = optionalText(body.meta.fetched_at, "meta.fetched_at");
+    const corrections = predates(body.meta);
+    if (corrections.size) {
+      review.sections.push(section);
+      for (const correction of corrections) if (!review.corrections.includes(correction)) review.corrections.push(correction);
+    }
+    if (corrections.has("teams") && state !== "not_stored") return { state: "outdated", fetchedAt };
     if (state !== "stored") return { state: state as "empty" | "not_stored", fetchedAt };
-    return { state: "stored", fetchedAt, ...parse(body.data, body) };
+    return { state: "stored", fetchedAt, ...parse(body.data, body, corrections) };
   } catch (failure) {
     if (!(failure instanceof UpstreamUnavailableError)) throw failure;
     console.error(`[api] ${section} del partido ${sourceId}:`, failure.message);
@@ -1234,9 +1256,12 @@ export function createLocalApiMatchDetail(options: Options) {
     const at = (field: string) => `data.${field}`;
     assertInScope(body.data, scope, at);
     const { homeId, awayId, ...match } = parseMatch(body.data, sourceId, at);
-    const statistics = await matchSection(options, sourceId, "statistics", parseTeamStats);
-    const lineups = await matchSection(options, sourceId, "lineups", parseLineups);
-    const incidents = await matchSection(options, sourceId, "incidents", parseIncidents);
+    const review: ObservedSectionReview = { corrections: [], sections: [] };
+    const statistics = await matchSection(options, sourceId, "statistics", parseTeamStats, review);
+    const lineups = await matchSection(options, sourceId, "lineups", parseLineups, review);
+    // Incidents read before a score correction keep their substitutions; their goals do not describe the score.
+    const incidents = await matchSection(options, sourceId, "incidents",
+      (data, _, corrections) => ({ ...parseIncidents(data), ...(corrections.has("score") ? { goals: null } : {}) }), review);
     const localReplacement = parseLocalReplacement(body.data, at);
     return {
       match: {
@@ -1245,6 +1270,7 @@ export function createLocalApiMatchDetail(options: Options) {
         away: { id: teamIdFromSource(awayId), name: optionalText(body.data.away_team_name, at("away_team_name")) },
       },
       ...(localReplacement ? { localReplacement } : {}),
+      ...(review.sections.length ? { review } : {}),
       statistics,
       lineups,
       incidents,

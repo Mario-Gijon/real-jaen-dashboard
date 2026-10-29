@@ -6,6 +6,7 @@ import { OperatorView } from "@/features/updates/OperatorView";
 import { UpdateControl } from "@/features/updates/UpdateControl";
 
 const SCOPE = { kind: "pilot" as const, label: "Actualización piloto: calendario de la jornada 1 y un partido", round: 1,
+  actionLabel: "Actualizar piloto", description: "Consulta el calendario de la jornada 1 y un partido. No actualiza el resto de la jornada ni de la temporada: los demás partidos se conservan tal como están publicados.",
   matchIds: ["sofascore-match-16599363"] };
 const job = (over: Partial<UpdateJob> = {}): UpdateJob => ({
   id: "7f1c2a3b-4d5e-4f60-8a1b-2c3d4e5f6a7b", status: "running", phase: "acquiring", cancellable: true, cancelRequested: false,
@@ -51,7 +52,7 @@ describe("UpdateControl (top bar)", () => {
       return { body: operatorStatus(started ? { activeJob: job({ pollAfterSeconds: 30 }) } : {}) };
     });
     render(<UpdateControl />);
-    const start = await screen.findByRole("button", { name: /Actualizar: Actualización piloto/ });
+    const start = await screen.findByRole("button", { name: /Actualizar piloto: Actualización piloto/ });
     expect(start).toHaveTextContent("Actualizar piloto");
     expect(screen.queryByText(/jornada completa|temporada/i)).toBeNull();
     const user = userEvent.setup();
@@ -78,10 +79,10 @@ describe("UpdateControl (top bar)", () => {
         polls += 1;
         return { body: polls < 2 ? job({ phase: "publishing", cancellable: false })
           : job({ status: "completed", phase: "finished", published: true, cancellable: false, finishedAt: "2026-10-28T17:02:00Z",
-            result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false } }) };
+            result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage: null } }) };
       }
       const done = job({ status: "completed", phase: "finished", published: true, cancellable: false,
-        finishedAt: "2026-10-28T17:02:00Z", result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false } });
+        finishedAt: "2026-10-28T17:02:00Z", result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage: null } });
       return { body: polls < 2 ? operatorStatus({ activeJob: job() })
         : operatorStatus({ lastJob: done, lastPublished: { at: "2026-10-28T17:02:00Z" } }) };
     });
@@ -106,7 +107,7 @@ describe("OperatorView (/operador)", () => {
     });
     render(<OperatorView />);
     expect(await screen.findByText(/No actualiza el resto de la jornada ni de la temporada/)).toBeVisible();
-    expect(screen.getByRole("link", { name: "un partido" })).toHaveAttribute("href", "/matches/sofascore-match-16599363");
+    expect(screen.getByRole("link", { name: "Ver el partido del piloto" })).toHaveAttribute("href", "/matches/sofascore-match-16599363");
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Clave de operador"), "wrong");
     await user.click(screen.getByRole("button", { name: "Entrar" }));
@@ -132,5 +133,75 @@ describe("OperatorView (/operador)", () => {
     render(<OperatorView />);
     expect(await screen.findByRole("button", { name: "Ya no se puede cancelar" })).toBeDisabled();
     expect(screen.getByText("Comprobando los datos recibidos")).toHaveAttribute("aria-current", "step");
+  });
+});
+
+describe("Group 2 scope", () => {
+  const GROUP = { kind: "group" as const, label: "Actualización del Grupo 2 (Primera Federación 26/27)", round: null, matchIds: [],
+    actionLabel: "Actualizar Grupo 2", description: "Consulta los partidos finalizados que faltan y revisa las correcciones de las últimas 72 horas." };
+  const coverage = { newResources: 35, keptResources: 608, deferredMatchIds: ["sofascore-match-3"],
+    newMatches: [{ matchId: "sofascore-match-4", replaces: ["sofascore-match-5"] }],
+    pending: [
+      { matchId: "sofascore-match-1", resources: [{ resource: "statistics" as const, reason: "empty" as const, kept: false }] },
+      { matchId: "sofascore-match-2", resources: [{ resource: "lineups" as const, reason: "error" as const, kept: true }] },
+    ],
+    matchNames: { "sofascore-match-1": "Real Jaén – CE Europa", "sofascore-match-2": "Huesca – UD Ibiza",
+      "sofascore-match-4": "Real Murcia – Hércules CF", "sofascore-match-5": "Real Murcia – Hércules CF" } };
+  const done = job({ status: "completed", phase: "finished", published: true, cancellable: false, finishedAt: "2026-10-28T17:02:00Z",
+    result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage } });
+
+  it("says the update completed with pending items, and keeps new, kept and pending apart", async () => {
+    const fetch = api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: done, lastPublished: { at: "2026-10-28T17:02:00Z" } }) }));
+    render(<OperatorView />);
+    expect(await screen.findByText(/^Actualización completada con pendientes/)).toBeVisible();
+    expect(screen.getByText(GROUP.description)).toBeVisible();
+    expect(screen.getByText("datos nuevos").parentElement).toHaveTextContent("35 datos nuevos");
+    expect(screen.getByText("datos anteriores conservados").parentElement).toHaveTextContent("608 datos anteriores conservados");
+    expect(screen.getByText(/partidos con pendientes/).parentElement).toHaveTextContent("2 partidos con pendientes");
+    const first = (await screen.findByRole("link", { name: "Real Jaén – CE Europa" })).closest("li")!;
+    expect(first).toHaveTextContent("estadísticas (respuesta sin datos, sin datos publicados)");
+    const second = (await screen.findByRole("link", { name: "Huesca – UD Ibiza" })).closest("li")!;
+    expect(second).toHaveTextContent("alineaciones (error de la fuente, se mantiene la versión anterior)");
+    expect(screen.getByText(/1 revisión queda para\s+la próxima actualización por el límite de consultas\. Se siguen sirviendo sus datos anteriores\./)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Partido" })).toHaveAttribute("href", "/matches/sofascore-match-3");
+    expect(await screen.findAllByRole("link", { name: "Real Murcia – Hércules CF" })).toHaveLength(2);
+    expect(screen.getByText(/posible sustitución de/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Actualizar Grupo 2" })).toBeEnabled();
+    expect(fetch.mock.calls.every(([url]) => String(url).startsWith("/api/v1/updates"))).toBe(true);  // no data API calls
+  });
+
+  it("labels the top bar with the group's action and the same pending line", async () => {
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: done }) }));
+    render(<UpdateControl />);
+    expect(await screen.findByRole("button", { name: /Actualizar Grupo 2: Actualización del Grupo 2/ })).toHaveTextContent("Actualizar Grupo 2");
+    expect(screen.getAllByText(/^Actualización completada con pendientes/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the last publication's pending and deferred items visible after a later update failed", async () => {
+    const failed = job({ status: "failed", phase: "finished", cancellable: false, finishedAt: "2026-10-28T18:00:00Z",
+      error: { code: "ACQUISITION_FAILED", message: "La fuente rechazó la consulta", retryable: false } });
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: failed, lastPublished: { at: "2026-10-28T17:02:00Z" },
+      lastCoverage: { ...coverage, matchNames: { ...coverage.matchNames, "sofascore-match-3": "SD Ponferradina – Cultural Leonesa" } } }) }));
+    render(<OperatorView />);
+    expect(await screen.findByRole("heading", { name: /^Última publicación \(28\/10/ })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Revisiones aplazadas" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "SD Ponferradina – Cultural Leonesa" })).toHaveAttribute("href", "/matches/sofascore-match-3");
+    expect(screen.getByRole("link", { name: "Huesca – UD Ibiza" }).closest("li")).toHaveTextContent("se mantiene la versión anterior");
+  });
+
+  it("does not repeat the last publication when the last job is that publication", async () => {
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: done, lastPublished: { at: "2026-10-28T17:02:00Z" }, lastCoverage: coverage }) }));
+    render(<OperatorView />);
+    expect(await screen.findByText(/^Actualización completada con pendientes/)).toBeVisible();
+    expect(screen.queryByRole("heading", { name: /^Última publicación/ })).toBeNull();
+    expect(screen.getAllByRole("heading", { name: "Revisiones aplazadas" })).toHaveLength(1);
+  });
+
+  it("reports a group update without pending items as published", async () => {
+    const clean = job({ ...done, result: { ...done.result!, coverage: { ...coverage, pending: [], deferredMatchIds: [], newMatches: [] } } });
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: clean }) }));
+    render(<OperatorView />);
+    expect(await screen.findByText(/^Publicado el 28\/10/)).toBeVisible();
+    expect(screen.queryByText(/con pendientes/)).toBeNull();
   });
 });

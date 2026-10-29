@@ -22,8 +22,8 @@ const backendJob = (over: Record<string, unknown> = {}) => ({
   request_id: "never-forwarded", ...over,
 });
 const backendStatus = {
-  scope: { kind: "pilot", recipe: "sofascore-pilot-16599363-v1", round: 1, match_ids: [16599363],
-    label: "Actualización piloto: calendario de la jornada 1 y un partido" },
+  scope: { kind: "pilot", recipe: "sofascore-pilot-16599363-v1", round: 1, match_ids: [16599363], action: "Actualizar piloto",
+    label: "Actualización piloto: calendario de la jornada 1 y un partido", description: "Consulta el calendario de la jornada 1 y un partido. No actualiza el resto de la jornada ni de la temporada: los demás partidos se conservan tal como están publicados." },
   active_job: backendJob(), last_job: null, last_published: { at: "2026-10-27T10:00:00+00:00" },
 };
 
@@ -97,7 +97,7 @@ describe("update routes", () => {
     const body = (await response.json()) as UpdateStatus;
     expect(body).toEqual({ available: true, operator: false, lastPublished: { at: "2026-10-27T10:00:00+00:00" },
       scope: { kind: "pilot", label: "Actualización piloto: calendario de la jornada 1 y un partido", round: 1,
-        matchIds: ["sofascore-match-16599363"] } });
+        description: "Consulta el calendario de la jornada 1 y un partido. No actualiza el resto de la jornada ni de la temporada: los demás partidos se conservan tal como están publicados.", actionLabel: "Actualizar piloto", matchIds: ["sofascore-match-16599363"] } });
     expect(calls[0].url).toBe("http://backend:8001/internal/v1/updates/current");
     expect(calls[0].headers.get("authorization")).toBe(`Bearer ${CONTROL_SECRET}`);
   });
@@ -153,6 +153,37 @@ describe("update routes", () => {
     const down = await job(request(`/api/v1/updates/${JOB_ID}`, { cookie }), params(JOB_ID));
     expect(down.status).toBe(503);
     expect(((await down.json()) as ApiError).error.code).toBe("UPSTREAM_UNAVAILABLE");
+  });
+
+  it("map a group update's coverage to public ids, keeping new, kept and pending apart", async () => {
+    const cookie = await session();
+    const done = backendJob({ status: "completed", phase: "finished", cancellable: false, published: true,
+      finished_at: "2026-10-28T18:00:00+00:00", result: { published_at: "2026-10-28T18:00:00+00:00", reused_bundle: false,
+        coverage: { new: 35, kept: 608, deferred: [16599970], new_matches: [{ id: 17000001, replaces: [16599919] }],
+          pending: [{ event_id: 16599967, resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
+          names: { "16599967": "Real Jaén – CE Europa" } } } });
+    backend(() => json(done));
+    const params = { params: Promise.resolve({ updateId: JOB_ID }) };
+    const body = (await (await job(request(`/api/v1/updates/${JOB_ID}`, { cookie }), params)).json()) as UpdateJob;
+    expect(body.result?.coverage).toEqual({ newResources: 35, keptResources: 608, deferredMatchIds: ["sofascore-match-16599970"],
+      newMatches: [{ matchId: "sofascore-match-17000001", replaces: ["sofascore-match-16599919"] }],
+      pending: [{ matchId: "sofascore-match-16599967", resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
+      matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" } });
+  });
+
+  it("show the last publication's coverage only to an operator, after a later update failed", async () => {
+    const failed = backendJob({ status: "failed", phase: "finished", cancellable: false, finished_at: "2026-10-28T19:00:00+00:00",
+      error: { code: "ACQUISITION_FAILED", message: "rechazada", retryable: false } });
+    backend(() => json({ ...backendStatus, active_job: null, last_job: failed, last_published: { at: "2026-10-28T18:00:00+00:00",
+      coverage: { new: 35, kept: 608, deferred: [16599970], new_matches: [], pending: [], names: { "16599970": "Huesca – UD Ibiza" } } } }));
+    const publicBody = (await (await current(request("/api/v1/updates/current"))).json()) as UpdateStatus;
+    expect(publicBody).not.toHaveProperty("lastCoverage");
+    expect(publicBody.lastPublished).toEqual({ at: "2026-10-28T18:00:00+00:00" });
+    const cookie = await session();
+    const status = (await (await current(request("/api/v1/updates/current", { cookie }))).json()) as UpdateStatus;
+    expect(status.lastJob?.status).toBe("failed");
+    expect(status.lastCoverage).toMatchObject({ deferredMatchIds: ["sofascore-match-16599970"],
+      matchNames: { "sofascore-match-16599970": "Huesca – UD Ibiza" } });
   });
 
   it("reject a forged or expired session cookie", async () => {

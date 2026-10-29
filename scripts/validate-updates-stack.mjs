@@ -77,7 +77,7 @@ try {
     step("published", { postsForThisStart: report.updatePosts - posts });
     await shot("published");
     await page.goto(`${baseUrl}/teams`);
-    await page.getByRole("banner").getByRole("button", { name: /Actualizar: Actualización piloto/ }).waitFor();
+    await page.getByRole("banner").getByRole("button", { name: /Actualizar piloto: Actualización piloto/ }).waitFor();
     await page.waitForLoadState("networkidle");
     await shot("header");
     await page.goto(`${baseUrl}/matches/sofascore-match-16599363`);

@@ -42,6 +42,10 @@
 .awayHalf > span { background: var(--rj-purple-500); }
 .empty, .message { color: var(--rj-text-secondary); font-size: var(--rj-text-sm); }
 .provenance { margin-bottom: var(--rj-space-4); }
+.review { margin-bottom: var(--rj-space-4); padding: var(--rj-space-3) var(--rj-space-4); border-left: 3px solid var(--rj-warning);
+  background: var(--rj-gold-50); border-radius: var(--rj-radius-sm); font-size: var(--rj-text-sm); }
+.review p { margin: 0; }
+.review p + p { margin-top: var(--rj-space-1); color: var(--rj-text-secondary); }
 .fetched { margin-top: var(--rj-space-3); color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .sectionError { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rj-space-3); color: var(--rj-text-secondary); font-size: var(--rj-text-sm); }
 @media (max-width: 640px) {

@@ -680,9 +680,23 @@ export type ObservedSubstitution = {
 /**
  * A section of a real match, as the source keeps it: `stored` with content,
  * `empty` (stored without content), `not_stored` (normal for a pending
- * match) or `error` (the source could not be queried for it).
+ * match), `error` (the source could not be queried for it) or `outdated`
+ * (read before the match's teams changed: kept as evidence by the service,
+ * never served here as the current match's).
  */
-export type ObservedSectionState = "stored" | "empty" | "not_stored" | "error";
+export type ObservedSectionState = "stored" | "empty" | "not_stored" | "error" | "outdated";
+
+/** A section of a real match's detail. */
+export type ObservedSectionKey = "statistics" | "lineups" | "incidents";
+
+/**
+ * Sections read before a correction of the event, pending review: of the
+ * score (`score`) or of the teams (`teams`). With `score`, what depends on the
+ * score is not used (the incidents' goals and assists; the line-ups' goals and
+ * assists in the figures) and the rest is; with `teams`, the section is not
+ * used at all (`outdated`). Either way the original stays as evidence.
+ */
+export type ObservedSectionReview = { corrections: ("score" | "teams")[]; sections: ObservedSectionKey[] };
 
 /**
  * A local decision of this installation, never the source's: an event
@@ -713,6 +727,8 @@ export type ObservedMatchDetail = {
    * another one, or replacing others. Never the source's data.
    */
   localReplacement?: { replacedBy: LocalReplacement | null; replaces: LocalReplacement[] };
+  /** Present only when some section is pending review after a correction of the event. */
+  review?: ObservedSectionReview;
   statistics:
     | { state: "stored"; fetchedAt: string | null; home: TeamMatchStats; away: TeamMatchStats }
     | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };
@@ -730,9 +746,11 @@ export type ObservedMatchDetail = {
    * The goals and substitutions among the source's incidents, enough to mark
    * them on the line-ups. Not a timeline: cards, VAR, periods or missed
    * penalties are left out. An empty list does not prove nothing happened.
+   * `goals` is `null` when the incidents were read before a score correction:
+   * they do not describe the current score (never an empty list).
    */
   incidents:
-    | { state: "stored"; fetchedAt: string | null; goals: ObservedGoal[]; substitutions: ObservedSubstitution[] }
+    | { state: "stored"; fetchedAt: string | null; goals: ObservedGoal[] | null; substitutions: ObservedSubstitution[] }
     | { state: Exclude<ObservedSectionState, "stored">; fetchedAt: string | null };
   /** What the detail covers, for the analyst, in Spanish. */
   scope: string;
@@ -781,16 +799,42 @@ export type ApiErrorCode =
 export type MatchFilter = { round?: number; teamId?: string };
 
 /**
- * What an update consults. Today only the pilot recipe: the round-1 calendar and one match; the rest of the data
- * is kept as published. Never a full round or season update while `kind` is "pilot".
+ * What an update consults, as the backend's recipe declares it: "pilot" (the round-1 calendar and one match) or
+ * "group" (the whole Group 2: missing results, postponed matches, calendar changes and corrections of the last
+ * 72 hours, with partial coverage). The texts come from the backend and are shown as they are.
  */
 export type UpdateScope = {
-  kind: "pilot";
-  /** Spanish description to show as is. */
+  kind: "pilot" | "group";
+  /** Spanish title of the scope. */
   label: string;
-  round: number;
-  /** Public ids of the matches consulted. */
+  /** Spanish sentence of what it does and does not update. */
+  description: string;
+  /** Text of the update button. */
+  actionLabel: string;
+  /** Pilot only: its round and match. */
+  round: number | null;
   matchIds: string[];
+};
+
+/** Why a resource stayed pending: never absence, never zero. */
+export type UpdatePendingReason = "empty" | "not_found" | "parse" | "error" | "budget" | "not_requested";
+export type UpdateResource = "event" | "lineups" | "statistics" | "incidents";
+
+/**
+ * Coverage of a group update. `newResources`: answers with data just obtained; `keptResources`: previous data kept
+ * as published (not consulted this time, or consulted without new data); `pending`: resources without usable data,
+ * by match, with their reason and whether a previous version is still served (`kept`).
+ */
+export type UpdateCoverage = {
+  newResources: number;
+  keptResources: number;
+  pending: { matchId: string; resources: { resource: UpdateResource; reason: UpdatePendingReason; kept: boolean }[] }[];
+  /** Matches whose due review the budget left for the next update (their data are kept). */
+  deferredMatchIds: string[];
+  /** Matches new to the competition; `replaces`: unfinished matches with the same pairing, for a manual decision. */
+  newMatches: { matchId: string; replaces: string[] }[];
+  /** "Home – Away" of the matches above, from the data just published. */
+  matchNames: Record<string, string>;
 };
 
 export type UpdateJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
@@ -823,7 +867,7 @@ export type UpdateJob = {
   pollAfterSeconds: number;
   error: { code: UpdateErrorCode; message: string; retryable: boolean } | null;
   /** `reusedBundle`: a retry that published already verified data without consulting again. */
-  result: { publishedAt: string; reusedBundle: boolean } | null;
+  result: { publishedAt: string; reusedBundle: boolean; coverage: UpdateCoverage | null } | null;
 };
 
 /** `GET /api/v1/updates/current`. Without an operator session, only the public part. */
@@ -835,6 +879,11 @@ export type UpdateStatus = {
   lastPublished: { at: string } | null;
   activeJob?: UpdateJob | null;
   lastJob?: UpdateJob | null;
+  /**
+   * Operator only: the coverage of that last publication (group recipe), so its pending resources and deferred
+   * refreshes stay visible while their previous data are served, even after a later update failed or was cancelled.
+   */
+  lastCoverage?: UpdateCoverage | null;
 };
 
 /** `POST /api/v1/updates`: `reused` when the key or the active job already existed. */

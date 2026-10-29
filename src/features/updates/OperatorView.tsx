@@ -5,7 +5,8 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { isActive, useUpdates } from "./use-updates";
-import { PHASE_LABELS, STEPS, jobLine, updateTime } from "./labels";
+import { CoverageSummary } from "./CoverageSummary";
+import { PHASE_LABELS, STEPS, hasPending, jobLine, updateTime } from "./labels";
 import css from "./Updates.module.css";
 
 /**
@@ -44,13 +45,10 @@ export function OperatorView() {
       {scope ? (
         <section className={css.section} aria-labelledby="alcance">
           <h2 id="alcance">Alcance</h2>
-          <p>
-            Consulta el calendario de la jornada {scope.round} y{" "}
-            {scope.matchIds.length === 1
-              ? <Link href={`/matches/${scope.matchIds[0]}`}>un partido</Link>
-              : `${scope.matchIds.length} partidos`}
-            . No actualiza el resto de la jornada ni de la temporada: los demás partidos se conservan tal como están publicados.
-          </p>
+          <p>{scope.description}</p>
+          {scope.kind === "pilot" && scope.matchIds.length === 1 ? (
+            <p><Link href={`/matches/${scope.matchIds[0]}`}>Ver el partido del piloto</Link></p>
+          ) : null}
           <p className={css.muted}>
             {status.lastPublished
               ? `Última publicación desde este control: ${updateTime(status.lastPublished.at)}.`
@@ -84,21 +82,29 @@ export function OperatorView() {
                   ))}
                 </ol>
               ) : null}
-              <p aria-live="polite" className={job.status === "completed" ? css.ok : running || job.status === "cancelled" ? undefined : css.problem} role="status">
+              <p aria-live="polite" className={hasPending(job) ? css.warn : job.status === "completed" ? css.ok : running || job.status === "cancelled" ? undefined : css.problem} role="status">
                 {jobLine(job)}
               </p>
               <p className={css.muted}>Solicitada el {updateTime(job.requestedAt)}.</p>
+              {job.status === "completed" && job.result?.coverage ? <CoverageSummary coverage={job.result.coverage} /> : null}
             </>
           ) : (
             <p className={css.muted}>No hay actualizaciones todavía.</p>
           )}
+          {status.lastCoverage && status.lastPublished && !(job?.status === "completed" && job.result?.coverage) ? (
+            // A later update did not publish: what the last publication left pending or deferred is still what is served.
+            <section aria-labelledby="ultima-publicacion" className={css.coverage}>
+              <h3 id="ultima-publicacion">Última publicación ({updateTime(status.lastPublished.at)})</h3>
+              <CoverageSummary coverage={status.lastCoverage} />
+            </section>
+          ) : null}
           <div className={css.actions}>
             {running ? (
               <Button disabled={busy || !job?.cancellable} onClick={cancel}>
                 {job?.cancelRequested ? "Cancelando…" : job?.cancellable ? "Cancelar" : "Ya no se puede cancelar"}
               </Button>
             ) : (
-              <Button disabled={busy} onClick={start} variant="primary">Actualizar piloto</Button>
+              <Button disabled={busy} onClick={start} variant="primary">{scope?.actionLabel ?? "Actualizar"}</Button>
             )}
             {publishedNow ? <Button onClick={reload}>Recargar datos</Button> : null}
           </div>

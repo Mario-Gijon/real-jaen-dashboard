@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ApiRequestError, getObservedMatchDetail } from "@/client/api";
-import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedTeam } from "@/contract";
+import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedSectionKey, ObservedSectionReview, ObservedTeam } from "@/contract";
 import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
@@ -114,6 +114,7 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
     {data.localReplacement ? <div className={css.provenance}>
       <LocalReplacementNotice replacement={data.localReplacement} relatedHref={relatedHref} />
     </div> : null}
+    {data.review ? <ReviewNotice review={data.review} /> : null}
     <div className={css.tabs} role="tablist" aria-label="Secciones del partido" ref={tabs}>
       {SECTIONS.map((id) => <button key={id} type="button" role="tab" id={`match-${id}-tab`} aria-selected={section === id}
         tabIndex={section === id ? 0 : -1} onClick={() => setSection(id)} onKeyDown={moveTab}
@@ -123,6 +124,31 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
       {section === "summary" ? <Summary data={data} retry={retry} /> : <Lineups data={data} retry={retry} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} />}
     </section>
   </>;
+}
+
+const SECTION_NAMES: Record<ObservedSectionKey, string> = { statistics: "estadísticas", lineups: "alineaciones", incidents: "incidencias" };
+/** «a, b y c»; «e» before a word starting with the sound /i/ («alineaciones e incidencias»). */
+const list = (items: string[]) => {
+  const last = items[items.length - 1];
+  return items.length > 1 ? `${items.slice(0, -1).join(", ")} ${/^h?i(?![aeiouáéó])/i.test(last) ? "e" : "y"} ${last}` : last;
+};
+
+/**
+ * Sections read before a correction of the event, still pending review. They stay as evidence; what the
+ * correction makes incompatible is not used (never shown as 0).
+ */
+function ReviewNotice({ review }: { review: ObservedSectionReview }) {
+  const sections = list(review.sections.map((s) => SECTION_NAMES[s]));
+  return <div className={css.review} role="note" aria-label="Secciones pendientes de revisión">
+    {review.corrections.includes("score") ? <p><strong>El marcador se ha actualizado, pero algunas secciones siguen pendientes de revisión.</strong></p> : null}
+    {review.corrections.includes("teams") ? <p><strong>Los equipos del partido han cambiado y algunas secciones siguen pendientes de revisión.</strong></p> : null}
+    <p>
+      Pendientes: {sections}, leídas antes de la corrección.{" "}
+      {review.corrections.includes("teams")
+        ? "Las de los equipos anteriores no se muestran ni cuentan para nada; se conservan como evidencia."
+        : "Sus goles y asistencias no se usan; lo que no depende del marcador sí."}
+    </p>
+  </div>;
 }
 
 const LOCAL_DECISION = { synthetic: false, label: "Decisión local" } as const;
@@ -161,7 +187,9 @@ function Summary({ data: { match, statistics }, retry }: { data: ObservedMatchDe
       : <p className={css.empty} role="status">
         {statistics.state === "empty"
           ? "La fuente guardó las estadísticas de este partido sin contenido."
-          : "La fuente no tiene estadísticas guardadas de este partido."}
+          : statistics.state === "outdated"
+            ? "Las estadísticas guardadas son de los equipos anteriores del partido: pendientes de revisión."
+            : "La fuente no tiene estadísticas guardadas de este partido."}
       </p>}
   </>;
 }
@@ -176,7 +204,9 @@ function Lineups({ data: { match, lineups, incidents }, retry, linkProfiles, mat
   if (lineups.state !== "stored") return <p className={css.empty} role="status">
     {lineups.state === "empty"
       ? "La fuente guardó las alineaciones de este partido sin jugadores."
-      : "La fuente no tiene alineaciones guardadas de este partido."}
+      : lineups.state === "outdated"
+        ? "Las alineaciones guardadas son de los equipos anteriores del partido: pendientes de revisión."
+        : "La fuente no tiene alineaciones guardadas de este partido."}
   </p>;
   return <>
     <ObservedLineups match={match} confirmed={lineups.confirmed} home={lineups.home} away={lineups.away}

@@ -311,3 +311,58 @@ describe("Real match detail: Alineaciones", () => {
     expect(screen.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
   });
 });
+
+describe("Real match detail: sections pending review after a correction of the event", () => {
+  const corrected = detail({ statistics, lineups, incidents: { ...incidents, goals: null } }, { score: { home: 0, away: 4 } });
+  const scoreReview = { ...corrected, review: { corrections: ["score" as const], sections: ["lineups" as const, "incidents" as const] } };
+
+  it("says the score was updated while some sections are pending review, and names them", async () => {
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(scoreReview);
+    render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    const note = await screen.findByRole("note", { name: "Secciones pendientes de revisión" });
+    expect(note).toHaveTextContent("El marcador se ha actualizado, pero algunas secciones siguen pendientes de revisión.");
+    expect(note).toHaveTextContent("Pendientes: alineaciones e incidencias");
+    expect(note).toHaveTextContent("Sus goles y asistencias no se usan");
+    // Team stats do not depend on the score: still shown.
+    expect(values("Posesión")).toEqual(["46 %", "54 %"]);
+  });
+
+  it("marks only the substitutions of incidents read before the correction, never their goals or assists", async () => {
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(scoreReview);
+    const panel = await openLineups();
+    expect(within(panel).getByText(/Las incidencias son anteriores a la corrección del marcador/)).toBeVisible();
+    expect(within(row(panel, "Titular 50")).queryByRole("img", { name: /gol/ })).toBeNull();
+    expect(within(row(panel, "Titular 51")).queryByRole("img", { name: /asistencia/ })).toBeNull();
+    expect(within(row(panel, "Titular 55")).getByRole("img", { name: "Sustituido en el minuto 68+2′" })).toBeVisible();
+  });
+
+  it("after a team change, never shows the previous teams' sections as the match's", async () => {
+    const outdated = (fetchedAt: string) => ({ state: "outdated" as const, fetchedAt });
+    vi.mocked(getObservedMatchDetail).mockResolvedValue({
+      ...detail({ statistics: outdated("2026-10-21T12:07:30+00:00"), lineups: outdated("2026-10-21T12:07:31+00:00"),
+        incidents: outdated("2026-10-21T12:07:31+00:00") }),
+      review: { corrections: ["teams"], sections: ["statistics", "lineups", "incidents"] },
+    });
+    render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    const note = await screen.findByRole("note", { name: "Secciones pendientes de revisión" });
+    expect(note).toHaveTextContent("Los equipos del partido han cambiado y algunas secciones siguen pendientes de revisión.");
+    expect(note).toHaveTextContent("Pendientes: estadísticas, alineaciones e incidencias");
+    expect(screen.getByText(/Las estadísticas guardadas son de los equipos anteriores/)).toBeVisible();
+    expect(screen.queryByText("Posesión")).toBeNull();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Alineaciones" }));
+    const panel = await screen.findByRole("tabpanel", { name: "Alineaciones" });
+    expect(within(panel).getByText(/Las alineaciones guardadas son de los equipos anteriores/)).toBeVisible();
+    expect(within(panel).queryByText("Titular 1")).toBeNull();
+  });
+
+  it("drops the notice once the sections are recovered", async () => {
+    vi.mocked(getObservedMatchDetail).mockResolvedValueOnce(scoreReview);
+    const { unmount } = render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    expect(await screen.findByRole("note", { name: "Secciones pendientes de revisión" })).toBeVisible();
+    unmount();
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ statistics, lineups, incidents }, { score: { home: 0, away: 4 } }));
+    const panel = await openLineups();
+    expect(screen.queryByRole("note", { name: "Secciones pendientes de revisión" })).toBeNull();
+    expect(within(row(panel, "Titular 50")).getByRole("img", { name: "2 goles (1 de penalti)" })).toBeVisible();
+  });
+});

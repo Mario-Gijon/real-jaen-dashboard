@@ -1,4 +1,15 @@
-import type { UpdateErrorCode, UpdateJob, UpdatePhase, UpdateJobStatus, UpdateScope, UpdateStart, UpdateStatus } from "@/contract";
+import type {
+  UpdateCoverage,
+  UpdateErrorCode,
+  UpdateJob,
+  UpdateJobStatus,
+  UpdatePendingReason,
+  UpdatePhase,
+  UpdateResource,
+  UpdateScope,
+  UpdateStart,
+  UpdateStatus,
+} from "@/contract";
 import { clearTeamNameCache, publicMatchId } from "../local-api/local-api-source";
 import { controlSecret } from "./operator";
 
@@ -28,13 +39,21 @@ type BackendJob = {
   finished_at: string | null;
   poll_after_seconds: number;
   error: { code: UpdateErrorCode; message: string; retryable: boolean } | null;
-  result: { published_at: string; reused_bundle: boolean } | null;
+  result: { published_at: string; reused_bundle: boolean; coverage?: BackendCoverage | null } | null;
+};
+type BackendCoverage = {
+  new: number;
+  kept: number;
+  pending: { event_id: number; resources: { resource: UpdateResource; reason: UpdatePendingReason; kept: boolean }[] }[];
+  deferred: number[];
+  new_matches: { id: number; replaces: number[] }[];
+  names?: Record<string, string>;
 };
 type BackendStatus = {
-  scope: { kind: "pilot"; label: string; round: number; match_ids: number[] };
+  scope: { kind: "pilot" | "group"; label: string; description: string; action: string; round: number | null; match_ids: number[] };
   active_job: BackendJob | null;
   last_job: BackendJob | null;
-  last_published: { at: string } | null;
+  last_published: { at: string; coverage?: BackendCoverage | null } | null;
 };
 
 const STATUSES: UpdateJobStatus[] = ["queued", "running", "completed", "failed", "cancelled", "interrupted"];
@@ -44,7 +63,11 @@ function job(value: BackendJob): UpdateJob {
   if (!value || typeof value.id !== "string" || !STATUSES.includes(value.status) || !PHASES.includes(value.phase)) {
     throw new ControlUnavailableError("Respuesta de control no válida");
   }
-  const result = value.result && { publishedAt: value.result.published_at, reusedBundle: value.result.reused_bundle };
+  const result = value.result && {
+    publishedAt: value.result.published_at,
+    reusedBundle: value.result.reused_bundle,
+    coverage: value.result.coverage ? coverage(value.result.coverage) : null,
+  };
   if (result) forgetCachesAfter(result.publishedAt);
   return {
     id: value.id,
@@ -70,8 +93,30 @@ function forgetCachesAfter(publishedAt: string) {
   }
 }
 
+function coverage(value: BackendCoverage): UpdateCoverage {
+  return {
+    newResources: value.new,
+    keptResources: value.kept,
+    pending: value.pending.map((p) => ({
+      matchId: publicMatchId(p.event_id),
+      resources: p.resources.map((r) => ({ resource: r.resource, reason: r.reason, kept: r.kept === true })),
+    })),
+    deferredMatchIds: value.deferred.map(publicMatchId),
+    newMatches: value.new_matches.map((m) => ({ matchId: publicMatchId(m.id), replaces: m.replaces.map(publicMatchId) })),
+    matchNames: Object.fromEntries(Object.entries(value.names ?? {}).map(([id, name]) => [publicMatchId(Number(id)), name])),
+  };
+}
+
 function scope(value: BackendStatus["scope"]): UpdateScope {
-  return { kind: "pilot", label: value.label, round: value.round, matchIds: value.match_ids.map(publicMatchId) };
+  if (value.kind !== "pilot" && value.kind !== "group") throw new ControlUnavailableError("Alcance desconocido");
+  return {
+    kind: value.kind,
+    label: value.label,
+    description: value.description,
+    actionLabel: value.action,
+    round: value.round,
+    matchIds: value.match_ids.map(publicMatchId),
+  };
 }
 
 async function call(method: "GET" | "POST", path: string, headers: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
@@ -106,6 +151,7 @@ export async function controlStatus(): Promise<Required<Omit<UpdateStatus, "avai
     lastPublished: value.last_published ? { at: value.last_published.at } : null,
     activeJob: value.active_job ? job(value.active_job) : null,
     lastJob: value.last_job ? job(value.last_job) : null,
+    lastCoverage: value.last_published?.coverage ? coverage(value.last_published.coverage) : null,
   };
 }
 

@@ -7,11 +7,39 @@ lectura»: las respuestas deportivas, el `DataSource` y sus rutas no cambian.
 
 ## Alcance real
 
-La única receta aprobada (`sofascore-pilot-16599363-v1`) consulta el calendario de la **jornada 1** y **un
-partido** (16599363) de Primera Federación, Grupo 2, 26/27. El resto del inventario se conserva tal cual, sin
-consultarlo. La interfaz lo dice expresamente («Actualización piloto: calendario de la jornada 1 y un partido»);
-no debe presentarse como una actualización de la jornada ni de la temporada. Cuando haya otras recetas, el alcance
-lo sigue declarando el backend (`scope`), no la interfaz.
+El alcance lo declara el backend (`scope`) según la receta configurada (`RJ_UPDATE_RECIPE` en `control.py`). La
+interfaz muestra sus textos tal cual (`label`, `description`, `actionLabel`):
+
+- `group` (por defecto, `sofascore-group2-2627-v1`), botón «Actualizar Grupo 2». Consulta:
+  - los resultados que faltan, sin importar su antigüedad;
+  - los aplazados;
+  - los cambios de calendario de las jornadas próximas y, por turnos, de las lejanas;
+  - las correcciones de las últimas 72 h (regla 72 h / 6 h del SDK).
+
+  Diseño y validación: `../../api-real-jaen/docs/diseno-receta-grupo2.md`. Todavía sin consulta real.
+- `pilot` (`sofascore-pilot-16599363-v1`), botón «Actualizar piloto»: el calendario de la jornada 1 y un partido;
+  se usa en las pruebas.
+
+Lo que una actualización no consulta se conserva tal como está publicado.
+
+### Publicación con cobertura parcial
+
+Una actualización del grupo publica aunque algunos recursos queden sin datos. El resultado
+(`UpdateJob.result.coverage`) distingue:
+
+- **datos nuevos** (`newResources`);
+- **datos anteriores conservados** (`keptResources`);
+- **pendientes** por partido (`pending`): el recurso, el motivo y si se sigue sirviendo la versión anterior (`kept`).
+
+Además lista los partidos con la revisión aplazada por presupuesto (`deferredMatchIds`, con sus datos conservados) y
+los partidos nuevos con su posible sustitución (`newMatches`, decisión manual), con sus nombres (`matchNames`).
+
+- Si quedan pendientes, la interfaz dice **«Actualización completada con pendientes»** y los enumera con su motivo.
+- Las revisiones aplazadas se enumeran por partido: se siguen sirviendo sus datos anteriores.
+- Si una actualización posterior falla o se cancela, `lastCoverage` mantiene visibles los pendientes y aplazados de
+  la última publicación, que es lo que se sigue sirviendo.
+- Un pendiente nunca es ausencia ni cero.
+- Un rechazo del proveedor no publica nada.
 
 ## Flujo y fronteras
 
@@ -60,10 +88,12 @@ Todas responden con `Cache-Control: no-store`.
 
 ```ts
 type UpdateScope = {
-  kind: "pilot";            // no es una actualización de jornada ni de temporada
-  label: string;            // «Actualización piloto: calendario de la jornada 1 y un partido»
-  round: number;            // 1
-  matchIds: string[];       // ids públicos, p. ej. «sofascore-match-16599363»
+  kind: "pilot" | "group";
+  label: string;            // «Actualización del Grupo 2 (Primera Federación 26/27)»
+  description: string;      // qué consulta y qué no
+  actionLabel: string;      // «Actualizar Grupo 2» / «Actualizar piloto»
+  round: number | null;     // solo el piloto
+  matchIds: string[];       // solo el piloto: ids públicos
 };
 type UpdateJob = {
   id: string;
@@ -75,7 +105,7 @@ type UpdateJob = {
   finishedAt: string | null;
   pollAfterSeconds: number;
   error: { code: UpdateErrorCode; message: string; retryable: boolean } | null;
-  result: { publishedAt: string; reusedBundle: boolean } | null;
+  result: { publishedAt: string; reusedBundle: boolean; coverage: UpdateCoverage | null } | null;  // coverage: solo el grupo
 };
 type UpdateStatus = {
   available: boolean;
@@ -84,6 +114,7 @@ type UpdateStatus = {
   lastPublished: { at: string } | null;    // última generación publicada por este flujo; null si nunca
   activeJob?: UpdateJob | null;
   lastJob?: UpdateJob | null;
+  lastCoverage?: UpdateCoverage | null;    // solo con sesión: cobertura de esa última publicación (grupo)
 };
 ```
 

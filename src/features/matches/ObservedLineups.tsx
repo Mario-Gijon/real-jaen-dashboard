@@ -30,7 +30,7 @@ function marksFrom(incidents: Incidents): Map<string, Marks> {
     marks.set(id, created);
     return created;
   };
-  for (const goal of incidents.goals) {
+  for (const goal of incidents.goals ?? []) {
     if (goal.scorer) {
       if (goal.kind === "ownGoal") of(goal.scorer.id).ownGoals++;
       else of(goal.scorer.id).goals.push(goal);
@@ -75,7 +75,11 @@ export function ObservedLineups({ match, confirmed, home, away, linkProfiles, in
     </div>
       : incidents.state !== "stored" ? <p className={css.incidentsNote} role="status">
         {incidents.state === "empty" ? "La fuente guardó las incidencias de este partido sin contenido"
+          : incidents.state === "outdated" ? "Las incidencias guardadas son de los equipos anteriores del partido"
           : "La fuente no tiene incidencias guardadas de este partido"}: no se marcan goles, asistencias ni cambios.
+      </p>
+      : incidents.goals === null ? <p className={css.incidentsNote} role="status">
+        Las incidencias son anteriores a la corrección del marcador: solo se marcan los cambios, no los goles ni las asistencias.
       </p> : null}
     <div className={css.teams}>
       {([["home", home], ["away", away]] as const).map(([side, players]) => {

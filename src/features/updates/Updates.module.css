@@ -74,6 +74,35 @@
   color: var(--rj-danger);
   font-weight: 700;
 }
+/* Published, with resources still pending: not an error, not a plain success. */
+.warn {
+  color: var(--rj-warning);
+  font-weight: 700;
+}
+.coverage {
+  display: grid;
+  gap: var(--rj-space-2);
+}
+.coverage h3 {
+  margin: var(--rj-space-2) 0 0;
+  font-size: var(--rj-text-md);
+}
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rj-space-2) var(--rj-space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--rj-text-sm);
+}
+.pending {
+  display: grid;
+  gap: var(--rj-space-1);
+  margin: 0;
+  padding-left: var(--rj-space-5);
+  font-size: var(--rj-text-sm);
+}
 .steps {
   display: flex;
   flex-wrap: wrap;
