@@ -6,32 +6,43 @@
 
 RealHive es un proyecto anterior: usarlo únicamente como referencia visual/UX cuando se solicite explícitamente. No reutilizar su arquitectura ni modificarlo desde este proyecto.
 
+## Repositorios
+
+Estas instrucciones valen solo para este repositorio. El sistema tiene tres piezas:
+
+- `rj-analyst` (este): dashboard Next.js, su API `/api/v1`, Compose y scripts de instalación, copia y recuperación.
+- `../api-real-jaen`: backend Python (base SQLite, importación, control de actualizaciones, servicio de adquisición). Tiene su propio `AGENTS.md`; léelo antes de cambiar algo allí.
+- `sofascore_scraper`: proyecto externo, usado a una revisión fijada con dos commits propios (`../api-real-jaen/docs/scraper-empaquetado-linux.md`). No modificarlo desde aquí.
+
+Documentación: `README.md` (índice), `docs/docker.md` (instalación y operación), `docs/despliegue-servidor.md` (servidor del grupo), `docs/contrato-actualizaciones.md` (botón «Actualizar»).
+
 ## Arquitectura
 
 Mantener: `UI → typed client → /api/v1 → DataSource → data source`.
 
 - La UI nunca accede directamente a datos, servidor o proveedor.
 - El frontend no conoce Sofascore, BeSoccer ni otros proveedores.
-- `/api/v1` es la frontera estable; `DataSource` permite sustituir la fuente sintética por adaptadores futuros.
+- `/api/v1` es la frontera estable. `DataSource` tiene dos adaptadores: `local-api` (modo real, el backend de `api-real-jaen`) y `synthetic` (demostración).
 - Los IDs públicos son propios y estables.
-- No introducir base de datos, backend Python, Docker, Redis, workers, scraping, ingest ni autenticación salvo decisión explícita.
+- Ya decididos e implementados: backend Python con SQLite, Docker Compose como instalación habitual, adquisición desde SofaScore en un servicio aislado y acceso con contraseña compartida (`src/proxy.ts`, `src/server/auth`). No introducir otros (Redis, workers, otra base, otro proveedor, identidades de usuario) salvo decisión explícita.
 
 ## Datos
 
-Actualmente se utiliza `SyntheticSource` y `data/synthetic`.
+`DATA_MODE` decide los datos de todo el dashboard (README, «Modo de datos»):
 
-- Real Jaén puede usar identidad real; jugadores, rivales, resultados y estadísticas son sintéticos.
-- Mantener visible el aviso de datos sintéticos.
+- `real` (por defecto): datos reales servidos por el backend. Nunca sustituirlos por sintéticos ante un error.
+- `demo`: temporada inventada de `data/synthetic`, con el aviso de datos sintéticos siempre visible.
 - Nunca convertir ausencia de dato en cero. Respetar `not_available`, `not_collected` y cobertura `complete/partial/none`.
-- No modificar ni regenerar los JSON sintéticos salvo petición explícita.
-- No ejecutar `npm run data:generate` salvo autorización explícita.
+- No modificar ni regenerar los JSON sintéticos salvo petición explícita. No ejecutar `npm run data:generate` salvo autorización explícita.
+- Los datos reales, bases, copias, perfiles de navegador y secretos viven fuera de Git (volúmenes Docker y carpetas de la instalación). No modificar la base activa, los volúmenes ni los servicios en marcha sin autorización; nunca consultar SofaScore ni pulsar «Actualizar» sin autorización expresa.
 
 ## Contrato y API
 
 - No ampliar ni modificar contrato/API por conveniencia de una pantalla.
 - Si una funcionalidad requiere cambiar contrato, endpoints o `DataSource`, detenerse y explicar primero el impedimento y la propuesta mínima.
-- No añadir endpoints sin aprobación. Mantener la API de solo lectura mientras no se indique lo contrario.
+- No añadir endpoints sin aprobación. Los datos deportivos son de solo lectura. Las únicas escrituras aprobadas son la sesión (`/api/v1/session`) y las actualizaciones (`POST /api/v1/updates` y su cancelación), definidas en `docs/contrato-actualizaciones.md`.
 - Preferir datos derivados correctamente antes que duplicar información.
+- Secretos (contraseña, secreto de sesión, tokens): solo en archivos montados, nunca en Git, imágenes, logs, navegador ni informes.
 
 ## Producto
 
