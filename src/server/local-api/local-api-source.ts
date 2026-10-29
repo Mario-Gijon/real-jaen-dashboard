@@ -208,6 +208,8 @@ const NORMALIZED_REASONS: Readonly<Record<string, MissingReason>> = {
   version_conflict: "conflicting",
   duplicate_disagree: "conflicting",
   invalid: "invalid",
+  // A rating from line-ups read before a score correction: pending a valid re-read, never the current match's.
+  before_score_correction: "not_collected",
 };
 
 const NOT_AVAILABLE: Stat = { value: null, reason: "not_available" };

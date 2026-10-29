@@ -400,6 +400,15 @@ describe("local API adapter: observed matches", () => {
     expect(result!.matches[0].stats.minutes).toEqual(missing);
   });
 
+  it("leaves a rating from line-ups read before a score correction pending, never the current one", async () => {
+    const result = await matchesSource(matchesApi([callUp({ normalized: normalized("played", 83, null, null, {},
+      { ...DEFAULT_STATS, rating: served(null, null, null, "before_score_correction") }) })]))("sofascore-player-966303");
+    const { stats } = result!.matches[0];
+    expect(stats.rating).toEqual({ value: null, reason: "not_collected" });
+    expect([stats.goals, stats.assists]).toEqual([missing, missing]);
+    expect(stats.shots).toEqual({ value: 4 });  // independent of the score: still served
+  });
+
   it("keeps every other omitted stat missing, never 0, when participation is confirmed", async () => {
     const result = await matchesSource(matchesApi([callUp({ statistics: { totalPass: 3, totalShots: 0, minutesPlayed: 22 },
       normalized: normalized("played", 22, null, null, {}, { shots: served(0), passes: served(3) }) })]))("sofascore-player-966303");
