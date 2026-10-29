@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiRequestError, getSession, signIn } from "@/client/api";
 import { Button } from "@/ui/Button";
-import { PageHeader } from "@/ui/PageHeader";
 import css from "./Access.module.css";
 
 const MESSAGES: Record<number, string> = {
@@ -30,10 +29,12 @@ export function AccessView({ next }: { next: string }) {
   }, []);
 
   if (!configured) {
-    return <>
-      <PageHeader title="Acceso" />
-      <p className={css.problem} role="alert">El acceso no está configurado en esta instalación.</p>
-    </>;
+    return <div className={css.screen}>
+      <section aria-labelledby="access-title" className={css.card}>
+        <h1 className={css.title} id="access-title">Bienvenido</h1>
+        <p className={css.problem} role="alert">El acceso no está configurado en esta instalación.</p>
+      </section>
+    </div>;
   }
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -49,21 +50,26 @@ export function AccessView({ next }: { next: string }) {
       setBusy(false);
     }
   };
-  return <>
-    <PageHeader title="Acceso" description="Real Jaén CF · Análisis" />
-    <form className={css.form} onSubmit={submit}>
-      <label htmlFor="access-password">Contraseña</label>
-      <input
-        autoComplete="current-password"
-        autoFocus
-        id="access-password"
-        onChange={(event) => setPassword(event.target.value)}
-        type="password"
-        value={password}
-      />
-      <Button disabled={busy || password.length === 0} type="submit" variant="primary">{busy ? "Entrando…" : "Entrar"}</Button>
-      <p className={css.note}>La sesión se mantiene 90 días en este navegador. Cierra la sesión si el equipo es compartido.</p>
-      {problem ? <p className={css.problem} role="alert">{problem}</p> : null}
-    </form>
-  </>;
+  return <div className={css.screen}>
+    <section aria-labelledby="access-title" className={css.card}>
+      <header className={css.heading}>
+        <h1 className={css.title} id="access-title">Bienvenido</h1>
+        <p>Introduce la contraseña para acceder al panel de análisis.</p>
+      </header>
+      <form className={css.form} onSubmit={submit}>
+        <label htmlFor="access-password">Contraseña</label>
+        <input
+          autoComplete="current-password"
+          autoFocus
+          id="access-password"
+          onChange={(event) => setPassword(event.target.value)}
+          type="password"
+          value={password}
+        />
+        {problem ? <p className={css.problem} role="alert">{problem}</p> : null}
+        <Button className={css.submit} disabled={busy || password.length === 0} type="submit" variant="primary">{busy ? "Entrando…" : "Entrar"}</Button>
+        <p className={css.note}>La sesión se mantendrá durante 90 días en este navegador.</p>
+      </form>
+    </section>
+  </div>;
 }

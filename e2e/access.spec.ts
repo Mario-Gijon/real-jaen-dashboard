@@ -8,7 +8,7 @@ test("Acceso: every page and data route asks for the password; the session retur
   expect((await request.get("/api/v1/source")).status()).toBe(401);
   await page.goto("/teams?view=observed");
   await expect(page).toHaveURL(/\/acceso\?next=%2Fteams%3Fview%3Dobserved$/);
-  await expect(page.getByRole("heading", { name: "Acceso" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bienvenido" })).toBeVisible();
   // Nothing readable before signing in: no navigation, data notice or controls in the top bar.
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await page.getByLabel("Contraseña").fill("no-es-la-contrasena");

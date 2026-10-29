@@ -34,7 +34,8 @@ describe("AccessView (/acceso)", () => {
     const field = screen.getByLabelText("Contraseña");
     expect(field).toHaveAttribute("type", "password");
     expect(field).toHaveAttribute("autocomplete", "current-password");
-    expect(screen.getByText(/La sesión se mantiene 90 días en este navegador/)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Bienvenido" })).toBeVisible();
+    expect(screen.getByText("La sesión se mantendrá durante 90 días en este navegador.")).toBeVisible();
     await user.type(field, "otra");
     await user.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Contraseña incorrecta.");
