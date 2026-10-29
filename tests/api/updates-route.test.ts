@@ -159,13 +159,15 @@ describe("update routes", () => {
     const cookie = await session();
     const done = backendJob({ status: "completed", phase: "finished", cancellable: false, published: true,
       finished_at: "2026-10-28T18:00:00+00:00", result: { published_at: "2026-10-28T18:00:00+00:00", reused_bundle: false,
-        coverage: { new: 35, kept: 608, deferred: [16599970], new_matches: [{ id: 17000001, replaces: [16599919] }],
+        coverage: { new: 35, kept: 608, deferred: [16599970], restricted: [16600001], detail_rounds: [9],
+          new_matches: [{ id: 17000001, replaces: [16599919] }],
           pending: [{ event_id: 16599967, resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
           names: { "16599967": "Real Jaén – CE Europa" } } } });
     backend(() => json(done));
     const params = { params: Promise.resolve({ updateId: JOB_ID }) };
     const body = (await (await job(request(`/api/v1/updates/${JOB_ID}`, { cookie }), params)).json()) as UpdateJob;
     expect(body.result?.coverage).toEqual({ newResources: 35, keptResources: 608, deferredMatchIds: ["sofascore-match-16599970"],
+      restrictedMatchIds: ["sofascore-match-16600001"], detailRounds: [9],
       newMatches: [{ matchId: "sofascore-match-17000001", replaces: ["sofascore-match-16599919"] }],
       pending: [{ matchId: "sofascore-match-16599967", resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
       matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" } });

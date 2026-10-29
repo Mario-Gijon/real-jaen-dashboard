@@ -46,6 +46,8 @@ type BackendCoverage = {
   kept: number;
   pending: { event_id: number; resources: { resource: UpdateResource; reason: UpdatePendingReason; kept: boolean }[] }[];
   deferred: number[];
+  restricted?: number[];
+  detail_rounds?: number[] | null;
   new_matches: { id: number; replaces: number[] }[];
   names?: Record<string, string>;
 };
@@ -102,6 +104,8 @@ function coverage(value: BackendCoverage): UpdateCoverage {
       resources: p.resources.map((r) => ({ resource: r.resource, reason: r.reason, kept: r.kept === true })),
     })),
     deferredMatchIds: value.deferred.map(publicMatchId),
+    restrictedMatchIds: (value.restricted ?? []).map(publicMatchId),
+    detailRounds: value.detail_rounds ?? null,
     newMatches: value.new_matches.map((m) => ({ matchId: publicMatchId(m.id), replaces: m.replaces.map(publicMatchId) })),
     matchNames: Object.fromEntries(Object.entries(value.names ?? {}).map(([id, name]) => [publicMatchId(Number(id)), name])),
   };

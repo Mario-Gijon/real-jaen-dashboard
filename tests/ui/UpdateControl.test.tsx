@@ -140,6 +140,7 @@ describe("Group 2 scope", () => {
   const GROUP = { kind: "group" as const, label: "Actualización del Grupo 2 (Primera Federación 26/27)", round: null, matchIds: [],
     actionLabel: "Actualizar Grupo 2", description: "Consulta los partidos finalizados que faltan y revisa las correcciones de las últimas 72 horas." };
   const coverage = { newResources: 35, keptResources: 608, deferredMatchIds: ["sofascore-match-3"],
+    restrictedMatchIds: [] as string[], detailRounds: null as number[] | null,
     newMatches: [{ matchId: "sofascore-match-4", replaces: ["sofascore-match-5"] }],
     pending: [
       { matchId: "sofascore-match-1", resources: [{ resource: "statistics" as const, reason: "empty" as const, kept: false }] },
@@ -195,6 +196,16 @@ describe("Group 2 scope", () => {
     expect(await screen.findByText(/^Actualización completada con pendientes/)).toBeVisible();
     expect(screen.queryByRole("heading", { name: /^Última publicación/ })).toBeNull();
     expect(screen.getAllByRole("heading", { name: "Revisiones aplazadas" })).toHaveLength(1);
+  });
+
+  it("lists the matches left outside a restricted update, with their data kept", async () => {
+    const restricted = job({ ...done, result: { ...done.result!, coverage: { ...coverage, pending: [], deferredMatchIds: [],
+      restrictedMatchIds: ["sofascore-match-2"], detailRounds: [9] } } });
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: restricted }) }));
+    render(<OperatorView />);
+    expect(await screen.findByRole("heading", { name: "Fuera del alcance de esta actualización" })).toBeVisible();
+    expect(screen.getByText(/solo consulta los partidos de la jornada 9\. En 1 partido se detectó/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Huesca – UD Ibiza" })).toHaveAttribute("href", "/matches/sofascore-match-2");
   });
 
   it("reports a group update without pending items as published", async () => {

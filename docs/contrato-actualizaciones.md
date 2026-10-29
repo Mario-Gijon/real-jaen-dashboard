@@ -16,7 +16,8 @@ interfaz muestra sus textos tal cual (`label`, `description`, `actionLabel`):
   - los cambios de calendario de las jornadas próximas y, por turnos, de las lejanas;
   - las correcciones de las últimas 72 h (regla 72 h / 6 h del SDK).
 
-  Diseño y validación: `../../api-real-jaen/docs/diseno-receta-grupo2.md`. Todavía sin consulta real.
+  Diseño y validación: `../../api-real-jaen/docs/diseno-receta-grupo2.md`. Una ejecución real el 29-10-2026,
+  sobre una copia aislada y con los detalles de la jornada 9: `../../api-real-jaen/docs/prueba-real-grupo2.md`.
 - `pilot` (`sofascore-pilot-16599363-v1`), botón «Actualizar piloto»: el calendario de la jornada 1 y un partido;
   se usa en las pruebas.
 
@@ -36,6 +37,9 @@ los partidos nuevos con su posible sustitución (`newMatches`, decisión manual)
 
 - Si quedan pendientes, la interfaz dice **«Actualización completada con pendientes»** y los enumera con su motivo.
 - Las revisiones aplazadas se enumeran por partido: se siguen sirviendo sus datos anteriores.
+- Una instalación puede restringir los detalles a unas jornadas (`detailRounds`, prueba real de una jornada): lo que
+  el calendario detecte en otras queda en `restrictedMatchIds`, sin consultar y con sus datos anteriores; un recurso
+  sin datos previos queda pendiente con el motivo `restricted`.
 - Si una actualización posterior falla o se cancela, `lastCoverage` mantiene visibles los pendientes y aplazados de
   la última publicación, que es lo que se sigue sirviendo.
 - Un pendiente nunca es ausencia ni cero.

@@ -817,7 +817,7 @@ export type UpdateScope = {
 };
 
 /** Why a resource stayed pending: never absence, never zero. */
-export type UpdatePendingReason = "empty" | "not_found" | "parse" | "error" | "budget" | "not_requested";
+export type UpdatePendingReason = "empty" | "not_found" | "parse" | "error" | "budget" | "not_requested" | "restricted";
 export type UpdateResource = "event" | "lineups" | "statistics" | "incidents";
 
 /**
@@ -831,6 +831,13 @@ export type UpdateCoverage = {
   pending: { matchId: string; resources: { resource: UpdateResource; reason: UpdatePendingReason; kept: boolean }[] }[];
   /** Matches whose due review the budget left for the next update (their data are kept). */
   deferredMatchIds: string[];
+  /**
+   * Matches with a detected change or due review outside the rounds this installation restricts its details to
+   * (`detailRounds`): not consulted, their data kept. Empty without a restriction.
+   */
+  restrictedMatchIds: string[];
+  /** The only rounds whose matches this update could consult; `null` without a restriction. */
+  detailRounds: number[] | null;
   /** Matches new to the competition; `replaces`: unfinished matches with the same pairing, for a manual decision. */
   newMatches: { matchId: string; replaces: string[] }[];
   /** "Home – Away" of the matches above, from the data just published. */

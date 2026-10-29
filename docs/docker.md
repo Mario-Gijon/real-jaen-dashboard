@@ -227,7 +227,8 @@ disponible. Sin el overlay, la instalación de dos servicios no cambia.
   - Hasta 120 envíos y 900 s por pulsación.
   - Publica con cobertura parcial: lo que no se obtiene queda pendiente y conserva lo anterior; la interfaz dice
     «Actualización completada con pendientes».
-  - **No se ha probado todavía contra SofaScore:** su primera ejecución real necesita autorización.
+  - **Probada una vez contra SofaScore** el 29-10-2026, sobre una copia aislada y con los detalles de la jornada 9
+    (`../api-real-jaen/docs/prueba-real-grupo2.md`). Aún no se ha usado sobre la base activa.
 - **`RJ_UPDATE_RECIPE=sofascore-pilot-16599363-v1`:** solo el piloto (calendario de la jornada 1 y un partido).
 
 Otro alcance exige otra receta revisada y su huella aprobada en `../api-real-jaen/productores-adquisicion.json`.

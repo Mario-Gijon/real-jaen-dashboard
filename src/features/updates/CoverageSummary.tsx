@@ -59,6 +59,22 @@ export function CoverageSummary({ coverage }: { coverage: UpdateCoverage }) {
           </ul>
         </>
       ) : null}
+      {coverage.restrictedMatchIds.length ? (
+        <>
+          <h3>Fuera del alcance de esta actualización</h3>
+          <p className={css.muted}>
+            Esta actualización solo consulta los partidos de {coverage.detailRounds?.length === 1 ? "la jornada" : "las jornadas"}{" "}
+            {(coverage.detailRounds ?? []).join(", ")}. En {coverage.restrictedMatchIds.length}{" "}
+            {coverage.restrictedMatchIds.length === 1 ? "partido" : "partidos"} se detectó un cambio o una revisión pendiente:
+            no se han consultado y se siguen sirviendo sus datos anteriores.
+          </p>
+          <ul className={css.pending}>
+            {coverage.restrictedMatchIds.map((matchId) => (
+              <li key={matchId}><MatchName matchId={matchId} /></li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       {coverage.newMatches.length ? (
         <>
           <h3>Partidos nuevos</h3>

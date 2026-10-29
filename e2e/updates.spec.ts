@@ -82,7 +82,7 @@ test("the top bar shows the update control only to an operator, labelled as the 
 test("a group update that published with pending resources says so and keeps new, kept and pending apart", async ({ page }) => {
   const group = { kind: "group", label: "Actualización del Grupo 2 (Primera Federación 26/27)", round: null, matchIds: [],
     actionLabel: "Actualizar Grupo 2", description: "Consulta los partidos finalizados que faltan, los aplazados y las correcciones recientes." };
-  const coverage = { newResources: 35, keptResources: 608, deferredMatchIds: [],
+  const coverage = { newResources: 35, keptResources: 608, deferredMatchIds: [], restrictedMatchIds: [], detailRounds: null,
     newMatches: [], matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" },
     pending: [{ matchId: "sofascore-match-16599967", resources: [{ resource: "statistics", reason: "empty", kept: false }] }] };
   const done = job({ status: "completed", phase: "finished", cancellable: false, published: true, finishedAt: "2026-10-28T17:02:00Z",
@@ -106,7 +106,7 @@ test("after a refused update, the last publication's deferred refreshes stay vis
   const group = { kind: "group", label: "Actualización del Grupo 2 (Primera Federación 26/27)", round: null, matchIds: [],
     actionLabel: "Actualizar Grupo 2", description: "Consulta los partidos finalizados que faltan, los aplazados y las correcciones recientes." };
   const lastCoverage = { newResources: 12, keptResources: 631, pending: [], newMatches: [],
-    deferredMatchIds: ["sofascore-match-16599970"], matchNames: { "sofascore-match-16599970": "Real Jaén – CE Europa" } };
+    deferredMatchIds: ["sofascore-match-16599970"], restrictedMatchIds: [], detailRounds: null, matchNames: { "sofascore-match-16599970": "Real Jaén – CE Europa" } };
   const failed = job({ status: "failed", phase: "finished", cancellable: false, finishedAt: "2026-10-28T18:00:00Z",
     error: { code: "ACQUISITION_FAILED", message: "La fuente rechazó la consulta", retryable: false } });
   await page.route("**/api/v1/source", (route) => route.fulfill({ json: REAL_SOURCE }));

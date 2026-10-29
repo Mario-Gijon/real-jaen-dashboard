@@ -37,6 +37,7 @@ export const REASON_LABELS: Record<UpdatePendingReason, string> = {
   error: "error de la fuente",
   budget: "pendiente para la próxima actualización",
   not_requested: "no consultado",
+  restricted: "fuera del alcance de esta actualización",
 };
 
 /** A completed update that published while some resources stayed pending. */
