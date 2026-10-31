@@ -1,14 +1,14 @@
 #!/bin/sh
 # Recuperación conjunta de un respaldo de scripts/respaldo-instalacion.sh en volúmenes NUEVOS
-# (docs/despliegue-servidor.md, «Copias y recuperación»). Sirve también para la primera carga del servidor.
+# (dashboard/docs/despliegue-servidor.md, «Copias y recuperación»). Sirve también para la primera carga del servidor.
 #
-#   ENV_FILE=.env.docker COMPOSE_FILES="-f compose.yaml -f compose.acquisition.yaml" sh scripts/restaurar-instalacion.sh RESPALDO
+#   ENV_FILE=.env.docker COMPOSE_FILES="-f compose.yaml -f compose.acquisition.yaml" sh dashboard/scripts/restaurar-instalacion.sh RESPALDO
 #
-# RESPALDO es la carpeta del respaldo, dentro de RJ_IMPORT_DIR (el backend la lee en /imports, solo lectura).
+# RESPALDO es una carpeta dentro de RJ_IMPORT_DIR, configurado en relación con la raíz del workspace; el backend la lee en /imports, en solo lectura.
 # Comprueba SHA256SUMS; se niega si algún volumen de destino ya existe; restaura juntos la base, sus registros de
 # actualización (misma generación confirmada) y, con el overlay, los trabajos de adquisición; inicializa un perfil
 # de navegador nuevo; verifica la base y que el coordinador la acepta con la generación del manifiesto. No arranca
-# los servicios: eso es un paso aparte (docs/despliegue-servidor.md, «Arranque»).
+# los servicios: eso es un paso aparte (dashboard/docs/despliegue-servidor.md, «Arranque»).
 set -eu
 SRC=${1:?Indica la carpeta del respaldo}
 ENV_FILE=${ENV_FILE:-.env.docker}

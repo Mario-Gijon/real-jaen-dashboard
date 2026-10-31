@@ -1,9 +1,9 @@
 #!/bin/sh
-# Respaldo consistente de una instalación Docker (docs/despliegue-servidor.md, «Copias y recuperación»).
+# Respaldo consistente de una instalación Docker (dashboard/docs/despliegue-servidor.md, «Copias y recuperación»).
 #
-#   ENV_FILE=.env.docker COMPOSE_FILES="-f compose.yaml -f compose.acquisition.yaml" sh scripts/respaldo-instalacion.sh DESTINO
+#   ENV_FILE=.env.docker COMPOSE_FILES="-f compose.yaml -f compose.acquisition.yaml" sh dashboard/scripts/respaldo-instalacion.sh DESTINO
 #
-# Desde la carpeta rj-analyst. DESTINO es una carpeta nueva del anfitrión. Contenido:
+# Desde la raíz del workspace app-real-jaen. DESTINO es una carpeta nueva del anfitrión. Contenido:
 #   real-jaen.sqlite          copia SQLite consistente (persistencia copiar: integridad y huella comprobadas)
 #   actualizaciones.tar       <base>.actualizaciones: generación confirmada, trabajos, solicitudes y bundles sellados
 #   procedencia.tar           /state/procedencia (evidencia archivada), si existe

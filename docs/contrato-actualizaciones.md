@@ -1,7 +1,7 @@
 # Ampliación del contrato /api/v1: actualización de datos
 
 Redactado el 28-10-2026 antes de implementar; implementado y validado ese mismo día (resultados al final). Concreta,
-sobre el servicio de adquisición definitivo (`../../api-real-jaen/docs/contrato-adquisicion-interno.md`), la propuesta
+sobre el servicio de adquisición definitivo (`../../api/docs/contrato-adquisicion-interno.md`), la propuesta
 inicial del botón (retirada el 29-10-2026; recuperable en el historial de Git). Es la única excepción a la regla «`/api/v1` de solo
 lectura»: las respuestas deportivas, el `DataSource` y sus rutas no cambian.
 
@@ -16,8 +16,8 @@ interfaz muestra sus textos tal cual (`label`, `description`, `actionLabel`):
   - los cambios de calendario de las jornadas próximas y, por turnos, de las lejanas;
   - las correcciones de las últimas 72 h (regla 72 h / 6 h del SDK).
 
-  Diseño y validación: `../../api-real-jaen/docs/diseno-receta-grupo2.md`. Una ejecución real el 29-10-2026,
-  sobre una copia aislada y con los detalles de la jornada 9: `../../api-real-jaen/docs/prueba-real-grupo2.md`.
+  Diseño y validación: `../../api/docs/diseno-receta-grupo2.md`. Una ejecución real el 29-10-2026,
+  sobre una copia aislada y con los detalles de la jornada 9: `../../api/docs/prueba-real-grupo2.md`.
 - `pilot` (`sofascore-pilot-16599363-v1`), botón «Actualizar piloto»: el calendario de la jornada 1 y un partido;
   se usa en las pruebas.
 
@@ -159,7 +159,7 @@ control no arranca. Las rutas deportivas y `/health` no cambian.
   publicar con reintento sobre la misma solicitud, conciliación tras reinicio y autorización HTTP.
 - Frontend: rutas (`tests/api/updates-route.test.ts`), interfaz (`tests/ui/UpdateControl.test.tsx`), regla de
   arquitectura con esta excepción exacta y e2e simuladas (`e2e/updates.spec.ts`, 1440 y 390 px).
-- Recorrido completo (`../../api-real-jaen/docker/acquisition/test_updates.py` y `scripts/validate-updates-stack.mjs`).
+- Recorrido completo (`../../api/docker/acquisition/test_updates.py` y `scripts/validate-updates-stack.mjs`).
   Usa una pila temporal con el proveedor local `fixture-site`, una copia aislada de una copia inactiva, el backend en
   modo control y Next de producción. Comprueba:
   - cancelación mientras se consulta, sin cambios en los datos;

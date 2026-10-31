@@ -1,7 +1,0 @@
-# Development overlay of compose.yaml: publishes the backend's read API on this machine's loopback only, so
-# `npm run dev` (LOCAL_DATA_API_URL=http://127.0.0.1:8001 in .env.local) reads the habitual Docker installation
-# instead of the frozen Windows base. The address is fixed to 127.0.0.1 on purpose: never another interface.
-# Holding port 8001 also keeps the old Windows API from starting by mistake. Never use it on the group's server.
-services:
-  backend:
-    ports: ["127.0.0.1:${RJ_BACKEND_DEV_PORT:-8001}:8001"]

@@ -4,7 +4,7 @@ import { REAL_SOURCE } from "./sources";
 /*
  * Update control (docs/contrato-actualizaciones.md) with simulated /api/v1/updates answers: the e2e server is
  * the demonstration, where updates do not exist. The full flow with the real backend and the local provider is
- * validated separately (api-real-jaen docker/acquisition/test_updates.py).
+ * validated separately (api/docker/acquisition/test_updates.py).
  */
 
 const SCOPE = { kind: "pilot", label: "Actualización piloto: calendario de la jornada 1 y un partido", round: 1,

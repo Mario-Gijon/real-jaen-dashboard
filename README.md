@@ -9,44 +9,33 @@ una vez copiados, este proyecto es la referencia.
 
 ## Puesta en marcha con Docker
 
-**Requisitos:** Linux amd64 (o Docker Desktop con WSL2), Docker Engine con Compose v2, Git, una shell POSIX y unos
-5 GB libres. Sin Node ni Python en el anfitrión: todo corre en contenedores.
+**Requisitos:** Linux amd64 (o Docker Desktop con WSL2), Docker Engine con Compose v2, Git, una shell POSIX y unos 5 GB libres. Sin Node ni Python en el anfitrión: todo corre en contenedores.
 
-**Dos repositorios en carpetas hermanas** (Compose construye y monta `../api-real-jaen`):
+Los repositorios son independientes y Compose vive en la raíz del workspace:
 
 ```text
-carpeta/
-  rj-analyst/      # git clone -b feature/rj-analyst ssh://git@serezade.ujaen.es:8032/fjmimbre/app-real-jaen.git rj-analyst
-  api-real-jaen/   # git clone -b feature/stats-normalization http://serezade.ujaen.es:8030/alabella/api-real-jaen.git api-real-jaen
-  deployment/      # fuera de Git: imports/ (respaldos) y secrets/ (generados en cada instalación)
+app-real-jaen/
+  compose.yaml, compose.dev.yaml, compose.acquisition.yaml  # orquestación compartida
+  .env.docker                                               # configuración local, fuera de Git
+  dashboard/                                                # este repositorio, Next.js y Dockerfile
+  api/                                                      # repositorio Python y Dockerfile
+  deployment/                                               # fuera de ambos repositorios: imports/ y secrets/
 ```
 
-El scraper de SofaScore no se clona: va dentro de la imagen de adquisición, y sus dos commits propios se conservan en
-`api-real-jaen/docker/scraper/real-jaen-follow-next-pages.bundle`.
+El scraper de SofaScore no se clona: va dentro de la imagen de adquisición, y sus dos commits propios se conservan en `api/docker/scraper/real-jaen-follow-next-pages.bundle`.
 
-| Desde Git | Se descarga aparte (carpeta con `SHA256SUMS`, compartida por el responsable) |
-|---|---|
-| Código, Dockerfiles, `compose*.yaml`, scripts de copia y recuperación, documentación, pruebas y sus recursos (incluido el bundle grabado de la ejecución real) | `imagenes.tar.gz`: imágenes del backend, frontend, adquisición, base del scraper y comprobación del sandbox |
-| `.env.docker.example` (plantilla de configuración) | `respaldo-habitual-AAAAMMDD/`: datos iniciales (base, registros de actualización, procedencia y trabajos) |
-| | `pruebas/copias/…piloto-16599363.sqlite`: solo para la prueba `test_group.py` del backend |
-
-Nunca se comparten secretos, `.env` locales, bases activas, perfiles de navegador ni cookies: los secretos se generan
-en cada instalación.
-
-**Comandos** (desde `rj-analyst/`, tras cargar las imágenes, crear `.env.servidor`, generar los secretos y restaurar el
-respaldo como explica la guía):
+La plantilla versionada de configuración es `dashboard/.env.docker.example`. Desde la raíz del workspace, cópiala a `.env.docker` sin sobrescribir una configuración existente, revisa sus rutas y utiliza el Compose base para frontend y backend:
 
 ```sh
-gunzip -c ../descarga/imagenes.tar.gz | docker image load
-dc() { docker compose --env-file .env.servidor -f compose.yaml -f compose.acquisition.yaml "$@"; }
-ENV_FILE=.env.servidor COMPOSE_FILES="-f compose.yaml -f compose.acquisition.yaml"   sh scripts/restaurar-instalacion.sh ../deployment/imports/respaldo-habitual-AAAAMMDD
-dc up -d --no-build --pull never --wait --wait-timeout 180
-dc ps
+cd /ruta/al/workspace/app-real-jaen
+test ! -e .env.docker || { echo 'Revisa .env.docker antes de continuar' >&2; exit 1; }
+cp dashboard/.env.docker.example .env.docker
+docker compose --env-file .env.docker -f compose.yaml config --quiet
+docker compose --env-file .env.docker -f compose.yaml build
+docker compose --env-file .env.docker -f compose.yaml up -d --wait
 ```
 
-Paso a paso (configuración, secretos, HTTPS y proxy, copias, recuperación y lo pendiente de comprobar en el
-servidor): **[docs/despliegue-servidor.md](docs/despliegue-servidor.md)**. Referencia de cada pieza:
-[docs/docker.md](docs/docker.md). Desarrollo local sin Docker: «Comandos», al final.
+El Compose base no arranca la adquisición. Para el despliegue con datos reales, configuración de secretos, restauración, operación y recuperación, sigue [docs/docker.md](docs/docker.md) y [docs/despliegue-servidor.md](docs/despliegue-servidor.md). Los scripts de respaldo y restauración permanecen en este repositorio y se invocan desde la raíz como `sh dashboard/scripts/restaurar-instalacion.sh ...`.
 
 ## Arquitectura
 
@@ -70,15 +59,15 @@ DataSource (src/server)  ──►  API local de datos (modo real) o temporada d
 | `src/ui` | Tokens visuales, base y componentes compartidos |
 | `src/features/{matches,teams,players}` | Componentes de cada área |
 | `data/synthetic` | Temporada ficticia de la demostración (sólo la lee el adaptador sintético) |
-| `scripts` | Generador de la temporada de demostración (`npm run data:generate`); copia, recuperación y cambio de contraseña de la instalación; mitades de navegador de las validaciones Docker de `api-real-jaen` |
-| `compose*.yaml`, `Dockerfile` | Instalación Docker: frontend y backend (`compose.yaml`), adquisición (`compose.acquisition.yaml`), backend en localhost para desarrollo (`compose.dev.yaml`) |
+| `scripts` | Generador de la temporada de demostración (`npm run data:generate`); copia, recuperación y cambio de contraseña de la instalación; mitades de navegador de las validaciones Docker de `api` |
+| `Dockerfile` | Imagen Docker del frontend; la orquestación (`compose*.yaml`) está en la raíz del workspace |
 
 **Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
 ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture.test.ts`.
 El frontend no incorpora base de datos ni workers. El acceso a toda la aplicación exige una contraseña
 compartida (`src/proxy.ts`, `src/server/auth`; [docs/docker.md](docs/docker.md), «Acceso»).
 
-Los datos reales los sirve el backend independiente [api-real-jaen](../api-real-jaen/README.md). Documentación:
+Los datos reales los sirve el backend independiente [api](../api/README.md). Documentación:
 
 | Documento | Para qué |
 |---|---|
@@ -86,7 +75,7 @@ Los datos reales los sirve el backend independiente [api-real-jaen](../api-real-
 | [docs/despliegue-servidor.md](docs/despliegue-servidor.md) | Despliegue en el servidor del grupo, copias y recuperación |
 | [docs/contrato-actualizaciones.md](docs/contrato-actualizaciones.md) | Botón «Actualizar» y `/api/v1/updates` |
 | [docs/activacion-docker-habitual.md](docs/activacion-docker-habitual.md) | Registro de la activación de la instalación habitual (29-10-2026) |
-| [../api-real-jaen/docs/adquisicion-sofascore.md](../api-real-jaen/docs/adquisicion-sofascore.md) | Estado vigente de la adquisición |
+| [../api/docs/adquisicion-sofascore.md](../api/docs/adquisicion-sofascore.md) | Estado vigente de la adquisición |
 | [docs/historico/](docs/historico/README.md) | Documentos retirados: solo trazabilidad |
 | [AGENTS.md](AGENTS.md) | Instrucciones para agentes de IA |
 
@@ -181,7 +170,7 @@ En modo real, «Equipos › Jugadores» y las fichas de jugador leen de la API l
   estadísticas (nunca «No participó»). Con ella, los grupos de la ficha sintética con lo
   que la fuente da; la posición en el partido decide si son los de portero. Todas las
   cifras vienen normalizadas por la API local (`normalized` y `normalized.stats`; reglas en
-  `api-real-jaen/docs/normalizacion-estadisticas-individuales.md`); el dashboard no repite
+  `api/docs/normalizacion-estadisticas-individuales.md`); el dashboard no repite
   reglas. Una clave que la fuente omite es «—», nunca 0, salvo que la API la deduzca de
   valores explícitos (hoy solo tiros a puerta = 0 cuando fuera y bloqueados suman todos los
   tiros): se marca con `*` y se explica en una leyenda. Cifras contradictorias (`†`),

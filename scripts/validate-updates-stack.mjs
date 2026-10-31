@@ -1,5 +1,5 @@
 /**
- * Browser half of the full update validation (driven by api-real-jaen/docker/acquisition/test_updates.py): a real
+ * Browser half of the full update validation (driven by api/docker/acquisition/test_updates.py): a real
  * Next production server, the backend in control mode and the acquisition service with its local provider.
  *
  *   node scripts/validate-updates-stack.mjs <phase> <baseUrl> <accessPasswordFile> <outDir> <secretFile>...

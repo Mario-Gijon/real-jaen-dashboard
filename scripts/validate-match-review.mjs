@@ -1,5 +1,5 @@
 /**
- * Browser half of the review check of a corrected match (driven by api-real-jaen/docker/acquisition/test_group.py):
+ * Browser half of the review check of a corrected match (driven by api/docker/acquisition/test_group.py):
  * a real Next production server over the backend's isolated copy, after a score correction whose sections could
  * not be re-read ("pending") and after they were recovered ("recovered").
  *

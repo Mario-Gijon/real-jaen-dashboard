@@ -1,3 +1,5 @@
+> Nota de vigencia: este documento conserva el registro histórico de 29-10-2026. La configuración operativa actual usa `compose.yaml` y `.env.docker` en la raíz del workspace `app-real-jaen/`; consulta [docker.md](docker.md) para los comandos vigentes.
+
 # Activación de Docker como instalación habitual
 
 Preparado y **ejecutado el 29-10-2026** («Registro de la activación», al final). Código de las imágenes:

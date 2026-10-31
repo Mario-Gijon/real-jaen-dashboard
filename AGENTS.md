@@ -10,9 +10,10 @@ RealHive es un proyecto anterior: usarlo únicamente como referencia visual/UX c
 
 Estas instrucciones valen solo para este repositorio. El sistema tiene tres piezas:
 
-- `rj-analyst` (este): dashboard Next.js, su API `/api/v1`, Compose y scripts de instalación, copia y recuperación.
-- `../api-real-jaen`: backend Python (base SQLite, importación, control de actualizaciones, servicio de adquisición). Tiene su propio `AGENTS.md`; léelo antes de cambiar algo allí.
-- `sofascore_scraper`: proyecto externo, usado a una revisión fijada con dos commits propios (`../api-real-jaen/docs/scraper-empaquetado-linux.md`). No modificarlo desde aquí.
+- `dashboard` (este): dashboard Next.js, su API `/api/v1`, Dockerfile y scripts de instalación, copia y recuperación.
+- `../api`: backend Python (base SQLite, importación, control de actualizaciones, servicio de adquisición). Tiene su propio `AGENTS.md`; léelo antes de cambiar algo allí.
+- La orquestación compartida (`../compose.yaml` y overlays) y `.env.docker` viven en la raíz del workspace; la plantilla versionada está en `.env.docker.example`. Ejecuta sus comandos desde esa raíz.
+- `sofascore_scraper`: proyecto externo, usado a una revisión fijada con dos commits propios (`../api/docs/scraper-empaquetado-linux.md`). No modificarlo desde aquí.
 
 Documentación: `README.md` (índice), `docs/docker.md` (instalación y operación), `docs/despliegue-servidor.md` (servidor del grupo), `docs/contrato-actualizaciones.md` (botón «Actualizar»).
 
@@ -22,7 +23,7 @@ Mantener: `UI → typed client → /api/v1 → DataSource → data source`.
 
 - La UI nunca accede directamente a datos, servidor o proveedor.
 - El frontend no conoce Sofascore, BeSoccer ni otros proveedores.
-- `/api/v1` es la frontera estable. `DataSource` tiene dos adaptadores: `local-api` (modo real, el backend de `api-real-jaen`) y `synthetic` (demostración).
+- `/api/v1` es la frontera estable. `DataSource` tiene dos adaptadores: `local-api` (modo real, el backend de `api`) y `synthetic` (demostración).
 - Los IDs públicos son propios y estables.
 - Ya decididos e implementados: backend Python con SQLite, Docker Compose como instalación habitual, adquisición desde SofaScore en un servicio aislado y acceso con contraseña compartida (`src/proxy.ts`, `src/server/auth`). No introducir otros (Redis, workers, otra base, otro proveedor, identidades de usuario) salvo decisión explícita.
 
