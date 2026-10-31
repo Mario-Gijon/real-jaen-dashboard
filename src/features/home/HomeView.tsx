@@ -1,7 +1,7 @@
 "use client";
 
 import { getSource } from "@/client/api";
-import { failureReason, useApi } from "../use-api";
+import { failureReason, useApi } from "@/hooks/use-api";
 import { LoadError } from "./PreparationParts";
 import { RealHomeView } from "./RealHomeView";
 import { SyntheticHomeView, type Props } from "./SyntheticHomeView";

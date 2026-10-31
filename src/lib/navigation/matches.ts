@@ -1,4 +1,4 @@
-import { CLUB_ID } from "@/features/club";
+import { CLUB_ID } from "@/lib/club";
 import { SAFE_ID, matchesState, type MatchesState, type ObservedMatchListOrigin } from "./state";
 import { setHomeOrigin, type HomeOrigin } from "./home";
 import type { ObservedMatchTeamsOrigin } from "./teams";

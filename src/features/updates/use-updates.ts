@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cancelUpdate, getUpdate, getUpdateStatus, startUpdate } from "@/client/api";
 import type { UpdateJob, UpdateStatus } from "@/contract";
-import { failureReason } from "../use-api";
+import { failureReason } from "@/hooks/use-api";
 
 const KEY_STORAGE = "rj-update-idempotency-key";
 /** Told to every control on the page (top bar and /operador) when a job changes. */

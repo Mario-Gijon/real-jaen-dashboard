@@ -7,12 +7,12 @@ import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedSectio
 import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
-import { dateLabel } from "../format";
+import { dateLabel } from "@/lib/format";
 import { relatedObservedMatchHref, matchesInitialState, type ObservedMatchListOrigin } from "@/lib/navigation";
-import { useApi } from "../use-api";
+import { useApi } from "@/hooks/use-api";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { ObservedLineups } from "./ObservedLineups";
-import { observedCrest } from "../team-crests";
+import { observedCrest } from "@/lib/team-crests";
 import css from "./MatchDetailView.module.css";
 
 const STATUS: Record<MatchStatus, string> = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };

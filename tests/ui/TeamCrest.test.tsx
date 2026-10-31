@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { crestUrlOf, observedCrest } from "@/features/team-crests";
+import { crestUrlOf, observedCrest } from "@/lib/team-crests";
 import { TeamCrest } from "@/ui/TeamCrest";
 
 /** The 20 teams of Group 2, 26/27, by our public team id (as the real adapter maps them). */

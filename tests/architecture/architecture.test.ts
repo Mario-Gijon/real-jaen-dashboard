@@ -19,7 +19,7 @@ async function restrictedImports(filePath: string, code: string) {
   return result.messages.filter((message) => message.ruleId === "no-restricted-imports");
 }
 
-/** The boundary UI → client → /api/v1 → DataSource is enforced by lint. */
+/** The boundary UI → client → Next.js BFF (/api/v1) → DataSource is enforced by lint. */
 // ESLint loads its whole config on the first lint: allow for a cold start under parallel tests.
 describe("architecture boundary", { timeout: 30_000 }, () => {
   it.each([
@@ -38,6 +38,21 @@ describe("architecture boundary", { timeout: 30_000 }, () => {
     const code =
       'import { getDataSource } from "@/server/data-source";\nexport const source = getDataSource;';
     expect(await restrictedImports("src/app/api/v1/matches/route.ts", code)).toHaveLength(0);
+  });
+
+  it.each([
+    ["src/lib/example.ts", 'import { MatchList } from "@/features/matches/MatchList";'],
+    ["src/lib/example.ts", 'import { MatchList } from "../../features/matches/MatchList";'],
+    ["src/lib/example.ts", 'import { api } from "@/client/api";'],
+    ["src/hooks/example.ts", 'import { MatchList } from "@/features/matches/MatchList";'],
+    ["src/hooks/example.ts", 'import { TeamCrest } from "@/ui/TeamCrest";'],
+  ])("%s cannot depend on application layers", async (filePath, code) => {
+    expect(await restrictedImports(filePath, code)).toHaveLength(1);
+  });
+
+  it("lets shared hooks use the typed client and shared utilities use contracts", async () => {
+    expect(await restrictedImports("src/hooks/example.ts", 'import { api } from "@/client/api";')).toHaveLength(0);
+    expect(await restrictedImports("src/lib/example.ts", 'import type { Match } from "@/contract";')).toHaveLength(0);
   });
 
   it("lets only the synthetic adapter know where the synthetic data live", () => {

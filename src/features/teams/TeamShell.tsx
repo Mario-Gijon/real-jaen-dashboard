@@ -6,7 +6,7 @@ import type { TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { tabId, tabPanelId, Tabs } from "@/ui/Tabs";
-import { CLUB_ID } from "../club";
+import { CLUB_ID } from "@/lib/club";
 import { teamsHref } from "@/lib/navigation";
 import { TeamCrestGrid } from "./TeamCrestGrid";
 import css from "./TeamsView.module.css";

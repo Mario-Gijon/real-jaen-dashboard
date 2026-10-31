@@ -1,4 +1,4 @@
-import { CLUB_ID } from "@/features/club";
+import { CLUB_ID } from "@/lib/club";
 import { SAFE_ID, matchesState, type ObservedMatchListOrigin } from "./state";
 
 export type PlayerOrigin = { kind: "team"; id: string } | { kind: "match"; id: string; tab: "lineups" | "timeline" };

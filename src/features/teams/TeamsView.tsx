@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { getSource } from "@/client/api";
 import { Button } from "@/ui/Button";
 import { teamsInitialView } from "@/lib/navigation";
-import { failureReason, useApi } from "../use-api";
+import { failureReason, useApi } from "@/hooks/use-api";
 import { RealTeamsView } from "./RealTeamsView";
 import { SyntheticTeamsView } from "./SyntheticTeamsView";
 import type { Props } from "./TeamShell";

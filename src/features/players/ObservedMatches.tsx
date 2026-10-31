@@ -6,7 +6,7 @@ import { House, LogOut } from "lucide-react";
 import type { ObservedMatchStatKey, ObservedPlayerMatch, ObservedPlayerMatches, PlayerPosition, Stat } from "@/contract";
 import { Button } from "@/ui/Button";
 import { Select } from "@/ui/Select";
-import { dateLabel, positionLabel, statText } from "../format";
+import { dateLabel, positionLabel, statText } from "@/lib/format";
 import { revealMatch } from "./reveal-match";
 import sections from "../teams/TeamPerformance.module.css";
 import output from "../teams/TeamOutput.module.css";

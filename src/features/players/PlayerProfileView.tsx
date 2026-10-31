@@ -5,9 +5,9 @@ import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile } from "@/c
 import type { PlayerProfile } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
-import { birthLabel, footLabel, heightLabel, positionLabel } from "../format";
+import { birthLabel, footLabel, heightLabel, positionLabel } from "@/lib/format";
 import { countryLabel } from "./country-label";
-import { useApi } from "../use-api";
+import { useApi } from "@/hooks/use-api";
 import { ObservedMatches } from "./ObservedMatches";
 import { observedMatchHref } from "@/lib/navigation";
 import type { ProfileOrigin } from "./navigation";

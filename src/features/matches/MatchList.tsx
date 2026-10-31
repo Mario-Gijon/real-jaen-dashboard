@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { MatchSummary, TeamRef } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
-import { dateLabel } from "../format";
+import { dateLabel } from "@/lib/format";
 import css from "./MatchList.module.css";
 
 const STATUS = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };

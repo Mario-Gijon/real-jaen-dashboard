@@ -7,7 +7,7 @@ import type { MatchResult, Side, TeamRef } from "@/contract";
 import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { TeamCrest } from "@/ui/TeamCrest";
 import tableHeader from "@/ui/TableHeader.module.css";
-import { dateLabel, formatNumber } from "../format";
+import { dateLabel, formatNumber } from "@/lib/format";
 import type { Period, VenueRecord } from "./performance";
 import css from "./TeamPerformance.module.css";
 

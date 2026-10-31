@@ -13,7 +13,7 @@ import {
   POSITION_SHORT,
   positionLabel,
   footLabel,
-} from "../format";
+} from "@/lib/format";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { SeasonValue } from "../SeasonValue";
 import tableHeader from "@/ui/TableHeader.module.css";

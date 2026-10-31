@@ -2,7 +2,7 @@ import { ArrowLeftRight, ArrowUp } from "lucide-react";
 import Link from "next/link";
 import type { ObservedGoal, ObservedLineupPlayer, ObservedMatch, ObservedMatchDetail, ObservedSubstitution } from "@/contract";
 import { Button } from "@/ui/Button";
-import { MISSING, POSITION_SHORT, formatNumber, positionLabel } from "../format";
+import { MISSING, POSITION_SHORT, formatNumber, positionLabel } from "@/lib/format";
 import { playerProfileHref } from "../players/navigation";
 import type { ObservedMatchListOrigin } from "@/lib/navigation";
 import linkCss from "../players/PlayerLink.module.css";

@@ -1,7 +1,7 @@
 import type { GoalEvent, PlayerMatch, PlayerSeason } from "@/contract";
 import { AssistIcon } from "../matches/AssistIcon";
 import { GoalIcon } from "../matches/GoalIcon";
-import { dateLabel, MISSING } from "../format";
+import { dateLabel, MISSING } from "@/lib/format";
 import { PlayerSeasonValue } from "./PlayerSeasonValue";
 import css from "./PlayerDetailView.module.css";
 

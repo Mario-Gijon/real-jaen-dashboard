@@ -19,11 +19,15 @@ Documentación: `README.md` (índice), `docs/docker.md` (instalación y operaci�
 
 ## Arquitectura
 
-Mantener: `UI → typed client → /api/v1 → DataSource → data source`.
+Mantener el flujo: `UI → cliente HTTP tipado → BFF Next.js (/api/v1) → DataSource → adaptador → servicio de datos`.
 
 - La UI nunca accede directamente a datos, servidor o proveedor.
 - El frontend no conoce Sofascore, BeSoccer ni otros proveedores.
 - `/api/v1` es la frontera estable. `DataSource` tiene dos adaptadores: `local-api` (modo real, el backend de `api`) y `synthetic` (demostración).
+- `src/app` contiene las páginas y el BFF `/api/v1`; `src/features`, las áreas de negocio; `src/ui`, los componentes visuales compartidos; `src/client`, el cliente HTTP tipado.
+- `src/server` contiene autenticación, selección de fuente y adaptadores; `src/contract`, los contratos públicos; `src/lib`, utilidades puras compartidas; `src/hooks`, hooks de cliente reutilizables.
+- `src/lib` no depende de features, UI, cliente ni servidor. `src/hooks` puede usar el cliente, pero no debe depender de features ni UI.
+- La API deportiva es un servicio independiente. El futuro servicio de vídeo también se integrará como servicio independiente mediante su propia API REST; no implementarlo ni añadir código hipotético antes de una petición concreta.
 - Los IDs públicos son propios y estables.
 - Ya decididos e implementados: backend Python con SQLite, Docker Compose como instalación habitual, adquisición desde SofaScore en un servicio aislado y acceso con contraseña compartida (`src/proxy.ts`, `src/server/auth`). No introducir otros (Redis, workers, otra base, otro proveedor, identidades de usuario) salvo decisión explícita.
 

@@ -1,6 +1,6 @@
 import { ArrowLeftRight, ArrowUp } from "lucide-react";
 import type { LineupPlayer, MatchDetail, SubstitutionEvent } from "@/contract";
-import { MISSING, POSITION_SHORT, positionLabel } from "../format";
+import { MISSING, POSITION_SHORT, positionLabel } from "@/lib/format";
 import { GoalIcon } from "./GoalIcon";
 import { AssistIcon } from "./AssistIcon";
 import { PlayerLink } from "../players/PlayerLink";

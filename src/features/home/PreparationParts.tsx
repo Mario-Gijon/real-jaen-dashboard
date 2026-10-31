@@ -5,8 +5,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Score, SeasonStat, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
-import { dateLabel, formatNumber } from "../format";
-import { CLUB_ID } from "../club";
+import { dateLabel, formatNumber } from "@/lib/format";
+import { CLUB_ID } from "@/lib/club";
 import sections from "../teams/TeamPerformance.module.css";
 import css from "./HomeView.module.css";
 

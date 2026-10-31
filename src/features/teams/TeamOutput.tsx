@@ -1,7 +1,7 @@
 "use client";
 
 import type { SeasonStat } from "@/contract";
-import { formatNumber, MISSING } from "../format";
+import { formatNumber, MISSING } from "@/lib/format";
 import { difference, type Indicator } from "./performance";
 import css from "./TeamOutput.module.css";
 

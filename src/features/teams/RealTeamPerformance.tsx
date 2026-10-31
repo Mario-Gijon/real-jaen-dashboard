@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ObservedCompetitionPerformance } from "@/contract";
-import { observedCrest } from "../team-crests";
+import { observedCrest } from "@/lib/team-crests";
 import type { Period } from "./performance";
 import { TeamOutput } from "./TeamOutput";
 import { OutputZone, PlayedZone, SeasonZone, signed, type BalanceItem, type Played } from "./TeamPerformanceParts";

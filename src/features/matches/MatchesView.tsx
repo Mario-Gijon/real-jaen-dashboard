@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { getSource } from "@/client/api";
 import { matchesInitialState } from "@/lib/navigation";
-import { failureReason, useApi } from "../use-api";
+import { failureReason, useApi } from "@/hooks/use-api";
 import { RealMatchesView } from "./RealMatchesView";
 import { LoadError, SyntheticMatchesView, type Props } from "./SyntheticMatchesView";
 import css from "./MatchesView.module.css";

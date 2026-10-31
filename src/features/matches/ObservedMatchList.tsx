@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { MatchStatus, ObservedMatch, ObservedTeam } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
-import { CLUB_ID } from "../club";
+import { CLUB_ID } from "@/lib/club";
 import { observedMatchHref } from "@/lib/navigation";
-import { dateLabel } from "../format";
-import { observedCrest } from "../team-crests";
+import { dateLabel } from "@/lib/format";
+import { observedCrest } from "@/lib/team-crests";
 import css from "./MatchList.module.css";
 
 const STATUS: Record<MatchStatus, string> = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };

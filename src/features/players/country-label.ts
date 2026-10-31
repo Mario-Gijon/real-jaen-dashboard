@@ -1,4 +1,4 @@
-import { MISSING } from "../format";
+import { MISSING } from "@/lib/format";
 
 // Use the runtime's country names in both languages; unknown source labels stay intact.
 const english = new Intl.DisplayNames(["en"], { type: "region", fallback: "none" });

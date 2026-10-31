@@ -1,5 +1,5 @@
 import type { ObservedCompetition, ObservedMatch, ObservedTeam, ObservedTeamMatches } from "@/contract";
-import { CLUB_ID } from "../club";
+import { CLUB_ID } from "@/lib/club";
 
 /** «Todos los equipos» in the team selector and in the URL (`?team=all`). */
 export const ALL_TEAMS = "all";

@@ -1,5 +1,5 @@
 import type { Stat, TeamMatchStats, TeamStatKey } from "@/contract";
-import { statText } from "../format";
+import { statText } from "@/lib/format";
 import css from "./MatchDetailView.module.css";
 
 const METRICS: readonly { key: TeamStatKey; label: string; decimals?: number }[] = [

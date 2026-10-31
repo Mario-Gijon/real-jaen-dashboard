@@ -1,5 +1,5 @@
 import type { SeasonStat } from "@/contract";
-import { MISSING, seasonText } from "./format";
+import { MISSING, seasonText } from "@/lib/format";
 import css from "./SeasonValue.module.css";
 
 /**

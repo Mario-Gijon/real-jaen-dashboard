@@ -39,31 +39,39 @@ El Compose base no arranca la adquisición. Para el despliegue con datos reales,
 
 ## Arquitectura
 
-Una única aplicación Next.js (App Router) con su API interna:
+Una única aplicación Next.js (App Router), con su BFF `/api/v1`:
 
 ```
-Interfaz (src/app, src/features, src/ui)
-  │  cliente tipado (src/client)
-  ▼
-/api/v1  (src/app/api/v1: route handlers)
-  ▼
-DataSource (src/server)  ──►  API local de datos (modo real) o temporada de demostración (DATA_MODE=demo)
+UI (src/app, src/features, src/ui)
+  → cliente HTTP tipado (src/client)
+  → BFF Next.js: route handlers /api/v1 (src/app/api/v1)
+  → DataSource y adaptador (src/server)
+  → API deportiva independiente (modo real) o datos de demostración (DATA_MODE=demo)
 ```
 
 | Carpeta | Responsabilidad |
 |---|---|
 | `src/contract` | Tipos del contrato `/api/v1`: lo que ve el analista, no lo que devuelve un proveedor |
-| `src/app` | Páginas y route handlers de `/api/v1` |
-| `src/client` | Cliente tipado: la única vía de las pantallas hacia los datos |
-| `src/server` | Interfaz `DataSource`, su selección por `DATA_MODE` y sus adaptadores (`local-api/` real, `synthetic/` demostración) |
-| `src/ui` | Tokens visuales, base y componentes compartidos |
-| `src/features/{matches,teams,players}` | Componentes de cada área |
+| `src/app` | Páginas y BFF: route handlers de `/api/v1` |
+| `src/features` | Funcionalidades y vistas de negocio: inicio, partidos, equipos, jugadores y actualizaciones |
+| `src/ui` | Tokens visuales, elementos base y componentes compartidos |
+| `src/client` | Cliente HTTP tipado: única vía de las pantallas hacia `/api/v1` |
+| `src/server` | Autenticación, selección de `DataSource` y adaptadores (`local-api/` real, `synthetic/` demostración) |
+| `src/lib` | Utilidades puras compartidas, como navegación, formato, club y escudos |
+| `src/hooks` | Hooks compartidos del cliente, incluido `useApi` para carga, cancelación y reintento |
 | `data/synthetic` | Temporada ficticia de la demostración (sólo la lee el adaptador sintético) |
 | `scripts` | Generador de la temporada de demostración (`npm run data:generate`); copia, recuperación y cambio de contraseña de la instalación; mitades de navegador de las validaciones Docker de `api` |
 | `Dockerfile` | Imagen Docker del frontend; la orquestación (`compose*.yaml`) está en la raíz del workspace |
 
-**Frontera:** la interfaz nunca importa `src/server` ni `data/`. Lo impide
-ESLint (`no-restricted-imports`) y lo comprueba `tests/architecture/architecture.test.ts`.
+**Flujo de datos:** las pantallas llaman al cliente tipado; éste accede al BFF Next.js
+`/api/v1`, que selecciona el adaptador del servidor. En modo real, `local-api/` consume la
+API deportiva independiente; en modo demo, `synthetic/` lee la temporada ficticia. La API
+deportiva se ejecuta como servicio separado del dashboard.
+
+**Fronteras:** la interfaz nunca importa `src/server` ni `data/`. `src/lib` no depende de
+features, UI, cliente ni servidor; `src/hooks` puede usar el cliente tipado, pero no depende
+de pantallas. ESLint (`no-restricted-imports`) y
+`tests/architecture/architecture.test.ts` comprueban estos límites.
 El frontend no incorpora base de datos ni workers. El acceso a toda la aplicación exige una contraseña
 compartida (`src/proxy.ts`, `src/server/auth`; [docs/docker.md](docs/docker.md), «Acceso»).
 
@@ -114,9 +122,9 @@ modos y que los módulos compartidos no llevan a los de ninguno.
 
 ## Independencia de la fuente de datos
 
-El contrato describe lo que necesita el analista. Una fuente nueva (una API
-deportiva, datos del club, vídeo, archivos importados…) es un adaptador que
-implementa `DataSource` y devuelve tipos del contrato; las pantallas no cambian.
+El contrato describe lo que necesita el analista. La API deportiva es un servicio independiente
+que el adaptador `local-api` consulta mediante HTTP. El servicio de vídeo futuro también será
+independiente y se integrará mediante su propia API REST; todavía no forma parte de este proyecto.
 
 Las métricas distinguen siempre tres casos y nunca convierten una ausencia en cero:
 
@@ -141,7 +149,7 @@ En modo real, «Equipos › Jugadores» y las fichas de jugador leen de la API l
 - Hay correspondencia explícita para el Real Jaén (`team-real-jaen` ↔ equipo `2841`) y para
   los otros 19 equipos de Primera Federación, Grupo 2, 26/27 (`sofascore-team-{id}` ↔ `{id}`,
   el id que ya usan las listas de partidos; ids comprobados en el catálogo del scraper), en
-  `SOURCE_TEAM_IDS` de `src/server/local-api/local-api-source.ts`.
+  `SOURCE_TEAM_IDS` de `src/server/local-api/identifiers.ts`.
   Además, el equipo debe tener una exportación propia declarada por la API local
   (`teams_with_own_export` en `/api/v1/scope`, del manifiesto del importador); si no,
   responde 404. Nunca se relacionan equipos ni jugadores por nombre.
@@ -385,7 +393,7 @@ Los datos de la fuente no traen escudos: ni las exportaciones raw ni el almacén
 y colores). Por eso un escudo es un archivo local en `public/`, servido por el propio
 dashboard; el navegador nunca lo pide a un proveedor.
 
-- `src/features/team-crests.ts` es el único registro: identificador público del equipo → archivo.
+- `src/lib/team-crests.ts` es el único registro: identificador público del equipo → archivo.
   Lo usan todas las vistas reales (Inicio, cuadrícula y cabecera de Equipos, rendimiento, lista
   y detalle de partidos) a través de `observedCrest`. Las vistas sintéticas toman el escudo de sus
   datos.
@@ -403,7 +411,7 @@ y en la demostración (`data/synthetic/season.json` y su generador). Sustituye a
 Para añadir el escudo de un equipo con correspondencia: obtén la imagen de un origen adecuado
 (el club o una descarga autorizada; es una marca del club, uso interno), compruébala (tipo,
 tamaño y que sea ese club), guárdala como `public/crests/{nombre-del-club}.{png|webp|svg}` (nombre
-normalizado del club, nunca su id del proveedor), añade la entrada en `src/features/team-crests.ts`
+normalizado del club, nunca su id del proveedor), añade la entrada en `src/lib/team-crests.ts`
 y anota en esta tabla el origen y la fecha. La aplicación sólo usa `public/`: `artifacts/` es
 material local, fuera de Git.
 

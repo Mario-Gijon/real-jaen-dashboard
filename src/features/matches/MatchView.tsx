@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { getSource } from "@/client/api";
 import { Button } from "@/ui/Button";
-import { failureReason, useApi } from "../use-api";
+import { failureReason, useApi } from "@/hooks/use-api";
 import { MatchDetailView } from "./MatchDetailView";
 import { RealMatchDetailView } from "./RealMatchDetailView";
 import css from "./MatchDetailView.module.css";

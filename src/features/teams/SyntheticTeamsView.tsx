@@ -5,9 +5,9 @@ import { getCompetitions, getPlayer, getSeasonTeams, getTeamSeason } from "@/cli
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
-import { CLUB_ID } from "../club";
-import { footLabel } from "../format";
-import { useApi } from "../use-api";
+import { CLUB_ID } from "@/lib/club";
+import { footLabel } from "@/lib/format";
+import { useApi } from "@/hooks/use-api";
 import { TeamPerformance } from "./TeamPerformance";
 import { TeamPlayersTable } from "./TeamPlayersTable";
 import { gridOrder, TeamShell, useTeamsUrl, type Props, type Tab } from "./TeamShell";
