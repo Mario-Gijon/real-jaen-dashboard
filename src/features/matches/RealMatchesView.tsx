@@ -8,7 +8,7 @@ import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
 import { CLUB_ID } from "../club";
-import { matchesHref, observedMatchHref, type MatchesState } from "../players/navigation";
+import { matchesHref, observedMatchHref, type MatchesState } from "@/lib/navigation";
 import { useApi } from "../use-api";
 import { ObservedMatchList } from "./ObservedMatchList";
 import { ALL_TEAMS, mergeTeamMatches, teamOptions } from "./real-matches";

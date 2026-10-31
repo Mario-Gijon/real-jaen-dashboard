@@ -7,7 +7,7 @@ import type { ObservedCompetitionPerformance, ObservedTeam, TeamRef } from "@/co
 import { Button } from "@/ui/Button";
 import { CLUB_ID } from "../club";
 import { observedCrest } from "../team-crests";
-import { observedMatchHref } from "../players/navigation";
+import { observedMatchHref } from "@/lib/navigation";
 import { useApi } from "../use-api";
 import { ObservedSquadTable } from "./ObservedSquadTable";
 import { RealTeamPerformance } from "./RealTeamPerformance";

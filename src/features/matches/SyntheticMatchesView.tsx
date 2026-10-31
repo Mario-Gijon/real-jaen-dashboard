@@ -7,7 +7,7 @@ import type { Season } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
-import type { MatchesState } from "../players/navigation";
+import type { MatchesState } from "@/lib/navigation";
 import { useApi } from "../use-api";
 import { MatchList } from "./MatchList";
 import css from "./MatchesView.module.css";

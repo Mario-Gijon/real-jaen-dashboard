@@ -9,7 +9,8 @@ import { birthLabel, footLabel, heightLabel, positionLabel } from "../format";
 import { countryLabel } from "./country-label";
 import { useApi } from "../use-api";
 import { ObservedMatches } from "./ObservedMatches";
-import { observedMatchHref, type ProfileOrigin } from "./navigation";
+import { observedMatchHref } from "@/lib/navigation";
+import type { ProfileOrigin } from "./navigation";
 import css from "./PlayerDetailView.module.css";
 
 /**

@@ -1,4 +1,4 @@
-import type { MissingReason, SeasonStat, Stat } from "./index";
+import type { MissingReason, SeasonStat, Stat } from "./common";
 
 /**
  * How per-match values become a figure over several matches, with its

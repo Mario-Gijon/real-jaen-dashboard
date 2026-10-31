@@ -8,7 +8,7 @@ import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "../format";
-import { relatedObservedMatchHref, matchesInitialState, type ObservedMatchListOrigin } from "../players/navigation";
+import { relatedObservedMatchHref, matchesInitialState, type ObservedMatchListOrigin } from "@/lib/navigation";
 import { useApi } from "../use-api";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { ObservedLineups } from "./ObservedLineups";

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { MatchStatus, ObservedMatch, ObservedTeam } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { CLUB_ID } from "../club";
-import { observedMatchHref } from "../players/navigation";
+import { observedMatchHref } from "@/lib/navigation";
 import { dateLabel } from "../format";
 import { observedCrest } from "../team-crests";
 import css from "./MatchList.module.css";

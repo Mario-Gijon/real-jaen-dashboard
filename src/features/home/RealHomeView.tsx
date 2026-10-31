@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ApiRequestError, getObservedMatchDetail, getTeamObservedMatches, getTeamObservedPerformance } from "@/client/api";
 import type { ObservedMatch, ObservedTeam } from "@/contract";
 import { CLUB_ID } from "../club";
-import { homeHref, observedMatchHref, teamsHref } from "../players/navigation";
+import { homeHref, observedMatchHref, teamsHref } from "@/lib/navigation";
 import { observedCrest } from "../team-crests";
 import { useApi } from "../use-api";
 import { daysUntil, preparationChoices, preparationSummary, upcomingMatches } from "./preparation";

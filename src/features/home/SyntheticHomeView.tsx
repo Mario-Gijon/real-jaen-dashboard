@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { getCompetitions, getSeasonMatches, getTeamSeason } from "@/client/api";
 import type { MatchSummary, TeamMatch } from "@/contract";
 import { CLUB_ID } from "../club";
-import { homeHref, matchHref } from "../players/navigation";
+import { homeHref, matchHref } from "@/lib/navigation";
 import { useApi } from "../use-api";
 import { daysUntil, preparationChoices, preparationHistory, preparationSummary, upcomingMatches } from "./preparation";
 import { HistorySection, LoadError, TargetSection, type Fixture, type HistoryRow } from "./PreparationParts";
