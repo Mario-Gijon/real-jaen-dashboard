@@ -61,8 +61,8 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
   await expect(list.getByRole("listitem").nth(1)).toContainText("0 – 0");
   await expect(list.getByRole("listitem").nth(2)).toContainText("Programado");
   await expect(list.getByRole("listitem").nth(2)).not.toContainText("0 – 0");
-  await expect(list.getByRole("link")).toHaveCount(4);
-  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-1?from=matches");
+  await expect(list.getByRole("link")).toHaveCount(12);
+  await expect(list.getByRole("link", { name: /^Ver partido/ }).first()).toHaveAttribute("href", "/matches/sofascore-match-1?from=matches");
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-matches.png"), fullPage: true });
 
@@ -83,7 +83,7 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
 
   // Back from a match detail recovers the team from the URL.
   await page.getByRole("combobox", { name: "Equipo" }).selectOption(antequera.id);
-  await list.getByRole("link").first().click();
+  await list.getByRole("link", { name: /^Ver partido/ }).first().click();
   await expect(page).toHaveURL(/\/matches\/sofascore-match-3\?from=matches&team=sofascore-team-3$/);
   await page.goBack();
   await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue(antequera.id);
@@ -97,6 +97,26 @@ test("Partidos reales: a team the catalog does not offer falls back to Real Jaé
   await expect(page.getByText("El equipo indicado no está disponible en la fuente real: se muestran los partidos del Real Jaén.")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("team-real-jaen");
   await expect(page.getByRole("list", { name: "Partidos reales" }).getByRole("listitem")).toHaveCount(4);
+});
+
+test("a real match's identified rival opens an identity-only team view when it has no export", async ({ page }) => {
+  await serveReal(page);
+  await page.route("**/api/v1/teams/sofascore-team-1/observed-performance", (route) =>
+    route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "No tiene exportación propia." } } }));
+  await page.route("**/api/v1/teams/sofascore-team-1", (route) =>
+    route.fulfill({ json: { id: "sofascore-team-1", name: "CE Europa" } }));
+  await page.goto("/matches");
+  const row = page.getByRole("list", { name: "Partidos reales" }).getByRole("listitem").first();
+  await expect(row.getByRole("link", { name: "Ver equipo CE Europa" })).toHaveAttribute("href", "/teams?team=sofascore-team-1");
+  await expect(row.getByRole("link", { name: /^Ver partido/ })).toHaveAttribute("href", "/matches/sofascore-match-1?from=matches");
+  await expect(row.locator("a a")).toHaveCount(0);
+  await row.getByRole("link", { name: "Ver equipo CE Europa" }).click();
+  await expect(page).toHaveURL("/teams?team=sofascore-team-1");
+  await expect(page.getByRole("heading", { level: 2, name: "CE Europa" })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("identificado, pero no tiene estadísticas propias disponibles");
+  await expect(page.getByLabel("Balance")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 2, name: "CE Europa" })).toBeVisible();
 });
 
 test("Partidos reales: an unavailable source shows an error with retry", async ({ page }) => {
@@ -167,7 +187,7 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   page.on("request", (r) => { if (/\/api\/v1\/(competitions|matches\/[^/]+$)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
   await page.goto("/matches");
   await page.getByRole("combobox", { name: "Estado" }).selectOption("finished");
-  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
+  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link", { name: /^Ver partido/ }).first().click();
   await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?from=matches&state=finished$/);
   await expect(page.getByText("0 – 3")).toBeVisible();
   // No competition nor season in the header, no provenance block; the round and date stay.
@@ -193,7 +213,7 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   // And with the team it had, also from a match the source cannot show.
   await page.getByRole("combobox", { name: "Estado" }).selectOption("all");
   await page.getByRole("combobox", { name: "Equipo" }).selectOption("sofascore-team-3");
-  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
+  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link", { name: /^Ver partido/ }).first().click();
   await page.getByRole("link", { name: "‹ Volver a partidos" }).click();
   await expect(page).toHaveURL(/\/matches\?team=sofascore-team-3$/);
   await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("sofascore-team-3");
@@ -273,7 +293,7 @@ test("Alineaciones reales: tab with once inicial and banquillo, recorded marks, 
   // The complete journey keeps both filters through the player profile.
   await serveReal(page);
   await page.goto("/matches?team=all&state=finished");
-  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
+  await page.getByRole("list", { name: "Partidos reales" }).getByRole("link", { name: /^Ver partido/ }).first().click();
   await expect(page.getByRole("tabpanel", { name: "Resumen" })).toBeVisible();
   await expect(page.getByText("CE Europa", { exact: true }).last()).toBeVisible();
   await expect(page.getByText("Estadísticas de equipo", { exact: true })).toHaveCount(0);

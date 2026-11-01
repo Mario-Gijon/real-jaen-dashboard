@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PlayerView } from "@/features/players/PlayerView";
-import { playerInitialView, playerReturnHref, profileInitialMatch, profileOrigin } from "@/features/players/navigation";
+import { playerInitialView, playerReturnHref, playerSeasonOrigin, profileInitialMatch, profileOrigin } from "@/features/players/navigation";
 
 export const metadata: Metadata = { title: "Ficha de jugador" };
 
@@ -13,5 +13,6 @@ export default async function PlayerPage({ params, searchParams }: {
   const initial = playerInitialView(query);
   // The data mode is the API's; `view=profile` in older links decides nothing.
   return <PlayerView playerId={playerId} returnHref={playerReturnHref(seasonId, query)} seasonId={seasonId}
-    origin={profileOrigin(query)} profileMatchId={profileInitialMatch(query)} initialTab={initial.tab} seasonMatchId={initial.matchId} />;
+    origin={profileOrigin(query)} seasonOrigin={playerSeasonOrigin(query)} profileMatchId={profileInitialMatch(query)}
+    initialTab={initial.tab} seasonMatchId={initial.matchId} />;
 }

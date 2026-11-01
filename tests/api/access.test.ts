@@ -137,7 +137,7 @@ describe("access gate (proxy)", () => {
     expect(location(proxy(request("/")))).toBe(`${ORIGIN}/acceso`);
     expect(location(proxy(request("/matches/sofascore-match-1?view=observed")))).toBe(
       `${ORIGIN}/acceso?next=%2Fmatches%2Fsofascore-match-1%3Fview%3Dobserved`);
-    for (const path of ["/api/v1/source", "/api/v1/teams/team-real-jaen/observed-performance", "/api/v1/updates/current"]) {
+    for (const path of ["/api/v1/source", "/api/v1/teams/team-real-jaen/observed-performance", "/api/v1/teams/sofascore-team-135672", "/api/v1/updates/current"]) {
       const refused = proxy(request(path));
       expect(refused.status, path).toBe(401);
       expect(((await refused.json()) as ApiError).error.code).toBe("UNAUTHORIZED");

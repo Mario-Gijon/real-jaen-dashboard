@@ -16,6 +16,7 @@ import type {
   SourceInfo,
   TeamSeason,
   TeamStanding,
+  ObservedTeam,
   UpdateJob,
   UpdateStart,
   UpdateStatus,
@@ -137,6 +138,11 @@ export function getPlayer(playerId: string, seasonId: string, options?: RequestO
 /** Players seen with a team, in no season; `source` says where they come from. */
 export function getObservedPlayers(teamId: string, options?: RequestOptions) {
   return get<ObservedPlayers>(`/teams/${segment(teamId)}/players`, options);
+}
+
+/** A real team's public identity, including when it has no own statistics export. */
+export function getObservedTeam(teamId: string, options?: RequestOptions) {
+  return get<ObservedTeam>(`/teams/${segment(teamId)}`, options);
 }
 
 /** A team's observed players with their figures per competition of the real source's scope. */

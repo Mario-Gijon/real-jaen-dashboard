@@ -68,7 +68,7 @@ async function openLineups(props: { initialSection?: "summary" | "lineups" } = {
   if (!props.initialSection) await userEvent.setup().click(await screen.findByRole("tab", { name: "Alineaciones" }));
   return screen.findByRole("tabpanel", { name: "Alineaciones" });
 }
-const row = (panel: HTMLElement, name: string) => within(panel).getByText(name).closest("li")!;
+const row = (panel: HTMLElement, name: string) => within(panel).getAllByText(name, { exact: true })[0].closest("li")!;
 
 describe("Real match detail: Resumen", () => {
   it("shows the header without competition nor provenance block, and in Resumen the team stats from the source, unknown values as «—»", async () => {
@@ -83,8 +83,10 @@ describe("Real match detail: Resumen", () => {
     expect(screen.queryByText("Datos reales")).toBeNull();
     expect(screen.queryByText(SCOPE)).toBeNull();
     // Each team named above its column, «Local»/«Visitante» beneath.
-    expect(screen.getByText("CE Europa", { selector: "strong" }).nextElementSibling).toHaveTextContent("Local");
-    expect(screen.getByText("Real Jaén", { selector: "strong" }).nextElementSibling).toHaveTextContent("Visitante");
+    expect(screen.getByRole("link", { name: "CE Europa" })).toHaveAttribute("href", "/teams?team=sofascore-team-135672");
+    expect(screen.getByRole("link", { name: "Real Jaén" })).toHaveAttribute("href", "/teams?team=team-real-jaen");
+    expect(screen.getAllByText("· Local").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("· Visitante").length).toBeGreaterThan(0);
     expect(values("Posesión")).toEqual(["46 %", "54 %"]);
     expect(values("xG")).toEqual(["1,81", "1,60"]);
     expect(values("Amarillas")).toEqual(["0", "1"]);
@@ -208,7 +210,9 @@ describe("Real match detail: Alineaciones", () => {
     expect(row(panel, "Titular 1")).toHaveTextContent("1Titular 1MED");
     expect(within(panel).queryByText(/4-4-2|Formación/)).toBeNull();
     // Every listed player opens their real profile, never a synthetic season.
-    expect(within(panel).getAllByRole("link").every((link) => link.getAttribute("href")!.startsWith("/players/sofascore-player-"))).toBe(true);
+    const links = within(panel).getAllByRole("link");
+    expect(links.filter((link) => link.getAttribute("href")!.startsWith("/players/sofascore-player-")).length).toBeGreaterThan(20);
+    expect(links.filter((link) => link.getAttribute("href")!.startsWith("/teams?")).length).toBe(2);
   });
 
   it("marks goals by kind, named assists and recorded substitutions, never from minutes", async () => {

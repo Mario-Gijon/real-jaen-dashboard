@@ -53,13 +53,22 @@ describe("Inicio con la fuente real", () => {
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     const header = screen.getByRole("region", { name: "Encuentro de preparación" });
     expect(within(header).getByText("Jornada 9 · 25 oct 2026 · Primera Federación, Grupo 2 · 26/27")).toBeVisible();
-    expect(within(header).getByText("Atlético Madrileño").parentElement).toHaveTextContent("Local");
+    expect(within(header).getByRole("link", { name: "Ver equipo Atlético Madrileño" })).toHaveAttribute("href", "/teams?team=sofascore-team-24326");
+    expect(within(header).getByRole("link", { name: "Ver equipo Real Jaén" })).toHaveAttribute("href", "/teams?team=team-real-jaen");
     expect(screen.getByRole("link", { name: "Analizar Atlético Madrileño" })).toHaveAttribute("href", "/teams?team=sofascore-team-24326");
     // Inicio carries no provenance block of its own.
     expect(screen.queryByText("Datos reales")).toBeNull();
     // By date, not by round; the target and the match after it are left out.
-    expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(
-      ["107", "108", "104", "103", "102"].map((id) => `/matches/sofascore-match-${id}?from=home&match=sofascore-match-9`));
+    expect(within(list).getAllByRole("listitem").flatMap((row) => within(row).getAllByRole("link").map((l) => l.getAttribute("href")))).toEqual(
+      [
+        ["sofascore-team-2840", "107", "sofascore-team-24326"],
+        ["sofascore-team-24326", "108", "sofascore-team-2840"],
+        ["sofascore-team-2840", "104", "sofascore-team-24326"],
+        ["sofascore-team-24326", "103", "sofascore-team-2840"],
+        ["sofascore-team-2840", "102", "sofascore-team-24326"],
+      ].flatMap(([home, id, away]) => [
+        `/teams?team=${home}`, `/matches/sofascore-match-${id}?from=home&match=sofascore-match-9`, `/teams?team=${away}`,
+      ]));
     expect(screen.getByRole("heading", { level: 2, name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
     expect(within(screen.getByRole("region", { name: "Últimos 5 partidos del Atlético Madrileño" })).getByRole("link", { name: "Ver todos" }))
       .toHaveAttribute("href", "/matches?team=sofascore-team-24326");
@@ -89,7 +98,7 @@ describe("Inicio con la fuente real", () => {
     expect(await screen.findByRole("link", { name: "Analizar Algeciras CF" }, WAIT)).toBeVisible();
     const list = await recent();
     expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href")))
-      .toEqual(["/matches/sofascore-match-201?from=home&match=sofascore-match-10"]);
+      .toEqual(["/teams?team=sofascore-team-4489", "/matches/sofascore-match-201?from=home&match=sofascore-match-10", "/teams?team=sofascore-team-2840"]);
     expect(screen.getByRole("region", { name: "Último partido del Algeciras CF" })).toBeVisible();
     expect(screen.getByText(/1 de 5: son todos los partidos finalizados del rival antes del encuentro/)).toBeVisible();
   });
@@ -159,7 +168,7 @@ describe("Inicio con la fuente real", () => {
     expect(screen.getByText("1 partido sin resultado contabilizado (marcador no válido o versiones contradictorias) queda fuera de la síntesis.")).toBeVisible();
     expect(screen.getByText("1 partido del rival con fecha ya pasada sigue sin resultado en los datos importados (aplazado o sin actualizar) y no se incluye.")).toBeVisible();
     expect(screen.queryByText(/todavía no se ha/)).toBeNull();
-    expect(within(list).getByRole("link", { name: /resultado no contabilizado/ })).toHaveTextContent("Resultado no contabilizado");
+    expect(within(list).getByRole("link", { name: /resultado no contabilizado/ })).toHaveTextContent("—");
     expect(summary("Forma")).toHaveTextContent("0 V · 0 E · 2 D");
     // 107: the rival is away, its xG (away) missing and its rival's (home) 0.
     expect(await screen.findByTitle("Dato no disponible", {}, WAIT)).toHaveTextContent("—");

@@ -1,8 +1,8 @@
 /** Observed team performance and its aggregate consistency checks. */
-import { type MatchResult, type ObservedCompetitionPerformance, type ObservedTeamOutput, type ObservedTeamPerformance, type SeasonStat, type Side, TEAM_OUTPUT_INDICATORS, type TeamOutputIndicator } from "@/contract";
+import { type MatchResult, type ObservedCompetitionPerformance, type ObservedTeam, type ObservedTeamOutput, type ObservedTeamPerformance, type SeasonStat, type Side, TEAM_OUTPUT_INDICATORS, type TeamOutputIndicator } from "@/contract";
 import { baseOf, getJson, type Options, UpstreamUnavailableError } from "./http";
 import { count, invalid, isRecord, positiveId } from "./validation";
-import { matchIdFromSource, SOURCE_TEAM_IDS } from "./identifiers";
+import { matchIdFromSource, sourceTeamId, SOURCE_TEAM_IDS } from "./identifiers";
 import { PROVENANCE, type SourceCompetition, sourceDeclaration } from "./scope";
 import { teamNames, withTeamNames } from "./cache";
 import { parseMatch } from "./matches";
@@ -13,6 +13,16 @@ const TEAM_PERFORMANCE_SCOPE =
 const RESULT_KEYS: Readonly<Record<MatchResult, "wins" | "draws" | "losses">> = { win: "wins", draw: "draws", loss: "losses" };
 const resultOf = (goalsFor: number, goalsAgainst: number): MatchResult =>
   goalsFor > goalsAgainst ? "win" : goalsFor === goalsAgainst ? "draw" : "loss";
+
+/** Resolve a known public team id to its source identity without requiring its own statistics export. */
+export function createLocalApiTeamIdentity(options: Options) {
+  return async (teamId: string): Promise<ObservedTeam | null> => {
+    const sourceId = sourceTeamId(teamId);
+    if (sourceId === null) return null;
+    const name = (await teamNames(options, [sourceId])).get(sourceId) ?? null;
+    return name ? { id: teamId, name } : null;
+  };
+}
 
 /** Highest valid per-match average of each indicator: a percentage for possession, unbounded otherwise. */
 const OUTPUT_LIMIT: Partial<Record<TeamOutputIndicator, number>> = { possession: 100 };

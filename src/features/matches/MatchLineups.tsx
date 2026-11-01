@@ -1,6 +1,8 @@
 import { ArrowLeftRight, ArrowUp } from "lucide-react";
+import Link from "next/link";
 import type { LineupPlayer, MatchDetail, SubstitutionEvent } from "@/contract";
 import { MISSING, POSITION_SHORT, positionLabel } from "@/lib/format";
+import { teamsHref } from "@/lib/navigation";
 import { GoalIcon } from "./GoalIcon";
 import { AssistIcon } from "./AssistIcon";
 import { PlayerLink } from "../players/PlayerLink";
@@ -38,7 +40,7 @@ export function MatchLineups({ match }: { match: MatchDetail }) {
       return <section key={side} aria-labelledby={`lineup-${side}-team`} className={css.team}>
         <header className={css.identity}>
           <div className={css.teamTitle}>
-            <h2 id={`lineup-${side}-team`}>{team.name}</h2>
+            <h2 id={`lineup-${side}-team`}><Link href={teamsHref({ seasonId: match.seasonId, teamId: team.id })}>{team.name}</Link></h2>
             <span className={css.side}>· {side === "home" ? "Local" : "Visitante"}</span>
           </div>
           {lineup.formation ? <p className={css.formation}>Formación: {lineup.formation}</p> : null}
@@ -78,7 +80,8 @@ function PlayerList({ players, changes, contributions, substitutedPlayers, label
           <span className={css.change} aria-label={`Entra en el minuto ${minute}`}>
             <ArrowUp size={14} aria-hidden="true" /><span>{minute}</span>
           </span>
-          <span className={css.replaced}>Sale · {event.playerOut.name}</span>
+          <span className={css.replaced}>Sale · <PlayerLink player={event.playerOut} seasonId={seasonId} className={css.name}
+            origin={{ kind: "match", id: matchId, tab: "lineups" }} /></span>
         </span>;
       })}
     </li>)}

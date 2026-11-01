@@ -259,7 +259,10 @@ describe("Rendimiento del equipo", () => {
       "m-1",
     ]);
     expect(highlighted()).toEqual([]);
-    for (const row of rows()) expect(within(row).getByRole("link")).toHaveAttribute("href", `/matches/${row.getAttribute("data-match-id")}`);
+    for (const row of rows()) {
+      expect(within(row).getByRole("link", { name: /^Ver equipo/ })).toHaveAttribute("href", expect.stringMatching(/^\/teams\?season=/));
+      expect(within(row).getByRole("link", { name: /^Ver partido/ })).toHaveAttribute("href", `/matches/${row.getAttribute("data-match-id")}?from=teams&season=${SEASON_ID}&team=team-real-jaen`);
+    }
     expect(rows()[1]).toHaveTextContent("D 1-2");
     expect(rows()[1]).toHaveTextContent("Local");
     expect(rows()[0]).toHaveTextContent("Visitante");
@@ -267,7 +270,7 @@ describe("Rendimiento del equipo", () => {
     await user.click(screen.getByRole("button", { name: "Últimos 3" }));
     expect(rows()).toHaveLength(4);
     expect(highlighted()).toEqual(["m-6", "m-3", "m-2"]);
-    for (const row of rows()) expect(within(row).getByRole("link")).toHaveAttribute("href", `/matches/${row.getAttribute("data-match-id")}`);
+    for (const row of rows()) expect(within(row).getByRole("link", { name: /^Ver partido/ })).toHaveAttribute("href", `/matches/${row.getAttribute("data-match-id")}?from=teams&season=${SEASON_ID}&team=team-real-jaen`);
     expect(rows()[0]).toHaveTextContent("(en «Últimos 3»)");
     expect(zone("Partidos")).not.toHaveTextContent("Partidos de «Últimos 3»");
   });

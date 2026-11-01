@@ -39,6 +39,16 @@ export function teamIdFromSource(sourceId: number): string {
   return mapped ? mapped[0] : `sofascore-team-${sourceId}`;
 }
 
+/** The source id behind one of our public team ids; `null` for an unknown format. */
+export function sourceTeamId(teamId: string): number | null {
+  const mapped = SOURCE_TEAM_IDS[teamId];
+  if (mapped !== undefined) return mapped;
+  const match = /^sofascore-team-([1-9]\d*)$/.exec(teamId);
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
 const MATCH_ID_PREFIX = "sofascore-match-";
 export const matchIdFromSource = (sourceId: number) => `${MATCH_ID_PREFIX}${sourceId}`;
 

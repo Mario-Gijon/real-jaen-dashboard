@@ -117,6 +117,7 @@ const keeper: ObservedPlayerMatch = {
 };
 const history = () => screen.getByRole("list", { name: "Histórico de partidos" });
 const rowButtons = () => within(history()).getAllByRole("button");
+const rowItems = () => within(history()).getAllByRole("listitem");
 const detail = () => screen.getByRole("region", { name: "Detalle del partido" });
 const metric = (label: string) => within(detail()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
 
@@ -130,19 +131,23 @@ async function loadMatches(matches: ObservedPlayerMatch[], props: Partial<Parame
 describe("Partidos (real)", () => {
   it("lists compact cards with round, opponent and home–away score, keeping the supplied order and default selection", async () => {
     await loadMatches([benched, played]);
-    const [first, second] = rowButtons();
+    const [first, second] = rowItems();
     expect(first).toHaveTextContent("J2Equipo sin identificar2–2");
     expect(second).toHaveTextContent("J1090′Rayo Majadahonda1–0");
     expect(within(second).getByLabelText("90 minutos jugados")).toBeVisible();
     expect(within(first).queryByLabelText(/minutos jugados/)).toBeNull();
     expect(within(first).getByRole("img", { name: "Visitante" })).toBeVisible();
     expect(within(second).getByRole("img", { name: "Local" })).toBeVisible();
+    expect(within(first).getByRole("link", { name: "Ver equipo Equipo sin identificar" })).toHaveAttribute("href", "/teams?team=sofascore-team-7");
+    expect(within(second.firstElementChild as HTMLElement).getByRole("link", { name: "Ver equipo Rayo Majadahonda" }))
+      .toHaveAttribute("href", "/teams?team=sofascore-team-9");
+    expect(first.querySelector("button a, a button")).toBeNull();
     expect(within(detail()).getAllByText("Local", { exact: true })).toHaveLength(1);
     expect(screen.queryByText("Ir a jornada", { exact: true })).toBeNull();
     expect(screen.queryByText(/No participó/)).toBeNull();
     // Without a selection, the newest confirmed appearance, not the newest call-up.
-    expect(second).toHaveAttribute("aria-pressed", "true");
-    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(within(second).getByRole("button")).toHaveAttribute("aria-pressed", "true");
+    expect(within(first).getByRole("button")).toHaveAttribute("aria-pressed", "false");
     expect(within(detail()).getByText("Delantero", { selector: "span" })).toBeVisible();
     expect(within(detail()).getByText("90 min")).toBeVisible();
     expect(screen.queryByText(/Valoración|Copa del Rey|26\/27|25\/26/)).toBeNull();
@@ -256,7 +261,7 @@ describe("Partidos (real)", () => {
     expect(within(detail()).getByText("Suplente", { selector: "span" })).toBeVisible();
     expect(within(detail()).getByText("0 min")).toBeVisible();
     expect(within(detail()).queryByRole("term")).toBeNull();
-    expect(rowButtons()[0]).toHaveTextContent("J20′Equipo sin identificar2–2");
+    expect(rowItems()[0]).toHaveTextContent("J20′Equipo sin identificar2–2");
   });
 
   it("changes the selected match in place and keeps it in the URL without navigating", async () => {
@@ -266,7 +271,7 @@ describe("Partidos (real)", () => {
     await userEvent.setup().click(second);
     expect(second).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("combobox", { name: "Ir a jornada" })).toHaveValue(benched.match.id);
-    expect(within(detail()).getByText(/Equipo sin identificar ·/)).toBeVisible();
+    expect(within(detail()).getByRole("link", { name: "Equipo sin identificar" })).toHaveAttribute("href", "/teams?team=sofascore-team-7");
     expect(replace).toHaveBeenLastCalledWith(window.history.state, "", expect.stringContaining("match=sofascore-match-2"));
     replace.mockRestore();
   });

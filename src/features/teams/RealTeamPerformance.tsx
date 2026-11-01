@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ObservedCompetitionPerformance } from "@/contract";
 import { observedCrest } from "@/lib/team-crests";
+import { teamsHref } from "@/lib/navigation";
 import type { Period } from "./performance";
 import { TeamOutput } from "./TeamOutput";
 import { OutputZone, PlayedZone, SeasonZone, signed, type BalanceItem, type Played } from "./TeamPerformanceParts";
@@ -26,6 +27,7 @@ export function RealTeamPerformance({ competition, matchHref }: {
     id: match.id, round: match.round, kickoff: match.kickoff, side, result, goalsFor, goalsAgainst,
     opponent: { id: (side === "home" ? match.away : match.home).id, ...observedCrest(side === "home" ? match.away : match.home) },
     href: matchHref ? matchHref(match.id) : null,
+    opponentHref: teamsHref({ teamId: (side === "home" ? match.away : match.home).id }),
   }));
   const balance: BalanceItem[] = [
     ["PJ", "Partidos jugados", record.played],

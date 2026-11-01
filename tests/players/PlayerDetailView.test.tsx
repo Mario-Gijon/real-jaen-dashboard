@@ -102,7 +102,7 @@ describe("Player season detail", () => {
     expect(getPlayer).toHaveBeenCalledTimes(1);
     expect(getPlayer).toHaveBeenCalledWith("player", "season", expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(screen.getByLabelText("Dorsal 14")).toBeVisible();
-    expect(screen.getByText(/Real Jaén CF · 2026\/27/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Real Jaén CF" })).toHaveAttribute("href", "/teams?season=season&team=team");
     expect(metric("Participación", "PJ")).toHaveTextContent("3");
     expect(metric("Participación", "Titularidades")).toHaveTextContent("2");
     expect(metric("Participación", "Minutos")).toHaveTextContent("210");
@@ -203,8 +203,12 @@ describe("Player season detail", () => {
     expect(rows[1]).toHaveTextContent("90+3′");
     expect(within(history).getByLabelText("Gol en el minuto 90+3")).toBeVisible();
     expect(rows[0]).toHaveTextContent("J14 · vs CD Rival de Nombre Largo");
+    expect(within(rows[0]).getByRole("link", { name: "CD Rival de Nombre Largo" })).toHaveAttribute("href", "/teams?season=season&team=rival");
     expect(rows[0]).toHaveTextContent("Visitante");
-    expect(within(history).getAllByLabelText("Resultado local–visitante: 2–1")).toHaveLength(2);
+    expect(within(history).getAllByRole("link", { name: "Ver partido: CD Rival de Nombre Largo contra Real Jaén CF" })).toHaveLength(2);
+    expect(within(rows[0]).getByRole("link", { name: "Ver partido: CD Rival de Nombre Largo contra Real Jaén CF" }))
+      .toHaveAttribute("href", "/matches/match-14?from=player&player=player&season=season");
+    expect(rows[0].querySelector("a a")).toBeNull();
     expect(screen.queryByRole("button", { name: /vídeo|clip/i })).toBeNull();
     expect(screen.queryByText(/Sin vídeo/)).toBeNull();
   });

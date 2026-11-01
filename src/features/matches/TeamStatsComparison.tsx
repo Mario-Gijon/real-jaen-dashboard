@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Stat, TeamMatchStats, TeamStatKey } from "@/contract";
 import { statText } from "@/lib/format";
 import css from "./MatchDetailView.module.css";
@@ -13,13 +14,14 @@ const METRICS: readonly { key: TeamStatKey; label: string; decimals?: number }[]
   { key: "redCards", label: "Rojas" },
 ];
 
-export type StatsSide = { label: string; name: string; stats: TeamMatchStats };
+export type StatsSide = { label: string; name: string; stats: TeamMatchStats; href?: string };
 
 /** Home and away team stats face to face; a missing value reads «—», a real 0 reads «0». */
 export function TeamStatsComparison({ home: homeSide, away: awaySide }: { home: StatsSide; away: StatsSide }) {
   return <>
-    <div className={css.legend} aria-hidden="true">
-      <span><strong>{homeSide.label}</strong><span> · Local</span></span><span><strong>{awaySide.label}</strong><span> · Visitante</span></span>
+    <div className={css.legend}>
+      <span>{homeSide.href ? <Link href={homeSide.href}><strong>{homeSide.label}</strong></Link> : <strong>{homeSide.label}</strong>}<span> · Local</span></span>
+      <span>{awaySide.href ? <Link href={awaySide.href}><strong>{awaySide.label}</strong></Link> : <strong>{awaySide.label}</strong>}<span> · Visitante</span></span>
     </div>
     <dl className={css.metrics}>
       {METRICS.map(({ key, label, decimals = 0 }) => {

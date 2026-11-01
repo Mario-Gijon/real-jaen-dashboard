@@ -4,6 +4,7 @@ import type { ObservedGoal, ObservedLineupPlayer, ObservedMatch, ObservedMatchDe
 import { Button } from "@/ui/Button";
 import { MISSING, POSITION_SHORT, formatNumber, positionLabel } from "@/lib/format";
 import { playerProfileHref } from "../players/navigation";
+import { teamsHref } from "@/lib/navigation";
 import type { ObservedMatchListOrigin } from "@/lib/navigation";
 import linkCss from "../players/PlayerLink.module.css";
 import { AssistIcon } from "./AssistIcon";
@@ -94,7 +95,7 @@ export function ObservedLineups({ match, confirmed, home, away, linkProfiles, in
         return <section key={side} aria-labelledby={`real-lineup-${side}`} className={css.team}>
           <header className={css.identity}>
             <div className={css.teamTitle}>
-              <h3 id={`real-lineup-${side}`}>{name}</h3>
+              <h3 id={`real-lineup-${side}`}><Link href={teamsHref({ teamId: match[side].id })}>{name}</Link></h3>
               <span className={css.side}>· {side === "home" ? "Local" : "Visitante"}</span>
             </div>
           </header>
@@ -152,7 +153,11 @@ function PlayerList({ players, label, matchId, linkProfiles, marks, matchesOrigi
           <span className={css.change} aria-label={minuteLabel(entered) ? `Entra en el minuto ${minuteLabel(entered)}` : "Entra, minuto no disponible"}>
             <ArrowUp size={14} aria-hidden="true" /><span>{minuteLabel(entered) ?? MISSING}</span>
           </span>
-          <span className={css.replaced}>Sale · {entered.playerOut?.name ?? "jugador no indicado"}</span>
+          <span className={css.replaced}>Sale · {entered.playerOut
+            ? linkProfiles ? <Link className={`${linkCss.link} ${css.name}`} prefetch={false}
+              href={playerProfileHref(entered.playerOut.id, null, { kind: "observedMatch", id: matchId, tab: "lineups", matches: matchesOrigin })}>{entered.playerOut.name}</Link>
+              : entered.playerOut.name
+            : "jugador no indicado"}</span>
         </span> : null}
       </li>;
     })}

@@ -40,6 +40,10 @@ async function load(data = profile, initialMatchId: string | null = null) {
 }
 function detail() { return screen.getByRole("region", { name: "Detalle del partido" }); }
 function history() { return screen.getByRole("list", { name: "Histórico de partidos" }); }
+function historyItem(round: number) {
+  return within(history()).getAllByRole("listitem").find(item => item.textContent?.includes("J" + round))!;
+}
+function historyRow(round: number) { return historyItem(round).firstElementChild as HTMLElement; }
 function metric(label: string) { return within(detail()).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement; }
 
 describe("Player matches", () => {
@@ -58,6 +62,9 @@ describe("Player matches", () => {
     expect(rows[2]).toHaveTextContent("Titular · 90′");
     expect(rows[1]).not.toHaveTextContent(/\d+′/);
     expect(rows[0]).toHaveTextContent("Real Jaén CF · CD Rival");
+    expect(within(historyRow(3)).getByRole("link", { name: "Real Jaén CF" })).toHaveAttribute("href", "/teams?season=season&team=team");
+    expect(within(historyRow(3)).getByRole("link", { name: "CD Rival" })).toHaveAttribute("href", "/teams?season=season&team=rival");
+    expect(historyRow(3).querySelector("button a, a button")).toBeNull();
     expect(rows[0]).toHaveTextContent("Local");
     expect(rows[1]).toHaveTextContent("No participó");
     expect(within(rows[1]).queryByRole("button")).toBeNull();
@@ -79,7 +86,7 @@ describe("Player matches", () => {
     expect(within(detail()).getByRole("link", { name: "Ver partido completo" })).toHaveAttribute("href", "/matches/match-1");
     expect(within(older).queryByRole("link")).toBeNull();
     const inline = screen.getByRole("region", { name: "Detalle inline del partido" });
-    expect(inline.parentElement).toBe(older.parentElement);
+    expect(inline.parentElement).toBe(older.closest("li"));
     expect(inline).toHaveTextContent("J1 · vs CD Rival");
     expect(older).toHaveAttribute("aria-expanded", "true");
   });
@@ -103,7 +110,6 @@ describe("Player matches", () => {
     ["below the visible page portion", 320, 380, 350, 230],
   ])("reveals an initially requested row %s the internal viewport without scrolling the page", async (_position, top, bottom, viewportHeight, expectedScroll) => {
     const pageScroll = vi.spyOn(window, "scrollTo");
-    const original = Element.prototype.getBoundingClientRect;
     const isHistory = (element: Element) => element.getAttribute("aria-label") === "Histórico de partidos";
     // The history is a scrollable 300px viewport, already scrolled by 200px.
     vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) { return isHistory(this) ? 1000 : 0; });
@@ -115,8 +121,8 @@ describe("Player matches", () => {
         if (!this.hasAttribute("data-scrolled")) { this.setAttribute("data-scrolled", ""); this.scrollTop = 200; }
         return { top: 100, bottom: 400 } as DOMRect;
       }
-      if (this instanceof HTMLButtonElement && this.dataset.matchId === "match-1") return { top, bottom } as DOMRect;
-      return original.call(this);
+      if (this instanceof HTMLElement && this.dataset.matchId === "match-1") return { top, bottom } as DOMRect;
+      return { top: 100, bottom: 100 } as DOMRect;
     });
     await load(profile, "match-1");
     // The reveal runs in a passive effect after the history is rendered.
@@ -162,7 +168,7 @@ describe("Player matches", () => {
     const label = reason === "not_collected" ? "Dato no recogido" : "Dato no disponible";
     expect(within(metric("Pases")).getByLabelText(label)).toHaveTextContent("—");
     expect(metric("Pases")).not.toHaveTextContent("0");
-    expect(within(history()).getByRole("button", { name: /J3.*Suplente|J3.*Titular/ })).toHaveTextContent("Titular · —");
+    expect(historyItem(3)).toHaveTextContent("Titular · —");
   });
 
   it("shows goals and credited assists in the row and preserves action added time", async () => {
@@ -171,7 +177,7 @@ describe("Player matches", () => {
       goal("g1"), goal("g2", { minute: 88, penalty: true }),
       goal("assist", { player: scorer, assist: player, minute: 90, addedTime: 3 }),
     ])] });
-    const row = within(history()).getByRole("button", { name: /J3/ });
+    const row = historyItem(3);
     expect(within(row).getByLabelText("2 goles")).toBeVisible();
     expect(within(row).getByLabelText("1 asistencia")).toBeVisible();
     expect(within(row).getByLabelText("1 asistencia").parentElement?.parentElement).toHaveTextContent("Suplente · 4′");
@@ -185,7 +191,7 @@ describe("Player matches", () => {
 
   it("shows an own goal explicitly as an action without counting it as an individual goal", async () => {
     await load({ ...profile, matches: [appearance(3, true, 90, [goal("own", { ownGoal: true })])] });
-    const row = within(history()).getByRole("button", { name: /J3/ });
+    const row = historyItem(3);
     expect(within(row).queryByLabelText(/\d+ goles?/)).toBeNull();
     expect(detail()).toHaveTextContent("Gol en propia puerta");
   });
@@ -197,7 +203,7 @@ describe("Player matches", () => {
     const label = card === "yellow" ? "Amarilla" : card === "second_yellow" ? "Segunda amarilla" : "Roja";
     expect(within(detail()).getByRole("region", { name: "Acciones" })).toHaveTextContent(label);
     expect(detail()).toHaveTextContent("45+2′");
-    expect(within(history()).getByRole("button", { name: /J3/ })).not.toHaveTextContent(label);
+    expect(historyRow(3)).not.toHaveTextContent(label);
   });
 
   it.each([true, false])("shows substitution direction for entering=%s", async enters => {
@@ -212,7 +218,7 @@ describe("Player matches", () => {
 
   it("keeps a genuine zero-minute appearance selectable", async () => {
     await load({ ...profile, matches: [appearance(3, false, 0)] });
-    expect(within(history()).getByRole("button", { name: /J3/ })).toHaveTextContent("Suplente · 0′");
+    expect(historyItem(3)).toHaveTextContent("Suplente · 0′");
     expect(detail()).toHaveTextContent("Suplente · 0′");
   });
 
@@ -251,7 +257,7 @@ describe("Player matches", () => {
     it("selects a finished team match without appearance and shows nonparticipation without stats or reasons", async () => {
       await load(profile, "match-2");
       const row = within(history()).getAllByRole("listitem")[1];
-      expect(row.firstElementChild).toHaveAttribute("aria-current", "true");
+      expect(row.firstElementChild).toHaveAttribute("data-selected", "true");
       expect(row).toHaveTextContent("No participó");
       expect(within(history()).getAllByRole("button").every(button => button.getAttribute("aria-pressed") === "false")).toBe(true);
       for (const region of [detail(), screen.getByRole("region", { name: "Detalle inline del partido" })]) {

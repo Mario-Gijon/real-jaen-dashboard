@@ -3,6 +3,15 @@ import { SAFE_ID, matchesState, type ObservedMatchListOrigin } from "./state";
 
 export type PlayerOrigin = { kind: "team"; id: string } | { kind: "match"; id: string; tab: "lineups" | "timeline" };
 
+/** The demonstration player origin represented by an existing player URL. */
+export function playerSeasonOrigin(query: { from?: unknown; origin?: unknown; originTab?: unknown }): PlayerOrigin | null {
+  if (typeof query.origin !== "string" || !SAFE_ID.test(query.origin)) return null;
+  if (query.from === "team") return { kind: "team", id: query.origin };
+  if (query.from === "match") return { kind: "match", id: query.origin,
+    tab: query.originTab === "lineups" ? "lineups" : "timeline" };
+  return null;
+}
+
 export type PlayerTab = "season" | "matches";
 
 /** A player reached from a match opens its Partidos tab on that match; any other origin opens Temporada. */

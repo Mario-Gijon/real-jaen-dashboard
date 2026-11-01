@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ApiRequestError, getObservedMatchDetail, getTeamObservedMatches, getTeamObservedPerformance } from "@/client/api";
 import type { ObservedMatch, ObservedTeam } from "@/contract";
 import { CLUB_ID } from "@/lib/club";
-import { homeHref, observedMatchHref, teamsHref } from "@/lib/navigation";
+import { homeHref, matchesHref, observedMatchHref, teamsHref } from "@/lib/navigation";
 import { observedCrest } from "@/lib/team-crests";
 import { useApi } from "@/hooks/use-api";
 import { daysUntil, preparationChoices, preparationSummary, upcomingMatches } from "./preparation";
@@ -13,7 +13,7 @@ import { fixtureLabel, HistorySection, LoadError, TargetSection, type Expectatio
 import { orientedTeamStats, rivalHistory, unconfirmedClubMatches } from "./real-preparation";
 import css from "./HomeView.module.css";
 
-const crestTeam = (team: ObservedTeam) => ({ id: team.id, ...observedCrest(team) });
+const crestTeam = (team: ObservedTeam) => ({ id: team.id, ...observedCrest(team), href: teamsHref({ teamId: team.id }) });
 /** Only dated matches become fixtures (`upcomingMatches` and `preparationHistory` keep no other). */
 const fixture = (match: ObservedMatch): Fixture =>
   ({ id: match.id, round: match.round, kickoff: match.kickoff!, home: crestTeam(match.home), away: crestTeam(match.away) });
@@ -122,6 +122,6 @@ function RealHistory({ history, details, targetId, rival }: {
     undatedFinished ? `${plural(undatedFinished, "partido finalizado sin fecha no se incluye", "partidos finalizados sin fecha no se incluyen")}: no se puede situar antes del encuentro.` : null,
   ].filter((line): line is string => line !== null);
   return <HistorySection team={rival.name} rows={rows} summary={counted.length ? form : null} expectation={expectation}
-    allHref={`/matches?${new URLSearchParams({ team: rival.id })}`}
+  allHref={matchesHref({ teamId: rival.id })}
     coverage={coverage.length ? <div className={css.notes}>{coverage.map(line => <p key={line}>{line}</p>)}</div> : null} />;
 }

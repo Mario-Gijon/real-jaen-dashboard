@@ -31,5 +31,10 @@ export function TeamsView(serverView: Props) {
   if (!source.data) return <>
     <p className={css.status} role="status">Cargando equipos…</p>
   </>;
-  return source.data.synthetic ? <SyntheticTeamsView {...props} /> : <RealTeamsView {...props} />;
+  // Search-param links can change the entity without leaving /teams. Remount
+  // the view from the URL so its selected team, season and tab stay in sync.
+  const viewKey = [props.initialTeamId ?? "", props.initialSeasonId ?? "", props.initialTab ?? "performance"].join("|");
+  return source.data.synthetic
+    ? <SyntheticTeamsView key={viewKey} {...props} />
+    : <RealTeamsView key={viewKey} {...props} />;
 }

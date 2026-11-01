@@ -203,8 +203,9 @@ test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, si
 
   // Each played match opens its real detail.
   const table = page.getByRole("table", { name: "Partidos disputados" });
-  await expect(table.getByRole("link")).toHaveCount(3);
-  await expect(table.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-5?from=teams");
+  await expect(table.getByRole("link", { name: /^Ver equipo/ })).toHaveCount(3);
+  await expect(table.getByRole("link", { name: /^Ver partido/ })).toHaveCount(3);
+  await expect(table.getByRole("link", { name: /^Ver partido/ }).first()).toHaveAttribute("href", "/matches/sofascore-match-5?from=teams");
   expect(synthetic).toEqual([]);
 });
 
@@ -388,7 +389,7 @@ test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la 
   expect(await entries()).toBe(before);
 
   // UD Ibiza → a match → Back: the same team, season and tab.
-  await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link").first().click();
+  await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link", { name: /^Ver partido/ }).first().click();
   await expect(page).toHaveURL(/\/matches\/sofascore-match-\d+[?]from=teams&team=sofascore-team-24368$/);
   await page.goBack();
   await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
@@ -396,7 +397,7 @@ test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la 
   await expect(page.getByRole("tab", { name: "Rendimiento del equipo" })).toHaveAttribute("aria-selected", "true");
 
   // «Volver al equipo» returns there too, not to Partidos.
-  await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link").first().click();
+  await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link", { name: /^Ver partido/ }).first().click();
   await page.getByRole("link", { name: "‹ Volver al equipo" }).click();
   await expect(page).toHaveURL(/\/teams[?]team=sofascore-team-24368$/);
   await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
@@ -417,7 +418,8 @@ test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la 
 
   // An unknown or unavailable team: an explicit state, never the club in its place.
   await page.goto("/teams?team=team-montealto");
-  await expect(page.getByText(/no está disponible en la fuente real de equipos/)).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("La fuente real no pudo resolver la identidad de este equipo.");
+  await expect(page.getByRole("link", { name: "Ver el Real Jaén" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Real Jaén" })).toHaveCount(0);
   await expect(page).toHaveURL(/\/teams[?]team=team-montealto$/);
   expect(await noHorizontalOverflow(page)).toBe(true);

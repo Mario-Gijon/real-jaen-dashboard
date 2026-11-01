@@ -8,6 +8,7 @@ import {
   createLocalApiPlayerProfile,
   createLocalApiMatchDetail,
   createLocalApiTeamMatches,
+  createLocalApiTeamIdentity,
   createLocalApiTeamPerformance,
   sourceMatchId,
   sourcePlayerId,
@@ -42,6 +43,23 @@ const source = (fetch: typeof globalThis.fetch, timeoutMs?: number) =>
 
 beforeEach(() => clearTeamNameCache());
 afterEach(() => vi.restoreAllMocks());
+
+describe("local API adapter: public team identity", () => {
+  it("resolves a team with an explicit correspondence but no assumption about its statistics export", async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ data: { team_id: 135672, name: "CE Europa" } })));
+    const identity = createLocalApiTeamIdentity({ baseUrl: "http://127.0.0.1:8001", fetch });
+    expect(await identity("sofascore-team-135672")).toEqual({ id: "sofascore-team-135672", name: "CE Europa" });
+    expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:8001/api/v1/teams/135672", expect.anything());
+  });
+
+  it("does not infer or request identities for unknown id formats or unnamed records", async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ data: { team_id: 2841, name: null } })));
+    const identity = createLocalApiTeamIdentity({ baseUrl: "http://127.0.0.1:8001", fetch });
+    expect(await identity("team-guess-by-name")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await identity("team-real-jaen")).toBeNull();
+  });
+});
 
 describe("local API adapter: observed players", () => {
   it("asks for the source id of our team and returns contract players with derived ids", async () => {

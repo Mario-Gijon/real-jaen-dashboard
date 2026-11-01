@@ -3,9 +3,9 @@
  * module so the internal parsing and transport modules can evolve independently.
  */
 export { DEFAULT_TIMEOUT_MS, UpstreamUnavailableError } from "./http";
-export { publicMatchId, sourceMatchId, playerIdFromSource, sourcePlayerId } from "./identifiers";
+export { publicMatchId, sourceMatchId, playerIdFromSource, sourcePlayerId, sourceTeamId } from "./identifiers";
 export { clearTeamNameCache } from "./cache";
 export { createLocalApiObservedPlayers, createLocalApiPlayerProfile, createLocalApiObservedSquad } from "./players";
 export { createLocalApiObservedMatches, createLocalApiTeamMatches } from "./matches";
-export { createLocalApiTeamPerformance } from "./teams";
+export { createLocalApiTeamIdentity, createLocalApiTeamPerformance } from "./teams";
 export { createLocalApiMatchDetail } from "./match-detail";

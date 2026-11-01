@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { MatchStatus, ObservedMatch, ObservedTeam } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { CLUB_ID } from "@/lib/club";
-import { observedMatchHref } from "@/lib/navigation";
+import { observedMatchHref, teamsHref } from "@/lib/navigation";
 import { dateLabel } from "@/lib/format";
 import { observedCrest } from "@/lib/team-crests";
 import css from "./MatchList.module.css";
@@ -38,13 +38,7 @@ export function ObservedMatchList({ matches, matchHref = (matchId) => observedMa
         const seasonRound = [match.season, match.round !== null ? `J${match.round}` : null].filter(Boolean).join(" · ");
         return (
           <li key={match.id}>
-            <Link
-              className={css.match}
-              data-observed=""
-              href={matchHref(match.id)}
-              prefetch={false}
-              aria-label={`${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.season, match.round !== null ? `jornada ${match.round}` : null].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}
-            >
+            <div className={css.match} data-observed="">
               <div className={css.meta}>
                 {/* The competition stays in the data; while every match is of the same one, it is not repeated per row. */}
                 {seasonRound ? <span className={css.round}>{seasonRound}</span> : null}
@@ -52,11 +46,15 @@ export function ObservedMatchList({ matches, matchHref = (matchId) => observedMa
               </div>
               <Team team={match.home} side="home" />
               <div className={css.center}>
-                <strong className={match.status === "finished" && match.score ? css.result : css.postponed}>{central}</strong>
+                <Link className={match.status === "finished" && match.score ? css.result : css.postponed}
+                  href={matchHref(match.id)} prefetch={false}
+                  aria-label={`Ver partido ${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.season, match.round !== null ? `jornada ${match.round}` : null].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}>
+                  {central}
+                </Link>
                 {state ? <span className={css.state}>{state}</span> : null}
               </div>
               <Team team={match.away} side="away" />
-            </Link>
+            </div>
           </li>
         );
       })}
@@ -68,11 +66,11 @@ export function ObservedMatchList({ matches, matchHref = (matchId) => observedMa
 function Team({ team, side }: { team: ObservedTeam; side: "home" | "away" }) {
   const name = team.name ?? "Equipo sin identificar";
   const club = team.id === CLUB_ID;
-  return <span className={`${css.team} ${css[side]}`}>
+  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ teamId: team.id })} aria-label={`Ver equipo ${name}`}>
     <TeamCrest team={observedCrest(team)} size={40} />
     <span className={css.name} data-club={club || undefined}>
       <span className={css.fullName}>{name}</span>
       <span className={css.shortName}>{name}</span>
     </span>
-  </span>;
+  </Link>;
 }

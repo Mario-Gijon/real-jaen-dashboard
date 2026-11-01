@@ -8,7 +8,7 @@ import { Button } from "@/ui/Button";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "@/lib/format";
-import { relatedObservedMatchHref, matchesInitialState, type ObservedMatchListOrigin } from "@/lib/navigation";
+import { relatedObservedMatchHref, matchesInitialState, teamsHref, type ObservedMatchListOrigin } from "@/lib/navigation";
 import { useApi } from "@/hooks/use-api";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { ObservedLineups } from "./ObservedLineups";
@@ -103,12 +103,12 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
         </time> : <span>Fecha por definir</span>}
       </p>
       <div className={css.fixture}>
-        <Team team={match.home} side="home" />
+      <Team team={match.home} side="home" />
         <div className={css.center}>
           <strong className={css.result} data-state={match.status === "finished" && match.score ? "finished" : "scheduled"}>{central}</strong>
           <span className={css.state}>{state}</span>
         </div>
-        <Team team={match.away} side="away" />
+      <Team team={match.away} side="away" />
       </div>
     </header>
     {data.localReplacement ? <div className={css.provenance}>
@@ -176,8 +176,8 @@ function Summary({ data: { match, statistics }, retry }: { data: ObservedMatchDe
   const away = match.away.name ?? "Equipo sin identificar";
   return <>
     {statistics.state === "stored" ? <>
-      <TeamStatsComparison home={{ label: home, name: home, stats: statistics.home }}
-        away={{ label: away, name: away, stats: statistics.away }} />
+      <TeamStatsComparison home={{ label: home, name: home, href: teamsHref({ teamId: match.home.id }), stats: statistics.home }}
+        away={{ label: away, name: away, href: teamsHref({ teamId: match.away.id }), stats: statistics.away }} />
       {statistics.fetchedAt ? <p className={css.fetched}>Obtenidas de la fuente el {dateLabel(statistics.fetchedAt)}.</p> : null}
     </>
       : statistics.state === "error" ? <div role="alert" className={css.sectionError}>
@@ -216,8 +216,9 @@ function Lineups({ data: { match, lineups, incidents }, retry, linkProfiles, mat
 }
 
 function Team({ team, side }: { team: ObservedTeam; side: "home" | "away" }) {
-  return <div className={`${css.team} ${css[side]}`}>
+  const name = observedCrest(team).name;
+  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ teamId: team.id })} aria-label={`Ver equipo ${name}`}>
     <TeamCrest team={observedCrest(team)} size={52} />
-    <span>{observedCrest(team).name}</span>
-  </div>;
+    <span>{name}</span>
+  </Link>;
 }

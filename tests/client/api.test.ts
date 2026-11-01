@@ -5,6 +5,7 @@ import {
   getMatch,
   getObservedMatchDetail,
   getObservedPlayers,
+  getObservedTeam,
   getPlayer,
   getPlayerObservedMatches,
   getPlayerProfile,
@@ -38,6 +39,7 @@ describe("typed client", () => {
     await getTeamSeason("s1", "team-a");
     await getPlayer("p1", "s1");
     await getObservedPlayers("team a");
+    await getObservedTeam("sofascore-team-135672");
     await getPlayerProfile("sofascore-player-1");
     await getPlayerObservedMatches("sofascore-player-1");
     await getTeamObservedMatches("team-real-jaen");
@@ -52,6 +54,7 @@ describe("typed client", () => {
       "/api/v1/seasons/s1/teams/team-a",
       "/api/v1/players/p1?season=s1",
       "/api/v1/teams/team%20a/players",
+      "/api/v1/teams/sofascore-team-135672",
       "/api/v1/players/sofascore-player-1/profile",
       "/api/v1/players/sofascore-player-1/observed-matches",
       "/api/v1/teams/team-real-jaen/observed-matches",

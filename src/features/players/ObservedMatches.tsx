@@ -7,6 +7,7 @@ import type { ObservedMatchStatKey, ObservedPlayerMatch, ObservedPlayerMatches, 
 import { Button } from "@/ui/Button";
 import { Select } from "@/ui/Select";
 import { dateLabel, positionLabel, statText } from "@/lib/format";
+import { teamsHref } from "@/lib/navigation";
 import { revealMatch } from "./reveal-match";
 import sections from "../teams/TeamPerformance.module.css";
 import output from "../teams/TeamOutput.module.css";
@@ -129,17 +130,20 @@ export function ObservedMatches({ load, usualPosition, initialMatchId = null, ma
         {rows.map(row => {
           const active = selected?.match.id === row.match.id;
           return <li key={row.match.id}>
-            <button type="button" className={css.matchCard} data-match-id={row.match.id}
-              aria-pressed={active} aria-controls="player-match-detail-panel"
-              onClick={() => select(row.match.id)}>
+            <div className={css.matchCard} data-match-id={row.match.id} data-selected={active || undefined}>
+              <button type="button" className={css.matchSelect} aria-label={"Seleccionar " + matchOption(row, rows)}
+                aria-pressed={active} aria-controls="player-match-detail-panel"
+                onClick={() => select(row.match.id)} />
               <span className={css.cardTop}>
                 <span className={css.round}>{row.match.round !== null ? `J${row.match.round}` : "Sin jornada"}</span>
                 {hasMinutes(row)
                   ? <span className={css.cardMinutes} aria-label={`${statText(row.stats.minutes)} minutos jugados`}><MatchValue stat={row.stats.minutes} />′</span> : null}
               </span>
-              <span className={css.cardOpponent} title={opponentName(row)}>{opponentName(row)}</span>
+              <Link className={css.cardOpponent} title={opponentName(row)}
+                href={teamsHref({ teamId: (row.side === "home" ? row.match.away : row.match.home).id })}
+                aria-label={"Ver equipo " + opponentName(row)}>{opponentName(row)}</Link>
               <span className={css.cardBottom}><Score row={row} /><Venue side={row.side} /></span>
-            </button>
+            </div>
           </li>;
         })}
       </ul>
@@ -205,12 +209,14 @@ function MatchDetail({ row, usualPosition, href }: {
   row: ObservedPlayerMatch; usualPosition: PlayerPosition | null; href: string | null;
 }) {
   const { match } = row;
-  const opponent = row.side === "home" ? match.away : match.home;
+  const home = match.home.name ?? "Equipo sin identificar";
+  const away = match.away.name ?? "Equipo sin identificar";
   // The match position decides the metrics; the usual one only when the source does not give it.
   const keeper = (row.position ?? usualPosition) === "goalkeeper";
   return <>
     <div className={css.detailContext}>
-      <p className={css.detailFixture}>{match.round !== null ? <span>J{match.round} · </span> : null}{teamName(opponent.name)} · <Score row={row} /></p>
+      <p className={css.detailFixture}>{match.round !== null ? <span>J{match.round} · </span> : null}
+        <Link href={teamsHref({ teamId: match.home.id })}>{home}</Link> · <Link href={teamsHref({ teamId: match.away.id })}>{away}</Link> · <Score row={row} /></p>
       <p className={css.meta}>{match.kickoff ? dateLabel(match.kickoff) : "Fecha por definir"}</p>
       <div className={css.playerBadges}>
         {row.side === "home" || row.side === "away" ? <span>{row.side === "home" ? "Local" : "Visitante"}</span> : null}

@@ -1,5 +1,7 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
+import Link from "next/link";
 import { scoringSide, type MatchDetail, type MatchEvent } from "@/contract";
+import { teamsHref } from "@/lib/navigation";
 import { GoalIcon } from "./GoalIcon";
 import { PlayerLink } from "../players/PlayerLink";
 import css from "./MatchTimeline.module.css";
@@ -15,8 +17,9 @@ export function MatchTimeline({ match }: { match: MatchDetail }) {
   // Stable sort retains source order when minute and added time are identical.
   const events = [...match.events].sort((a, b) => a.minute - b.minute || (a.addedTime ?? 0) - (b.addedTime ?? 0));
   return <>
-    <div className={css.legend} aria-hidden="true">
-      <span>{match.home.shortName} · Local</span><span>{match.away.shortName} · Visitante</span>
+    <div className={css.legend} aria-label="Equipos del partido">
+      <Link href={teamsHref({ seasonId: match.seasonId, teamId: match.home.id })}>{match.home.shortName} · Local</Link>
+      <Link href={teamsHref({ seasonId: match.seasonId, teamId: match.away.id })}>{match.away.shortName} · Visitante</Link>
     </div>
     <ol className={css.timeline} aria-label="Eventos del partido">
       {events.map((event) => {
@@ -27,7 +30,9 @@ export function MatchTimeline({ match }: { match: MatchDetail }) {
           aria-label={`${team.name} · ${side === "home" ? "Local" : "Visitante"}`}>
           <span className={css.minute}>{event.minute}{event.addedTime ? `+${event.addedTime}` : ""}′</span>
           <div className={css.action}>
-            <span className={css.teamLabel}>{team.shortName} · {side === "home" ? "Local" : "Visitante"}</span>
+            <Link className={css.teamLabel} href={teamsHref({ seasonId: match.seasonId, teamId: team.id })}>
+              {team.shortName} · {side === "home" ? "Local" : "Visitante"}
+            </Link>
             <Action event={event} ownGoalTeam={match[actorSide].shortName} seasonId={match.seasonId} matchId={match.id} />
           </div>
         </li>;

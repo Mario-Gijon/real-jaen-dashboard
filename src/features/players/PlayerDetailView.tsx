@@ -7,8 +7,9 @@ import { PlayerAvatar } from "@/ui/PlayerAvatar";
 import { Tabs, tabId, tabPanelId } from "@/ui/Tabs";
 import { useState } from "react";
 import Link from "next/link";
-import { playerReturnHref } from "@/lib/navigation";
-import type { PlayerTab } from "./navigation";
+import { playerMatchHref, playerReturnHref } from "@/lib/navigation";
+import { teamsHref } from "@/lib/navigation";
+import type { PlayerOrigin, PlayerTab } from "./navigation";
 import { FIELD_GROUPS, KEEPER_GROUPS } from "./player-metrics";
 import { PlayerMatches } from "./PlayerMatches";
 import { birthLabel, footLabel, heightLabel, positionLabel } from "@/lib/format";
@@ -23,8 +24,9 @@ const PARTICIPATION: readonly Metric[] = [
 ];
 
 
-export function PlayerDetailView({ playerId, seasonId, returnHref, initialTab = "season", initialMatchId = null }: {
-  playerId: string; seasonId: string | null; returnHref?: string; initialTab?: PlayerTab; initialMatchId?: string | null;
+export function PlayerDetailView({ playerId, seasonId, returnHref, origin = null, initialTab = "season", initialMatchId = null }: {
+  playerId: string; seasonId: string | null; returnHref?: string; origin?: PlayerOrigin | null;
+  initialTab?: PlayerTab; initialMatchId?: string | null;
 }) {
   const [tab, setTab] = useState<PlayerTab>(initialTab);
   const profile = useApi(seasonId ? `player|${playerId}|${seasonId}` : null,
@@ -43,13 +45,15 @@ export function PlayerDetailView({ playerId, seasonId, returnHref, initialTab = 
   if (!profile.data) return <p role="status" className={css.message}>Cargando jugador…</p>;
   const data = profile.data;
   const noParticipation = data.stats.appearances.value === 0;
+  const matchHref = (matchId: string) => playerMatchHref(matchId, { playerId: data.player.id, seasonId: data.season.id, origin });
   return <div className={css.page}>
     <Link className={css.back} href={returnHref ?? playerReturnHref(seasonId, {})}>← Volver</Link>
     <Identity data={data} />
     <Tabs items={[{ id: "season", label: "Temporada" }, { id: "matches", label: "Partidos" }]}
       selected={tab} onSelect={setTab} label="Secciones del jugador" prefix="player" />
     <section role="tabpanel" id={tabPanelId("player")} aria-labelledby={tabId("player", tab)} className={`${css.season} ${tab === "matches" ? css.matches : ""}`}>
-      {tab === "matches" ? <PlayerMatches key={`${data.player.id}|${data.season.id}`} data={data} initialMatchId={initialMatchId} /> : <>
+      {tab === "matches" ? <PlayerMatches key={`${data.player.id}|${data.season.id}`} data={data} initialMatchId={initialMatchId}
+        matchHref={matchHref} /> : <>
       <section aria-labelledby="player-participation" className={css.block}>
         <h2 id="player-participation">Participación</h2>
         <Metrics metrics={PARTICIPATION} stats={data.stats} participation />
@@ -66,7 +70,7 @@ export function PlayerDetailView({ playerId, seasonId, returnHref, initialTab = 
       </section>
       {!noParticipation ? <section aria-labelledby="player-contributions" className={css.block}>
         <h2 id="player-contributions">Aportación</h2>
-        <PlayerContributions data={data} />
+        <PlayerContributions data={data} matchHref={matchHref} />
       </section> : null}
       </>}
     </section>
@@ -83,7 +87,8 @@ function Identity({ data }: { data: PlayerSeason }) {
           {shirtNumber !== null ? <span className={css.shirt} aria-label={`Dorsal ${shirtNumber}`}>{shirtNumber}</span> : null}
           <h1>{player.name}</h1>
         </div>
-        <p className={css.context}>{positionLabel(player.position)} · {team.name} · {season.name}</p>
+        <p className={css.context}>{positionLabel(player.position)} · <Link className={css.teamLink}
+          href={teamsHref({ seasonId: season.id, teamId: team.id })}>{team.name}</Link> · {season.name}</p>
       </div>
     </div>
     <dl className={css.personal}>

@@ -17,7 +17,7 @@ import css from "./HomeView.module.css";
  */
 
 /** A team as drawn here: its crest (or neutral shield) and names. */
-export type CrestTeam = Pick<TeamRef, "id" | "name" | "shortName" | "crestUrl" | "colors">;
+export type CrestTeam = Pick<TeamRef, "id" | "name" | "shortName" | "crestUrl" | "colors"> & { href: string };
 /** A dated club match the target can be; `round` may be unknown in a real source. */
 export type Fixture = { id: string; round: number | null; kickoff: string; home: CrestTeam; away: CrestTeam };
 /** One of the rival's previous matches; `note` says why it has no result when it has none. */
@@ -86,10 +86,10 @@ export function TargetSection({ context, target, choices, onChoose, days, analyz
 }
 
 function FixtureTeam({ team, side }: { team: CrestTeam; side: "home" | "away" }) {
-  return <div className={`${css.fixtureTeam} ${css[side]}`}>
+  return <Link className={`${css.fixtureTeam} ${css[side]}`} href={team.href} aria-label={`Ver equipo ${team.name}`}>
     <TeamCrest team={team} size={44} />
     <div><strong data-rival={team.id !== CLUB_ID || undefined}>{team.name}</strong><span>{side === "home" ? "Local" : "Visitante"}</span></div>
-  </div>;
+  </Link>;
 }
 
 /** Form and goals of the summary; `null` when no listed match has a result to summarise. */
@@ -141,22 +141,24 @@ function SummaryValue({ label, stat, decimals = 0 }: { label: string; stat: Seas
 function PreparationMatches({ rows, label }: { rows: readonly HistoryRow[]; label: string }) {
   return <ul className={css.matches} aria-label={label}>
     {rows.map(row => <li key={row.id}>
-      <Link className={css.match} href={row.href} prefetch={false}
-        aria-label={[`${row.home.name} contra ${row.away.name}`, row.round === null ? null : `jornada ${row.round}`, dateLabel(row.kickoff),
-          row.score ? `${row.score.home}–${row.score.away}` : (row.note ?? "resultado no disponible").toLowerCase()].filter(Boolean).join(", ")}>
+      <div className={css.match}>
         <div className={css.meta}>{row.round === null ? null : <strong>J{row.round}</strong>}<time dateTime={row.kickoff}>{dateLabel(row.kickoff)}</time>
           {row.note ? <span>{row.note}</span> : null}</div>
         <MatchTeam team={row.home} side="home" />
-        <strong className={css.score}>{row.score ? `${row.score.home} – ${row.score.away}` : "—"}</strong>
+        <Link className={css.score} href={row.href} prefetch={false}
+          aria-label={[`Ver partido ${row.home.name} contra ${row.away.name}`, row.round === null ? null : `jornada ${row.round}`, dateLabel(row.kickoff),
+            row.score ? `${row.score.home} a ${row.score.away}` : (row.note ?? "resultado no disponible").toLowerCase()].filter(Boolean).join(", ")}>
+          {row.score ? `${row.score.home} – ${row.score.away}` : "—"}
+        </Link>
         <MatchTeam team={row.away} side="away" />
-      </Link>
+      </div>
     </li>)}
   </ul>;
 }
 
 function MatchTeam({ team, side }: { team: CrestTeam; side: "home" | "away" }) {
-  return <span className={`${css.matchTeam} ${css[side]}`}><TeamCrest team={team} size={28} />
-    <span className={css.fullName}>{team.name}</span><span className={css.shortName}>{team.shortName}</span></span>;
+  return <Link className={`${css.matchTeam} ${css[side]}`} href={team.href} aria-label={`Ver equipo ${team.name}`}><TeamCrest team={team} size={28} />
+    <span className={css.fullName}>{team.name}</span><span className={css.shortName}>{team.shortName}</span></Link>;
 }
 
 export function LoadError({ message, retry }: { message: string; retry: () => void }) {

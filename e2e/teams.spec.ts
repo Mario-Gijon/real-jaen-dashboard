@@ -69,6 +69,21 @@ test("Rendimiento: Temporada and Últimos 3 with the three matches highlighted",
   await page.screenshot({ path: testInfo.outputPath("rendimiento-ultimos3.png"), fullPage: true });
 });
 
+test("a rival link changes the selected team inside /teams from the shared URL", async ({ page }) => {
+  await page.goto("/teams");
+  const table = page.getByRole("table", { name: "Partidos disputados" });
+  const link = table.getByRole("link", { name: /^Ver equipo/ }).first();
+  const href = await link.getAttribute("href");
+  const name = (await link.getAttribute("aria-label"))!.replace("Ver equipo ", "");
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(href!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"));
+  await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
+  const group = page.getByRole("group", { name: "Equipo" });
+  if (!await group.isVisible()) await page.getByRole("button", { name: "Cambiar equipo" }).click();
+  await expect(group.getByRole("radio", { name })).toBeChecked();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test("Evolución: the result chips stay on one line and scroll sideways if needed", async ({
   page,
 }) => {

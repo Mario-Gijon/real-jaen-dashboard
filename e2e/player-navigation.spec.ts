@@ -27,12 +27,15 @@ test("Team match row and match player links preserve their immediate origin", as
   const row = history.locator("tbody tr").first();
   const matchId = (await row.getAttribute("data-match-id"))!;
   await row.locator("td").first().click();
-  await expect(page).toHaveURL(new RegExp(`/matches/${matchId}$`));
+  await expect(page).toHaveURL(new RegExp(`/matches/${matchId}\\?from=teams&season=[^&]+&team=team-real-jaen$`));
   // A known finished match provides both lineups and timeline player names.
   for (const [tab, label] of [["lineups", "Alineaciones"], ["timeline", "Cronología"]] as const) {
     await page.goto(`/matches/match-r01-01?tab=${tab}`);
     await expect(page.getByRole("tab", { name: label })).toHaveAttribute("aria-selected", "true");
-    const link = page.getByRole("tabpanel").getByRole("link").first();
+    const playerList = tab === "lineups"
+      ? page.getByRole("list", { name: "Once inicial de Real Jaén CF" })
+      : page.getByRole("list", { name: "Eventos del partido" });
+    const link = playerList.locator('a[href^="/players/"]').first();
     const href = (await link.getAttribute("href"))!;
     await expect(link).toHaveAttribute("href", new RegExp(`tab=matches&match=match-r01-01&from=match&origin=match-r01-01&originTab=${tab}$`));
     // Direct navigation to the link target also checks new-tab/history independence.
@@ -53,17 +56,19 @@ test("Match lineups to player opens Partidos on that match and returns to Alinea
   const mobile = testInfo.project.name === "mobile";
   await page.goto("/matches/match-r01-01");
   await page.getByRole("tab", { name: "Alineaciones" }).click();
-  const starter = page.getByRole("list", { name: "Once inicial de Real Jaén CF" }).getByRole("link").first();
+  const starter = page.getByRole("list", { name: "Once inicial de Real Jaén CF" }).locator('a[href^="/players/"]').first();
   await starter.click();
   await expect(page).toHaveURL(/\/players\/[^?]+\?season=[^&]+&tab=matches&match=match-r01-01&from=match&origin=match-r01-01&originTab=lineups$/);
   await expect(page.getByRole("tab", { name: "Partidos" })).toHaveAttribute("aria-selected", "true");
-  const row = page.getByRole("list", { name: "Histórico de partidos" }).getByRole("button", { name: /^J1\D/ });
+  const row = page.getByRole("list", { name: "Histórico de partidos" }).getByRole("button", { name: /Seleccionar partido J1:/ });
   await expect(row).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("heading", { name: "Participación" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Secuencia de participación por partido" })).toHaveCount(0);
   await expect(matchDetail(page, mobile)).toBeVisible();
   await expect(matchDetail(page, mobile)).toContainText("J1 · vs");
-  await expect(matchDetail(page, mobile).getByRole("link", { name: "Ver partido completo" })).toHaveAttribute("href", "/matches/match-r01-01");
+  await expect(matchDetail(page, mobile).getByRole("link", { name: "Ver partido completo" })).toHaveAttribute(
+    "href", /\/matches\/match-r01-01\?from=player&player=player-0002&season=season-demo-2026-27&playerFrom=match&playerOrigin=match-r01-01&playerOriginTab=lineups$/,
+  );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   // Reload keeps the context from the URL.
   await page.reload();
@@ -73,10 +78,25 @@ test("Match lineups to player opens Partidos on that match and returns to Alinea
   await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
 });
 
+test("Player match history team links open their team and browser Back restores the selected match", async ({ page }) => {
+  await page.goto("/matches/match-r01-01?tab=lineups");
+  const playerLink = page.getByRole("list", { name: "Once inicial de Real Jaén CF" }).locator('a[href^="/players/"]').first();
+  await playerLink.click();
+  const history = page.getByRole("list", { name: "Histórico de partidos" });
+  const teamLink = history.getByRole("link").first();
+  const teamName = (await teamLink.innerText()).trim();
+  const teamUrl = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
+  await teamLink.click();
+  await expect(page).toHaveURL(teamUrl);
+  await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+  await page.goBack();
+  await expect(history.getByRole("button", { name: /Seleccionar partido J1:/ })).toHaveAttribute("aria-pressed", "true");
+});
+
 test("Match timeline to player opens Partidos on that match and returns to Cronología", async ({ page }, testInfo) => {
   const mobile = testInfo.project.name === "mobile";
   await page.goto("/matches/match-r01-01?tab=timeline");
-  await page.getByRole("tabpanel", { name: "Cronología" }).getByRole("link").first().click();
+  await page.getByRole("list", { name: "Eventos del partido" }).locator('a[href^="/players/"]').first().click();
   await expect(page).toHaveURL(/&tab=matches&match=match-r01-01&from=match&origin=match-r01-01&originTab=timeline$/);
   await expect(page.getByRole("tab", { name: "Partidos" })).toHaveAttribute("aria-selected", "true");
   await expect(matchDetail(page, mobile)).toContainText("J1 · vs");

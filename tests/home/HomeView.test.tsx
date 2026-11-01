@@ -27,11 +27,17 @@ it("suggests the next fixture and links the rival and only its last five matches
   expect(screen.queryByText("Rival en análisis")).not.toBeInTheDocument();
   expect(getSeasonMatches).toHaveBeenCalledWith("s1", { teamId: "team-real-jaen" }, expect.anything());
   expect(screen.getByRole("link", { name: "Analizar Rival" })).toHaveAttribute("href", "/teams?season=s1&team=rival");
+  const target = screen.getByRole("region", { name: "Encuentro de preparación" });
+  expect(within(target).getByRole("link", { name: "Ver equipo Real Jaén CF" })).toHaveAttribute("href", "/teams?season=s1&team=team-real-jaen");
+  expect(within(target).getByRole("link", { name: "Ver equipo CD Rival" })).toHaveAttribute("href", "/teams?season=s1&team=rival");
   const section = screen.getByRole("region", { name: "Últimos 5 partidos del CD Rival" });
   expect(within(section).getByRole("link", { name: "Ver todos" })).toHaveAttribute("href", "/matches?season=s1&team=rival&round=all");
   expect(screen.getAllByRole("link", { name: /Ver todos|Sus partidos/ })).toHaveLength(1);
-  expect(within(recent).getAllByRole("link").map(link => link.getAttribute("href")))
-    .toEqual([10, 9, 8, 7, 6].map(i => `/matches/played-${i}?from=home&season=s1&match=target`));
+  expect(within(recent).getAllByRole("listitem").flatMap((row) => within(row).getAllByRole("link").map(link => link.getAttribute("href"))))
+    .toEqual([10, 9, 8, 7, 6].flatMap(i => [
+      "/teams?season=s1&team=rival", `/matches/played-${i}?from=home&season=s1&match=target`, "/teams?season=s1&team=other",
+    ]));
+  expect(recent.querySelectorAll("a a")).toHaveLength(0);
   expect(screen.getByText("Forma", { selector: "dt" }).nextElementSibling).toHaveTextContent("5 V · 0 E · 0 D");
   expect(screen.getAllByRole("list", { name: /del rival/ })).toHaveLength(1);
   expect(screen.queryByText(/Partidos anteriores|Material complementario/)).toBeNull();

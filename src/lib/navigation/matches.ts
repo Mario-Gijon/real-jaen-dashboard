@@ -16,6 +16,12 @@ export function matchesHref({ teamId = null, state = "all" }: { teamId?: string 
   return query.size ? `/matches?${query}` : "/matches";
 }
 
+/** A synthetic season's whole match calendar for one team. */
+export function seasonMatchesHref(seasonId: string, teamId: string) {
+  const query = new URLSearchParams({ season: seasonId, team: teamId, round: "all" });
+  return `/matches?${query}`;
+}
+
 /** The status filter a «Partidos» URL asks for; anything else is «Todos». */
 export function matchesInitialState(query: { state?: unknown }): MatchesState {
   return matchesState(query.state);
@@ -29,10 +35,29 @@ export function matchesInitialState(query: { state?: unknown }): MatchesState {
 export type ObservedMatchOrigin = { playerId: string; seasonId: string | null; origin: ProfileOrigin | null };
 
 /** Synthetic match detail; opened from «Inicio», it returns there. */
-export function matchHref(matchId: string, from?: HomeOrigin) {
+export function matchHref(matchId: string, from?: HomeOrigin | ObservedMatchTeamsOrigin) {
   const query = new URLSearchParams();
-  if (from) setHomeOrigin(query, from);
+  if (from && from.kind === "home") setHomeOrigin(query, from);
+  else if (from) {
+    query.set("from", "teams");
+    if (from.seasonId) query.set("season", from.seasonId);
+    if (from.teamId) query.set("team", from.teamId);
+    if (from.tab === "players") query.set("tab", "players");
+  }
   return query.size ? `/matches/${encodeURIComponent(matchId)}?${query}` : `/matches/${encodeURIComponent(matchId)}`;
+}
+
+/** A synthetic player's selected match, with a shareable return to the same profile selection. */
+export function playerMatchHref(matchId: string, { playerId, seasonId, origin }: {
+  playerId: string; seasonId: string; origin: { kind: "team"; id: string } | { kind: "match"; id: string; tab: "lineups" | "timeline" } | null;
+}) {
+  const query = new URLSearchParams({ from: "player", player: playerId, season: seasonId });
+  if (origin) {
+    query.set("playerFrom", origin.kind);
+    query.set("playerOrigin", origin.id);
+    if (origin.kind === "match") query.set("playerOriginTab", origin.tab);
+  }
+  return `/matches/${encodeURIComponent(matchId)}?${query}`;
 }
 
 /** Real match detail; its origin query preserves the route back to the previous view. */
@@ -70,9 +95,21 @@ export function observedMatchReturnHref(matchId: string, query: {
 } & ProfileMatchesQuery) {
   if (query.from !== "player" || typeof query.player !== "string" || !SAFE_ID.test(query.player)) return null;
   const seasonId = typeof query.season === "string" && SAFE_ID.test(query.season) ? query.season : null;
-  return playerProfileHref(query.player, seasonId,
+  const href = playerProfileHref(query.player, seasonId,
     profileOrigin({ ...query, from: query.playerFrom, origin: query.playerOrigin, originTab: query.playerOriginTab }),
     SAFE_ID.test(matchId) ? matchId : null);
+  const [path, search] = href.split("?");
+  const params = new URLSearchParams(search);
+  // Synthetic profiles need an explicit tab to restore the selected season
+  // match; real profiles select their match with `match` alone.
+  if (seasonId && !query.player.startsWith("sofascore-player-")) params.set("tab", "matches");
+  if (!query.player.startsWith("sofascore-player-") && query.playerFrom === "match"
+    && typeof query.playerOrigin === "string" && SAFE_ID.test(query.playerOrigin)) {
+    params.set("from", "match");
+    params.set("origin", query.playerOrigin);
+    if (query.playerOriginTab === "lineups" || query.playerOriginTab === "timeline") params.set("originTab", query.playerOriginTab);
+  }
+  return `${path}?${params}`;
 }
 
 /**

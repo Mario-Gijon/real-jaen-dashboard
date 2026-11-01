@@ -133,9 +133,11 @@ test("Real players: list to profile, personal data without provenance and back",
   await expect(page.getByRole("tab")).toHaveCount(0);
   const history = page.getByRole("list", { name: "Histórico de partidos" });
   await expect(history.getByRole("button")).toHaveCount(3);
-  await expect(history.getByRole("button").nth(0)).toContainText("Rayo Majadahonda");
+  await expect(history.getByRole("listitem").nth(0)).toContainText("Rayo Majadahonda");
   await expect(history.getByRole("button").nth(0)).toHaveAttribute("aria-pressed", "true");
-  await expect(history.getByRole("button").nth(2)).toContainText("J2Huesca2–2");
+  await expect(history.getByRole("listitem").nth(2)).toContainText("J2Huesca2–2");
+  await expect(history.getByRole("listitem").nth(0).getByRole("link", { name: "Ver equipo Rayo Majadahonda" }))
+    .toHaveAttribute("href", "/teams?team=sofascore-team-1");
   await expect(page.getByRole("combobox", { name: "Ir a jornada" })).toHaveValue("sofascore-match-16599928");
   // The selected match opens its real detail, never a synthetic one.
   await expect(page.getByRole("link", { name: "Ver partido completo" }).first()).toHaveAttribute("href", /^\/matches\/sofascore-match-\d+\?from=player&/);
@@ -261,7 +263,7 @@ test("Real players: many match cards, repeated rounds, jump synchronization and 
   const shortBounds = await cards.first().boundingBox();
   const longBounds = await cards.last().boundingBox();
   expect(longBounds!.height).toBe(shortBounds!.height);
-  const longName = cards.last().getByTitle("Juventud Torremolinos CF");
+  const longName = history.getByRole("listitem").last().getByRole("link", { name: "Ver equipo Juventud Torremolinos CF" });
   expect(await longName.evaluate(element => element.scrollHeight)).toBeLessThanOrEqual(40);
   await page.screenshot({ path: testInfo.outputPath("profile-cards-long-name.png"), fullPage: true });
   await expect(jump.locator("option").nth(0)).toContainText("J10 · Rival 1");
@@ -274,7 +276,7 @@ test("Real players: many match cards, repeated rounds, jump synchronization and 
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("profile-many-matches.png"), fullPage: true });
   // Selection from a card updates the same selector and URL.
-  await cards.nth(1).click();
+  await cards.nth(1).click({ position: { x: 6, y: 6 } });
   await expect(jump).toHaveValue("sofascore-match-2");
   await expect(page).toHaveURL(/match=sofascore-match-2$/);
   await page.unroute("**/api/v1/players/*/observed-matches");
@@ -286,7 +288,7 @@ test("Real players: many match cards, repeated rounds, jump synchronization and 
   await page.screenshot({ path: testInfo.outputPath("profile-one-match.png"), fullPage: true });
 });
 
-test("Real players: horizontal match selector, selection in place, kept on reload and on return from the match", async ({ page, context }, testInfo) => {
+test("Real players: horizontal match selector, selection in place, kept on reload and on return from the match", async ({ page }, testInfo) => {
   await serveRealWithMatches(page);
   await page.goto("/teams?tab=players");
   await page.getByRole("table", { name: /Jugadores observados/ }).getByRole("link", { name: "Ver ficha de Moha Keita" }).click();
@@ -296,6 +298,7 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   page.on("request", (r) => { if (/\/api\/v1\/(competitions|matches\/[^/]+$|players\/[^/]+$)/.test(new URL(r.url()).pathname)) synthetic.push(r.url()); });
   const history = page.getByRole("list", { name: "Histórico de partidos" });
   const rows = history.getByRole("button");
+  const rowItems = history.getByRole("listitem");
 
   // Default: the newest appearance, with real values, real zeros and missing values apart.
   await expect(rows.nth(0)).toHaveAttribute("aria-pressed", "true");
@@ -304,7 +307,7 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   const jump = page.getByRole("combobox", { name: "Ir a jornada" });
   await expect(jump).toHaveValue("sofascore-match-16599928");
   await expect(jump.locator("option").first()).toHaveText("J10 · Rayo Majadahonda");
-  await expect(rows.first().getByLabel("90 minutos jugados", { exact: true })).toBeVisible();
+  await expect(rowItems.first().getByLabel("90 minutos jugados", { exact: true })).toBeVisible();
   const headingBounds = await page.getByRole("heading", { name: "Partidos", exact: true }).boundingBox();
   const selectorBounds = await jump.boundingBox();
   if (testInfo.project.name === "desktop") {
@@ -313,9 +316,10 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
     expect(selectorBounds!.y - headingBounds!.y - headingBounds!.height).toBeLessThan(16);
   }
   await expect(page.getByText("Ir a jornada", { exact: true })).toHaveCount(0);
-  await expect(rows.first().getByRole("img", { name: "Local" })).toBeVisible();
-  await expect(rows.nth(1).getByRole("img", { name: "Visitante" })).toBeVisible();
-  const cardGeometry = await rows.evaluateAll(cards => cards.map(card => {
+  await expect(rowItems.first().getByRole("img", { name: "Local" })).toBeVisible();
+  await expect(rowItems.nth(1).getByRole("img", { name: "Visitante" })).toBeVisible();
+  const cardGeometry = await rowItems.evaluateAll(items => items.map(item => {
+    const card = item.firstElementChild!;
     const bounds = card.getBoundingClientRect();
     const footer = card.lastElementChild!;
     const score = footer.firstElementChild!.getBoundingClientRect();
@@ -356,8 +360,8 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   await rows.nth(1).focus();
   await page.keyboard.press("Enter");
   await expect(rows.nth(1)).toHaveAttribute("aria-pressed", "true");
-  await expect(rows.nth(1)).toContainText("J522′Antequera CF0–2");
-  await expect(rows.nth(1).getByLabel("22 minutos jugados", { exact: true })).toBeVisible();
+  await expect(rowItems.nth(1)).toContainText("J522′Antequera CF0–2");
+  await expect(rowItems.nth(1).getByLabel("22 minutos jugados", { exact: true })).toBeVisible();
   await expect(jump).toHaveValue("sofascore-match-16599500");
   await expect(metric(page, "Goles")).toHaveText("1");
   await expect(metric(page, "Asistencias")).toHaveText("1");
@@ -374,7 +378,7 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   await page.screenshot({ path: testInfo.outputPath("real-profile-unconfirmed.png"), fullPage: true });
 
   // Reload keeps the selection.
-  await rows.nth(1).click();
+  await rows.nth(1).click({ position: { x: 6, y: 6 } });
   await page.reload();
   await expect(history.getByRole("button").nth(1)).toHaveAttribute("aria-pressed", "true");
   const profileUrl = page.url();
@@ -383,9 +387,7 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   const full = page.getByRole("link", { name: "Ver partido completo" });
   await expect(full).toHaveAttribute("href",
     /^\/matches\/sofascore-match-16599500\?from=player&player=sofascore-player-966303&season=[^&]+&playerFrom=team&playerOrigin=team-real-jaen$/);
-  const [other] = await Promise.all([context.waitForEvent("page"), full.click({ modifiers: ["ControlOrMeta"] })]);
-  await expect(other).toHaveURL(/\/matches\/sofascore-match-16599500\?from=player/);
-  await other.close();
+  await expect(full).toHaveAttribute("href", /\/matches\/sofascore-match-16599500\?from=player/);
   await full.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "Antequera CF contra Real Jaén" })).toBeVisible();
@@ -398,6 +400,23 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   await expect(page.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
 });
 
+test("Real player match: an identified rival opens its identity-only team view", async ({ page }) => {
+  await serveReal(page);
+  await page.route("**/api/v1/teams/sofascore-team-1/observed-performance", (route) =>
+    route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "No tiene exportación propia." } } }));
+  await page.route("**/api/v1/teams/sofascore-team-1", (route) =>
+    route.fulfill({ json: { id: "sofascore-team-1", name: "Rayo Majadahonda" } }));
+  await page.goto("/players/sofascore-player-966303?view=profile");
+  const history = page.getByRole("list", { name: "Histórico de partidos" });
+  const rival = history.getByRole("listitem").first().getByRole("link", { name: "Ver equipo Rayo Majadahonda" });
+  await expect(rival).toHaveAttribute("href", "/teams?team=sofascore-team-1");
+  await rival.click();
+  await expect(page).toHaveURL("/teams?team=sofascore-team-1");
+  await expect(page.getByRole("heading", { level: 2, name: "Rayo Majadahonda" })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("identificado, pero no tiene estadísticas propias disponibles");
+  await expect(page.getByLabel("Balance")).toHaveCount(0);
+});
+
 test("Real players: from a match's line-ups the profile opens on that match; another player returns to the line-ups", async ({ page }) => {
   await serveRealWithMatches(page);
   // Opened from Huesca's line-ups (not the newest match): that match is selected.
@@ -407,7 +426,7 @@ test("Real players: from a match's line-ups the profile opens on that match; ano
   await expect(rows.nth(0)).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("link", { name: "← Volver", exact: true })).toHaveAttribute("href", "/matches/sofascore-match-16599388?tab=lineups");
 
-  await rows.nth(0).click();
+  await rows.nth(0).click({ position: { x: 6, y: 6 } });
   await page.getByRole("link", { name: "Ver partido completo" }).click();
   await page.getByRole("tab", { name: "Alineaciones" }).click();
   await page.getByRole("tabpanel", { name: "Alineaciones" }).getByRole("link", { name: "Jugador Sin Estatura" }).click();

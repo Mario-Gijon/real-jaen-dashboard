@@ -41,6 +41,8 @@ export type Played = {
   goalsAgainst: number;
   /** Detail of the match, or `null` when there is none to open. */
   href: string | null;
+  /** Team identity destination for the opponent. */
+  opponentHref: string;
 };
 /** Short label, long label and value of one balance item. */
 export type BalanceItem = [string, string, string | number];
@@ -155,20 +157,25 @@ export function PlayedZone({ played, highlighted }: { played: readonly Played[];
                     </td>
                     <td className={css.venue}>{m.side === "home" ? "Local" : "Visitante"}</td>
                     <td className={css.rival}>
-                      {m.href ? (
-                        <Link href={m.href} className={css.opponent} prefetch={false}>{opponent}</Link>
-                      ) : (
-                        <span className={css.opponent}>{opponent}</span>
-                      )}
+                      <Link href={m.opponentHref} className={css.opponent} prefetch={false} aria-label={`Ver equipo ${m.opponent.name}`}>
+                        {opponent}
+                      </Link>
                     </td>
                     <td className={css.end}>
-                      <span
+                      {m.href ? <Link href={m.href} data-row-primary="" className={css.matchResult} prefetch={false}
+                        aria-label={`Ver partido: ${resultLabel(m)}`}>
+                        <span
                         aria-label={`${RESULT[m.result].label} ${teamScore(m)}`}
                         className={css.score}
                         data-result={m.result}
                       >
                         {RESULT[m.result].letter} {teamScore(m)}
-                      </span>
+                        </span>
+                      </Link> : <span
+                        aria-label={`${RESULT[m.result].label} ${teamScore(m)}`}
+                        className={css.score}
+                        data-result={m.result}
+                      >{RESULT[m.result].letter} {teamScore(m)}</span>}
                     </td>
                   </Row>
                 );
@@ -272,11 +279,18 @@ export function SeasonZone({ balance, lead, venues, played }: {
             <p aria-live="polite" className={css.detail}>
               {active.round !== null ? <span className={css.detailRound}>J{active.round}</span> : null}
               <span>{active.side === "home" ? "Local" : "Visitante"}</span>
-              <TeamCrest size={20} team={active.opponent} />
-              <strong>{active.opponent.name}</strong>
-              <span className={css.score} data-result={active.result}>
+              <Link className={css.detailOpponent} href={active.opponentHref} aria-label={`Ver equipo ${active.opponent.name}`}>
+                <TeamCrest size={20} team={active.opponent} />
+                <strong>{active.opponent.name}</strong>
+              </Link>
+              {active.href ? <Link href={active.href} className={css.detailMatch} prefetch={false}
+                aria-label={`Ver partido: ${resultLabel(active)}`}>
+                <span className={css.score} data-result={active.result}>
+                  {RESULT[active.result].letter} {teamScore(active)}
+                </span>
+              </Link> : <span className={css.score} data-result={active.result}>
                 {RESULT[active.result].letter} {teamScore(active)}
-              </span>
+              </span>}
             </p>
           ) : null}
         </div>

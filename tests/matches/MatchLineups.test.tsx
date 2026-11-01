@@ -26,19 +26,21 @@ const match: MatchDetail = {
 const goal: GoalEvent = { id: "goal", matchId: match.id, teamId: home.id, minute: 18,
   addedTime: null, clip: null, type: "goal", player: starter.player, assist: null,
   penalty: false, ownGoal: false };
+const firstText = (name: string) => screen.getAllByText(name, { exact: true })[0];
+const playerRow = (name: string) => firstText(name).closest("li")!;
 
 describe("Match lineup lists", () => {
   it("shows one goal with a single football and no unnecessary count", () => {
     render(<MatchLineups match={{ ...match, events: [goal] }} />);
-    const row = screen.getByText(starter.player.name).closest("li")!;
+    const row = playerRow(starter.player.name);
     expect(within(row).getByRole("img", { name: "1 gol" })).toBeVisible();
     expect(row).not.toHaveTextContent(/A \d/);
-    expect(screen.getByText(unused.player.name).closest("li")!.querySelector("svg")).toBeNull();
+    expect(playerRow(unused.player.name).querySelector("svg")).toBeNull();
   });
 
   it("shows several goals as one football plus a count", () => {
     render(<MatchLineups match={{ ...match, events: [goal, { ...goal, id: "goal2", minute: 35 }] }} />);
-    const row = screen.getByText(starter.player.name).closest("li")!;
+    const row = playerRow(starter.player.name);
     expect(within(row).getAllByRole("img")).toHaveLength(1);
     expect(within(row).getByRole("img", { name: "2 goles" })).toBeVisible();
     expect(within(row).getByText("2", { exact: true })).toBeVisible();
@@ -50,7 +52,7 @@ describe("Match lineup lists", () => {
       { ...goal, id: "goal2", minute: 35, assist: unused.player },
       { ...goal, id: "unassisted", minute: 50 },
     ] }} />);
-    const row = screen.getByText(unused.player.name).closest("li")!;
+    const row = playerRow(unused.player.name);
     expect(within(row).getByRole("img", { name: "2 asistencias" })).toBeVisible();
     expect(within(row).getByText("2", { exact: true })).toBeVisible();
     expect(within(row).queryByRole("img", { name: /gol/ })).toBeNull();
@@ -61,16 +63,16 @@ describe("Match lineup lists", () => {
       goal, { ...goal, id: "goal2", minute: 35, player: bench.player, assist: starter.player },
       { ...goal, id: "goal3", minute: 75, player: unused.player, assist: bench.player }, change,
     ] }} />);
-    const outgoing = screen.getByText(starter.player.name).closest("li")!;
+    const outgoing = playerRow(starter.player.name);
     expect(within(outgoing).getByRole("img", { name: "1 gol" })).toBeVisible();
     expect(within(outgoing).getByRole("img", { name: "1 asistencia" })).toBeVisible();
     expect(within(outgoing).getByText("1", { exact: true })).toBeVisible();
     expect(within(outgoing).queryByLabelText(/Entra|Sale/)).toBeNull();
-    const incoming = screen.getByText(bench.player.name).closest("li")!;
+    const incoming = playerRow(bench.player.name);
     expect(within(incoming).getByRole("img", { name: "1 gol" })).toBeVisible();
     expect(within(incoming).getByRole("img", { name: "1 asistencia" })).toBeVisible();
     expect(within(incoming).getByLabelText("Entra en el minuto 66′")).toBeVisible();
-    expect(within(incoming).getByText("Sale · Guillermo Marchal")).toBeVisible();
+    expect(incoming).toHaveTextContent("Sale · Guillermo Marchal");
   });
 
   it("counts a penalty as an individual goal without a penalty label", () => {
@@ -83,7 +85,7 @@ describe("Match lineup lists", () => {
     render(<MatchLineups match={{ ...match, events: [{ ...goal, ownGoal: true }] }} />);
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByLabelText(/asistencia/)).toBeNull();
-    expect(screen.getByText(starter.player.name)).toBeVisible();
+    expect(firstText(starter.player.name)).toBeVisible();
   });
 
   it("shows no contribution indicators for players without recorded goals or assists", () => {
@@ -103,13 +105,16 @@ describe("Match lineup lists", () => {
     expect(within(screen.getByRole("list", { name: `Banquillo de ${home.name}` })).getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getAllByRole("heading", { name: "Once inicial" })).toHaveLength(2);
     expect(screen.getAllByRole("heading", { name: "Banquillo" })).toHaveLength(2);
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    const links = screen.getAllByRole("link");
+    expect(links.filter(link => link.getAttribute("href")?.startsWith("/teams"))).toHaveLength(2);
+    expect(links.filter(link => link.getAttribute("href")?.startsWith("/players"))).toHaveLength(5);
+    expect(document.querySelectorAll("a a")).toHaveLength(0);
   });
 
   it("links starter and bench names by their own IDs and the match season", () => {
     render(<MatchLineups match={{ ...match, seasonId: "season-other" }} />);
     for (const member of [starter, bench, unused, rival]) {
-      const link = screen.getByRole("link", { name: member.player.name });
+      const link = screen.getAllByRole("link", { name: member.player.name })[0];
       expect(link).toHaveAttribute("href", `/players/${member.player.id}?season=season-other&tab=matches&match=m1&from=match&origin=m1&originTab=lineups`);
       expect(link).toHaveTextContent(member.player.name);
       expect(link.closest("li")).not.toBe(link);
@@ -128,15 +133,15 @@ describe("Match lineup lists", () => {
     if (scored) events.push(goal);
     if (assisted) events.push({ ...goal, id: "assisted-goal", player: bench.player, assist: starter.player });
     render(<MatchLineups match={{ ...match, events }} />);
-    const starterRow = screen.getByText(starter.player.name).closest("li")!;
+    const starterRow = playerRow(starter.player.name);
     expect(within(starterRow).getByRole("img", { name: "Sustituido" })).toBeVisible();
     expect(within(starterRow).queryByRole("img", { name: "1 gol" }) !== null).toBe(scored);
     expect(within(starterRow).queryByRole("img", { name: "1 asistencia" }) !== null).toBe(assisted);
     expect(starterRow).not.toHaveTextContent(/66|Sale|Sergio Segura/);
-    const benchRow = screen.getByText(bench.player.name).closest("li")!;
+    const benchRow = playerRow(bench.player.name);
     expect(within(benchRow).queryByRole("img", { name: "Sustituido" })).toBeNull();
     expect(within(benchRow).getByLabelText("Entra en el minuto 66′")).toBeVisible();
-    expect(within(benchRow).getByText("Sale · Guillermo Marchal")).toBeVisible();
+    expect(benchRow).toHaveTextContent("Sale · Guillermo Marchal");
   });
 
   it("shows available shirt numbers, general positions and text formations", () => {
@@ -152,7 +157,7 @@ describe("Match lineup lists", () => {
     render(<MatchLineups match={{ ...match, lineups: { home: { ...lineup, starters: [missing] }, away: match.lineups!.away } }} />);
     expect(screen.getByLabelText("Dorsal no disponible")).toHaveTextContent("—");
     expect(screen.getByLabelText("Posición no disponible")).toHaveTextContent("—");
-    expect(screen.getByText(starter.player.name)).toBeVisible();
+    expect(firstText(starter.player.name)).toBeVisible();
   });
 
   it("keeps the announced order regardless of formation and tactical slots", () => {
@@ -174,33 +179,33 @@ describe("Match lineup lists", () => {
 
   it("shows the minute and replaced player only on the incoming bench player's row", () => {
     render(<MatchLineups match={match} />);
-    const outgoing = screen.getByText(starter.player.name).closest("li")!;
-    const incoming = screen.getByText(bench.player.name).closest("li")!;
+    const outgoing = playerRow(starter.player.name);
+    const incoming = playerRow(bench.player.name);
     expect(within(outgoing).queryByLabelText(/Entra|Sale/)).toBeNull();
     expect(outgoing).not.toHaveTextContent("66′");
     expect(within(incoming).getByLabelText("Entra en el minuto 66′")).toBeVisible();
-    expect(within(incoming).getByText("Sale · Guillermo Marchal")).toBeVisible();
-    expect(screen.getByText(unused.player.name).closest("li")).not.toHaveTextContent("66′");
-    expect(within(screen.getByText(unused.player.name).closest("li")!).queryByLabelText(/Entra|Sale/)).toBeNull();
+    expect(incoming).toHaveTextContent("Sale · Guillermo Marchal");
+    expect(playerRow(unused.player.name)).not.toHaveTextContent("66′");
+    expect(within(playerRow(unused.player.name)).queryByLabelText(/Entra|Sale/)).toBeNull();
   });
 
   it.each([[45, 2], [90, 3]])("preserves %s+%s added time on entries", (minute, addedTime) => {
     render(<MatchLineups match={{ ...match, events: [{ ...change, minute, addedTime }] }} />);
     expect(screen.getByLabelText(`Entra en el minuto ${minute}+${addedTime}′`)).toBeVisible();
     expect(screen.queryByLabelText(/Sale en el minuto/)).toBeNull();
-    expect(screen.getByText("Sale · Guillermo Marchal")).toBeVisible();
+    expect(screen.getByLabelText(`Entra en el minuto ${minute}+${addedTime}′`).closest("li")).toHaveTextContent("Sale · Guillermo Marchal");
   });
 
   it("keeps the entry relation when a substitute later leaves, without an outgoing mark", () => {
     render(<MatchLineups match={{ ...match, events: [
       { ...change, id: "later", minute: 80, playerOut: bench.player, playerIn: unused.player }, change,
     ] }} />);
-    const row = screen.getByText(bench.player.name).closest("li")!;
+    const row = playerRow(bench.player.name);
     expect(within(row).getByLabelText("Entra en el minuto 66′")).toBeVisible();
     expect(within(row).queryByLabelText(/Sale en el minuto/)).toBeNull();
-    const later = screen.getByText(unused.player.name).closest("li")!;
+    const later = playerRow(unused.player.name);
     expect(within(later).getByLabelText("Entra en el minuto 80′")).toBeVisible();
-    expect(within(later).getByText("Sale · Sergio Segura")).toBeVisible();
+    expect(later).toHaveTextContent("Sale · Sergio Segura");
   });
 
   it("matches the incoming player by ID and reads the replaced player directly from the event", () => {
@@ -208,10 +213,10 @@ describe("Match lineup lists", () => {
       playerIn: { ...bench.player, name: "Nombre del evento" },
       playerOut: { ...rival.player, name: "Jugador sustituido registrado" },
     }] }} />);
-    const incoming = screen.getByText(bench.player.name).closest("li")!;
-    expect(within(incoming).getByText("Sale · Jugador sustituido registrado")).toBeVisible();
+    const incoming = playerRow(bench.player.name);
+    expect(incoming).toHaveTextContent("Sale · Jugador sustituido registrado");
     expect(within(incoming).getByLabelText("Entra en el minuto 66′")).toBeVisible();
-    expect(screen.queryByText("Sale · Guillermo Marchal")).toBeNull();
+    expect(within(incoming).queryByRole("link", { name: "Guillermo Marchal" })).toBeNull();
   });
 
   it("associates substitution annotations only with their team", () => {

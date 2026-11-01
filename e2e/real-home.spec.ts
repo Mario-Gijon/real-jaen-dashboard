@@ -79,15 +79,15 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   });
   expect(accent).toEqual({ width: "4px", color: "rgb(212, 167, 44)" });
   const list = page.getByRole("list", { name: "Últimos partidos del rival" });
-  await expect(list.getByRole("link")).toHaveCount(5);
-  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-106?from=home&match=sofascore-match-9");
+  await expect(list.getByRole("link")).toHaveCount(15);
+  await expect(list.getByRole("link", { name: /^Ver partido/ }).first()).toHaveAttribute("href", "/matches/sofascore-match-106?from=home&match=sofascore-match-9");
   // xG from each match's detail, from the rival's side: (0.5 + 1.25 + 0.5 + 1.25 + 0.5) / 5 and (1.25 · 3 + 0.5 · 2) / 5.
   const expectation = page.getByRole("term").filter({ hasText: "Expectativa" }).locator("xpath=following-sibling::dd");
   await expect(expectation).toHaveText(/0,80\s*xG a favor\s*·\s*0,95\s*xG en contra/);
   expect(await noHorizontalOverflow(page)).toBe(true);
 
   // A match opened here returns to this target.
-  await list.getByRole("link").first().click();
+  await list.getByRole("link", { name: /^Ver partido/ }).first().click();
   await expect(page).toHaveURL("/matches/sofascore-match-106?from=home&match=sofascore-match-9");
   await page.reload();
   await expect(page).toHaveURL("/matches/sofascore-match-106?from=home&match=sofascore-match-9");
@@ -103,4 +103,55 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   await expect(page.getByText("Todavía no hay partidos finalizados con fecha anterior al encuentro objetivo.")).toBeVisible();
   expect(await noHorizontalOverflow(page)).toBe(true);
   expect(synthetic).toEqual([]);
+});
+
+test("Inicio real opens both target teams and the teams and scores in its history", async ({ page }) => {
+  await serveReal(page);
+  const identities = Object.fromEntries([jaen, rival, next, other].map(team => [team.id, team.name]));
+  await page.route("**/api/v1/teams/*", route => {
+    const segments = new URL(route.request().url()).pathname.split("/").filter(Boolean);
+    if (segments.length !== 4) return route.fallback();
+    const id = decodeURIComponent(segments[3]);
+    const name = identities[id];
+    return route.fulfill(name
+      ? { json: { id, name } }
+      : { status: 404, json: { error: { code: "NOT_FOUND", message: "Equipo no identificado." } } });
+  });
+  await page.goto("/");
+  await expect(page.getByRole("list", { name: "Últimos partidos del rival" })).toBeVisible();
+  const first = page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("listitem").first();
+  const historyTeams = first.getByRole("link", { name: /^Ver equipo/ });
+  await expect(historyTeams).toHaveCount(2);
+  const score = first.getByRole("link", { name: /^Ver partido/ });
+  await expect(score).toHaveAttribute("href", "/matches/sofascore-match-106?from=home&match=sofascore-match-9");
+  const historyTeamName = (await historyTeams.first().getAttribute("aria-label"))!.replace(/^Ver equipo /, "");
+  // Keep the loaded history while destinations are served as known teams without their own export.
+  await page.route("**/api/v1/teams/*/observed-performance", route =>
+    route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "El equipo no tiene exportación propia." } } }));
+  await historyTeams.first().click();
+  await expect(page.getByRole("heading", { level: 2, name: historyTeamName })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("identificado, pero no tiene estadísticas propias disponibles");
+});
+
+test("Inicio target teams open a known identity-only team view", async ({ page }) => {
+  await serveReal(page);
+  const identities = Object.fromEntries([jaen, rival, next, other].map(team => [team.id, team.name]));
+  await page.route("**/api/v1/teams/*/observed-performance", route =>
+    route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "El equipo no tiene exportación propia." } } }));
+  await page.route("**/api/v1/teams/*", route => {
+    const segments = new URL(route.request().url()).pathname.split("/").filter(Boolean);
+    if (segments.length !== 4) return route.fallback();
+    const id = decodeURIComponent(segments[3]);
+    const name = identities[id];
+    return route.fulfill(name
+      ? { json: { id, name } }
+      : { status: 404, json: { error: { code: "NOT_FOUND", message: "Equipo no identificado." } } });
+  });
+  for (const name of ["Atlético Madrileño", "Real Jaén"]) {
+    await page.goto("/");
+    const target = page.getByRole("region", { name: "Encuentro de preparación" });
+    await target.getByRole("link", { name: `Ver equipo ${name}` }).click();
+    await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("identificado, pero no tiene estadísticas propias disponibles");
+  }
 });

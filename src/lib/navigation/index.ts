@@ -2,8 +2,10 @@ export { homeHref, homeReturnHref, type HomeOrigin } from "./home";
 export {
   matchHref,
   matchesHref,
+  seasonMatchesHref,
   matchesInitialState,
   observedMatchHref,
+  playerMatchHref,
   observedMatchListReturnHref,
   observedMatchReturnHref,
   relatedObservedMatchHref,
@@ -21,6 +23,7 @@ export {
   playerProfileHref,
   profileInitialMatch,
   profileOrigin,
+  playerSeasonOrigin,
   type PlayerOrigin,
   type PlayerTab,
   type ProfileOrigin,

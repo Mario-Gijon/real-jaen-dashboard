@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { TeamMatch, TeamSeason } from "@/contract";
 import { average, finishedMatches, goalsAgainst, goalsFor, periodMatches, venueRecord, type Period } from "./performance";
+import { matchHref, teamsHref } from "@/lib/navigation";
 import { TeamOutput } from "./TeamOutput";
 import { OutputZone, PlayedZone, SeasonZone, type BalanceItem, type Played } from "./TeamPerformanceParts";
 import css from "./TeamPerformance.module.css";
@@ -10,7 +11,10 @@ import css from "./TeamPerformance.module.css";
 function syntheticPlayed(m: TeamMatch): Played {
   return {
     id: m.match.id, round: m.match.round, kickoff: m.match.kickoff, side: m.side, opponent: m.opponent,
-    result: m.result!, goalsFor: goalsFor(m), goalsAgainst: goalsAgainst(m), href: `/matches/${encodeURIComponent(m.match.id)}`,
+    result: m.result!, goalsFor: goalsFor(m), goalsAgainst: goalsAgainst(m),
+    href: matchHref(m.match.id, { kind: "teams", seasonId: m.match.seasonId,
+      teamId: m.side === "home" ? m.match.home.id : m.match.away.id, tab: "performance" }),
+    opponentHref: teamsHref({ seasonId: m.match.seasonId, teamId: m.opponent.id }),
   };
 }
 

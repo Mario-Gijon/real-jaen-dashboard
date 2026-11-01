@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  homeHref, homeReturnHref, matchHref, matchesHref, matchesInitialState, observedMatchHref, observedMatchListReturnHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, relatedObservedMatchHref,
+  homeHref, homeReturnHref, matchHref, matchesHref, matchesInitialState, observedMatchHref, observedMatchListReturnHref, observedMatchReturnHref, observedMatchTeamsReturnHref, playerHref, playerMatchHref, relatedObservedMatchHref,
   playerInitialView, playerProfileHref, playerReturnHref, profileInitialMatch, profileOrigin, teamsHref, teamsInitialView,
 } from "@/features/players/navigation";
 
@@ -110,6 +110,14 @@ describe("Player navigation context", () => {
     expect(href).toBe(`/players/player-1?season=season-2&tab=matches&match=match-3&from=match&origin=match-3&originTab=${tab}`);
     expect(playerInitialView(query)).toEqual({ tab: "matches", matchId: "match-3" });
     expect(playerReturnHref(query.season, query)).toBe(`/matches/match-3?tab=${tab}`);
+  });
+  it("opens a season player match with a shareable return to the selected profile context", () => {
+    const href = playerMatchHref("match-9", { playerId: "player-1", seasonId: "season-2", origin: { kind: "team", id: "team-3" } });
+    expect(href).toBe("/matches/match-9?from=player&player=player-1&season=season-2&playerFrom=team&playerOrigin=team-3");
+    const back = observedMatchReturnHref("match-9", queryOf(href))!;
+    expect(back).toBe("/players/player-1?view=profile&season=season-2&from=team&origin=team-3&match=match-9&tab=matches");
+    expect(playerInitialView(queryOf(back))).toEqual({ tab: "matches", matchId: "match-9" });
+    expect(playerReturnHref("season-2", queryOf(back))).toBe("/teams?season=season-2&team=team-3&tab=players");
   });
   it("opens Temporada for direct access without parameters", () => {
     expect(playerHref("player-1", "season-2")).toBe("/players/player-1?season=season-2");

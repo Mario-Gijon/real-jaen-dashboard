@@ -8,6 +8,7 @@ import { Button } from "@/ui/Button";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "@/lib/format";
 import { useApi } from "@/hooks/use-api";
+import { teamsHref } from "@/lib/navigation";
 import { MatchTimeline } from "./MatchTimeline";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { MatchLineups } from "./MatchLineups";
@@ -20,8 +21,8 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
 });
 
 /** `homeReturnHref`: the «Inicio» this match was opened from, to which «Volver» returns; otherwise Partidos. */
-export function MatchDetailView({ matchId, initialSection = "summary", homeReturnHref = null }: {
-  matchId: string; initialSection?: (typeof SECTIONS)[number]; homeReturnHref?: string | null;
+export function MatchDetailView({ matchId, initialSection = "summary", playerReturnHref = null, teamsReturnHref = null, homeReturnHref = null }: {
+  matchId: string; initialSection?: (typeof SECTIONS)[number]; playerReturnHref?: string | null; teamsReturnHref?: string | null; homeReturnHref?: string | null;
 }) {
   const [section, setSection] = useState<(typeof SECTIONS)[number]>(initialSection);
   const tabs = useRef<HTMLDivElement>(null);
@@ -43,8 +44,10 @@ export function MatchDetailView({ matchId, initialSection = "summary", homeRetur
   const notFound = detail.error instanceof ApiRequestError && detail.error.status === 404;
 
   return <div className={css.page}>
-    {homeReturnHref ? <Link href={homeReturnHref} className={css.back}>‹ Volver a Inicio</Link>
-      : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
+    {playerReturnHref ? <Link href={playerReturnHref} className={css.back}>‹ Volver al jugador</Link>
+      : teamsReturnHref ? <Link href={teamsReturnHref} className={css.back}>‹ Volver al equipo</Link>
+        : homeReturnHref ? <Link href={homeReturnHref} className={css.back}>‹ Volver a Inicio</Link>
+          : <Link href="/matches" className={css.back}>‹ Volver a partidos</Link>}
     {detail.error ? <div role="alert" className={css.message}>
       <h1>{notFound ? "Partido no encontrado" : "No se pudo cargar el partido"}</h1>
       {!notFound ? <Button size="sm" onClick={detail.retry}>Reintentar</Button> : null}
@@ -59,7 +62,7 @@ export function MatchDetailView({ matchId, initialSection = "summary", homeRetur
           </time> : <span>Fecha por definir</span>}
         </p>
         <div className={css.fixture}>
-          <Team team={match.home} side="home" />
+          <Team team={match.home} side="home" seasonId={match.seasonId} />
           <div className={css.center}>
             <strong className={css.result} data-state={match.status}>
               {match.status === "finished" && match.score
@@ -69,7 +72,7 @@ export function MatchDetailView({ matchId, initialSection = "summary", homeRetur
             </strong>
             <span className={css.state}>{STATUS[match.status]}</span>
           </div>
-          <Team team={match.away} side="away" />
+          <Team team={match.away} side="away" seasonId={match.seasonId} />
         </div>
       </header>
       <div className={css.tabs} role="tablist" aria-label="Secciones del partido" ref={tabs}>
@@ -91,11 +94,11 @@ export function MatchDetailView({ matchId, initialSection = "summary", homeRetur
   </div>;
 }
 
-function Team({ team, side }: { team: TeamRef; side: "home" | "away" }) {
-  return <div className={`${css.team} ${css[side]}`}>
+function Team({ team, side, seasonId }: { team: TeamRef; side: "home" | "away"; seasonId: string }) {
+  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ seasonId, teamId: team.id })} aria-label={`Ver equipo ${team.name}`}>
     <TeamCrest team={team} size={52} />
     <span>{team.name}</span>
-  </div>;
+  </Link>;
 }
 
 function Summary({ match }: { match: MatchDetail }) {
@@ -107,8 +110,8 @@ function Summary({ match }: { match: MatchDetail }) {
 
   return <>
     <h2 className={css.summaryTitle}>Estadísticas de equipo</h2>
-    <TeamStatsComparison home={{ label: match.home.shortName, name: match.home.name, stats: match.teamStats.home }}
-      away={{ label: match.away.shortName, name: match.away.name, stats: match.teamStats.away }} />
+    <TeamStatsComparison home={{ label: match.home.shortName, name: match.home.name, href: teamsHref({ seasonId: match.seasonId, teamId: match.home.id }), stats: match.teamStats.home }}
+      away={{ label: match.away.shortName, name: match.away.name, href: teamsHref({ seasonId: match.seasonId, teamId: match.away.id }), stats: match.teamStats.away }} />
   </>;
 }
 

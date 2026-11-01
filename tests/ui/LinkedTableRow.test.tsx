@@ -14,3 +14,24 @@ it("activates the native link from a row cell and preserves navigation modifiers
   screen.getByRole("link").focus();
   expect(screen.getByRole("link")).toHaveFocus();
 });
+
+it("keeps a team link independent and delegates blank cells to the match result", () => {
+  const teamClick = vi.fn(event => event.preventDefault());
+  const matchClick = vi.fn(event => event.preventDefault());
+  render(<table><tbody><LinkedTableRow tabIndex={0}>
+    <th><Link href="/teams?team=rival" onClick={teamClick}>Rival</Link></th>
+    <td><Link href="/matches/m1" data-row-primary="" onClick={matchClick}>2–0</Link></td>
+    <td>Finalizado</td>
+  </LinkedTableRow></tbody></table>);
+  const row = screen.getByRole("row");
+  expect(row.querySelectorAll("a a")).toHaveLength(0);
+  fireEvent.click(screen.getByRole("link", { name: "Rival" }));
+  expect(teamClick).toHaveBeenCalledTimes(1);
+  expect(matchClick).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("Finalizado"), { metaKey: true });
+  expect(matchClick).toHaveBeenCalledTimes(1);
+  expect(matchClick.mock.calls[0][0].metaKey).toBe(true);
+  row.focus();
+  fireEvent.keyDown(row, { key: "Enter" });
+  expect(matchClick).toHaveBeenCalledTimes(2);
+});

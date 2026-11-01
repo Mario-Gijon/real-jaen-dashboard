@@ -84,7 +84,7 @@ describe("Matches explorer", () => {
     expect(await screen.findByText("No hay partidos con estos filtros.")).toBeVisible();
   });
 
-  it("shows finished, scheduled and postponed fixtures, chronologically, with full-row links", () => {
+  it("shows finished, scheduled and postponed fixtures with separate team and match links", () => {
     render(<MatchList showRound matches={[
       { ...match, id: "undated", round: 9, kickoff: null, status: "postponed", score: null },
       { ...match, id: "future", round: 15, kickoff: "2026-11-28T17:00:00Z", status: "scheduled", score: null },
@@ -92,14 +92,17 @@ describe("Matches explorer", () => {
     ]} />);
     const links = within(screen.getByRole("list")).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/matches/m14", "/matches/future", "/matches/undated",
+      "/teams?season=s1&team=team-real-jaen", "/matches/m14", "/teams?season=s1&team=rival",
+      "/teams?season=s1&team=team-real-jaen", "/matches/future", "/teams?season=s1&team=rival",
+      "/teams?season=s1&team=team-real-jaen", "/matches/undated", "/teams?season=s1&team=rival",
     ]);
-    expect(links[0]).toHaveTextContent("2 – 1");
-    expect(links[0]).toHaveTextContent("Finalizado");
-    expect(links[1]).toHaveTextContent("18:00");
-    expect(links[1]).toHaveTextContent("Programado");
-    expect(links[2]).toHaveTextContent("Aplazado");
-    expect(links[2]).toHaveTextContent("Jornada 9");
-    expect(links[2]).toHaveTextContent("Fecha por definir");
+    expect(links[1]).toHaveTextContent("2 – 1");
+    expect(links[1]).toHaveAccessibleName(/Finalizado/);
+    expect(links[4]).toHaveTextContent("18:00");
+    expect(links[4]).toHaveAccessibleName(/Programado/);
+    expect(links[7]).toHaveTextContent("Aplazado");
+    expect(links[7]).toHaveAccessibleName(/jornada 9/);
+    expect(links[7]).toHaveAccessibleName(/Fecha por definir/);
+    expect(screen.getByRole("list").querySelectorAll("a a")).toHaveLength(0);
   });
 });

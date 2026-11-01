@@ -8,6 +8,8 @@ import type { MatchEvent, MatchSummary, PlayerMatch, PlayerSeason, Stat } from "
 import { Button } from "@/ui/Button";
 import { dateLabel, statText } from "@/lib/format";
 import { useApi } from "@/hooks/use-api";
+import { matchHref as buildMatchHref, teamsHref } from "@/lib/navigation";
+import { PlayerLink } from "./PlayerLink";
 import { GoalIcon } from "../matches/GoalIcon";
 import { AssistIcon } from "../matches/AssistIcon";
 import { FIELD_GROUPS, KEEPER_GROUPS } from "./player-metrics";
@@ -16,7 +18,9 @@ import { revealMatch } from "./reveal-match";
 import css from "./PlayerMatches.module.css";
 
 /** `initialMatchId` comes from navigation (e.g. a match context); it is selected only if it is a finished team match. */
-export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSeason; initialMatchId?: string | null }) {
+export function PlayerMatches({ data, initialMatchId = null, matchHref = buildMatchHref }: {
+  data: PlayerSeason; initialMatchId?: string | null; matchHref?: (matchId: string) => string;
+}) {
   const calendar = useApi(`player-calendar|${data.season.id}|${data.team.id}`,
     signal => getSeasonMatches(data.season.id, { teamId: data.team.id }, { signal }));
   const [selectedId, setSelectedId] = useState<string | null>(initialMatchId);
@@ -54,14 +58,19 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
           const appearance = appearances.get(match.id);
           const active = selectedMatchId === match.id;
           const content = <HistoryRow match={match} appearance={appearance} data={data} />;
-          return <li key={match.id}>{appearance ? <button type="button" className={css.historyRow} data-match-id={match.id}
-            aria-pressed={active} aria-expanded={active} aria-controls={active ? "player-match-detail-panel player-inline-detail" : undefined}
-            onClick={() => setSelectedId(match.id)}>
+          return <li key={match.id}><div className={css.historyRow} data-match-id={match.id} data-selected={active || undefined}
+            aria-current={!appearance && active ? "true" : undefined}
+            data-selectable={appearance ? "true" : undefined}>
+            {appearance ? <button type="button" className={css.matchSelect}
+              aria-label={"Seleccionar partido J" + match.round + ": " + match.home.name + " contra " + match.away.name}
+              aria-pressed={active} aria-expanded={active} aria-controls={active ? "player-match-detail-panel player-inline-detail" : undefined}
+              onClick={() => setSelectedId(match.id)} /> : null}
             {content}
-          </button> : <div className={css.historyRow} data-match-id={match.id} aria-current={active || undefined}>{content}</div>}
+          </div>
             {active ? <section id="player-inline-detail" className={css.inlineDetail} aria-label="Detalle inline del partido">
               <h3 className={css.detailHeading}>Detalle del partido</h3>
-              {appearance ? <AppearanceDetail appearance={appearance} data={data} /> : <AbsentDetail match={match} data={data} />}
+              {appearance ? <AppearanceDetail appearance={appearance} data={data} matchHref={matchHref} />
+                : <AbsentDetail match={match} data={data} matchHref={matchHref} />}
             </section> : null}
           </li>;
         })}
@@ -69,8 +78,8 @@ export function PlayerMatches({ data, initialMatchId = null }: { data: PlayerSea
     </section>
     <section id="player-match-detail-panel" className={`${shared.block} ${css.desktopDetail}`} aria-labelledby="player-match-detail">
       <h2 id="player-match-detail">Detalle del partido</h2>
-      {selected ? <AppearanceDetail appearance={selected} data={data} />
-        : absent ? <AbsentDetail match={absent} data={data} />
+      {selected ? <AppearanceDetail appearance={selected} data={data} matchHref={matchHref} />
+        : absent ? <AbsentDetail match={absent} data={data} matchHref={matchHref} />
         : <p className={shared.message}>{selectedId !== null && data.matches.length ? "Selecciona un partido del histórico." : "Sin apariciones esta temporada."}</p>}
     </section>
   </div>;
@@ -96,7 +105,8 @@ function HistoryRow({ match, appearance, data }: { match: MatchSummary; appearan
   return <>
     <span className={css.round}>J{match.round}</span>
     <span className={css.fixture}>
-      <span className={css.teams}>{match.home.name} · {match.away.name}</span>
+      <span className={css.teams}><Link href={teamsHref({ seasonId: match.seasonId, teamId: match.home.id })}>{match.home.name}</Link>
+        {" · "}<Link href={teamsHref({ seasonId: match.seasonId, teamId: match.away.id })}>{match.away.name}</Link></span>
       <span className={css.meta}>{side} · {dateLabel(match.kickoff)}</span>
     </span>
     <Score match={match} />
@@ -110,7 +120,7 @@ function HistoryRow({ match, appearance, data }: { match: MatchSummary; appearan
   </>;
 }
 
-function AppearanceDetail({ appearance, data }: { appearance: PlayerMatch; data: PlayerSeason }) {
+function AppearanceDetail({ appearance, data, matchHref }: { appearance: PlayerMatch; data: PlayerSeason; matchHref: (matchId: string) => string }) {
   const { match } = appearance;
   const opponent = appearance.side === "home" ? match.away : match.home;
   const events = appearance.events.filter(event => event.type === "goal"
@@ -120,7 +130,7 @@ function AppearanceDetail({ appearance, data }: { appearance: PlayerMatch; data:
     .slice().sort((a, b) => a.minute - b.minute || (a.addedTime ?? 0) - (b.addedTime ?? 0));
   return <>
     <div className={css.detailContext}>
-      <p className={css.teams}>J{match.round} · vs {opponent.name} <Score match={match} /></p>
+      <p className={css.teams}>J{match.round} · vs <Link href={teamsHref({ seasonId: match.seasonId, teamId: opponent.id })}>{opponent.name}</Link> <Score match={match} /></p>
       <p className={css.meta}>{appearance.side === "home" ? "Local" : "Visitante"} · {dateLabel(match.kickoff)} · {appearance.started ? "Titular" : "Suplente"} · <MatchValue stat={appearance.stats.minutes} />{appearance.stats.minutes.value !== null ? "′" : null}</p>
     </div>
     <div className={shared.performance}>
@@ -136,31 +146,33 @@ function AppearanceDetail({ appearance, data }: { appearance: PlayerMatch; data:
       {events.length ? <ol className={css.actions} aria-label="Acciones del jugador en el partido">
         {events.map(event => <li key={event.id}>
           <span className={css.minute}>{event.minute}{event.addedTime ? `+${event.addedTime}` : ""}′</span>
-          <PlayerAction event={event} playerId={data.player.id} />
+          <PlayerAction event={event} playerId={data.player.id} seasonId={data.season.id} matchId={match.id} />
         </li>)}
       </ol> : <p className={shared.message}>Sin acciones registradas en este partido.</p>}
     </section>
-    <Link className={css.fullMatch} href={`/matches/${match.id}`}>Ver partido completo</Link>
+    <Link className={css.fullMatch} href={matchHref(match.id)}>Ver partido completo</Link>
   </>;
 }
 /** A team match the player did not play: context only, no minutes or stats, and no assumed reason. */
-function AbsentDetail({ match, data }: { match: MatchSummary; data: PlayerSeason }) {
+function AbsentDetail({ match, data, matchHref }: { match: MatchSummary; data: PlayerSeason; matchHref: (matchId: string) => string }) {
   const home = match.home.id === data.team.id;
   return <>
     <div className={css.detailContext}>
-      <p className={css.teams}>J{match.round} · vs {(home ? match.away : match.home).name} <Score match={match} /></p>
+      <p className={css.teams}>J{match.round} · vs <Link href={teamsHref({ seasonId: match.seasonId, teamId: (home ? match.away : match.home).id })}>
+        {(home ? match.away : match.home).name}</Link> <Score match={match} /></p>
       <p className={css.meta}>{home ? "Local" : "Visitante"} · {dateLabel(match.kickoff)} · No participó</p>
     </div>
     <p className={shared.message}>Sin minutos ni estadísticas individuales en este partido.</p>
-    <Link className={css.fullMatch} href={`/matches/${match.id}`}>Ver partido completo</Link>
+    <Link className={css.fullMatch} href={matchHref(match.id)}>Ver partido completo</Link>
   </>;
 }
-function PlayerAction({ event, playerId }: { event: MatchEvent; playerId: string }) {
+function PlayerAction({ event, playerId, seasonId, matchId }: { event: MatchEvent; playerId: string; seasonId: string; matchId: string }) {
   if (event.type === "goal") {
     const assist = event.assist?.id === playerId && event.player.id !== playerId;
     return <span className={css.actionText}>
       {assist ? <AssistIcon /> : <GoalIcon />}
-      <span>{assist ? `Asistencia · Gol de ${event.player.name}` : event.ownGoal ? "Gol en propia puerta" : event.penalty ? "Gol · Penalti" : "Gol"}
+      <span>{assist ? <>Asistencia · Gol de <PlayerLink player={event.player} seasonId={seasonId}
+        origin={{ kind: "match", id: matchId, tab: "lineups" }} /></> : event.ownGoal ? "Gol en propia puerta" : event.penalty ? "Gol · Penalti" : "Gol"}
         {assist ? <span className={css.meta}>Minuto del gol asistido</span> : null}</span>
     </span>;
   }

@@ -54,6 +54,9 @@ beforeEach(() => {
 const list = () => screen.findByRole("list", { name: "Partidos reales" });
 const rows = () => within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("listitem");
 const hrefs = () => within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("link").map((l) => l.getAttribute("href"));
+const destinations = (matches: readonly ObservedMatch[], matchHref: (id: string) => string) => matches.flatMap((m) => [
+  `/teams?team=${m.home.id}`, matchHref(m.id), `/teams?team=${m.away.id}`,
+]);
 const teamSelect = () => screen.getByRole("combobox", { name: "Equipo" });
 /** A row's link: its real detail, carrying the list's team and status to return to. */
 const link = (id: string, context = "") => `/matches/${id}?from=matches${context}`;
@@ -76,7 +79,8 @@ describe("Partidos with the real source", () => {
     expect(rows()[2]).toHaveTextContent(/\d\d:\d\dProgramado/);
     expect(rows()[3]).toHaveTextContent("Estado desconocido");
     expect(rows()[4]).toHaveTextContent("Fecha por definir");
-    expect(hrefs()).toEqual(["m1", "m2", "m3", "m5", "m4"].map((id) => link(id)));
+    expect(hrefs()).toEqual(destinations([finished, goalless, pending, unknown, undated], (id) => link(id)));
+    expect(screen.getByRole("list", { name: "Partidos reales" }).querySelectorAll("a a")).toHaveLength(0);
     expect(window.location.search).toBe("");
     for (const synthetic of [getCompetitions, getSeasonMatches, getSeasonTeams]) expect(synthetic).not.toHaveBeenCalled();
   });
@@ -88,12 +92,12 @@ describe("Partidos with the real source", () => {
     expect([...teamSelect().querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Real Jaén", "AD Alcorcón", "UD Ibiza", "Todos los equipos"]);
     await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "finished");
     await user.selectOptions(teamSelect(), ibiza.id);
-    await vi.waitFor(() => expect(hrefs()).toHaveLength(1));
+    await vi.waitFor(() => expect(hrefs()).toHaveLength(3));
     expect(getTeamObservedMatches).toHaveBeenLastCalledWith(ibiza.id, expect.anything());
     expect(window.location.search).toBe(`?team=${ibiza.id}&state=finished`);
     // Status is kept: only Ibiza's finished match, opening with this team and status.
     expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("finished");
-    expect(hrefs()).toEqual([link("m6", `&team=${ibiza.id}&state=finished`)]);
+    expect(hrefs()).toEqual(destinations([ibizaOnly], (id) => link(id, `&team=${ibiza.id}&state=finished`)));
   });
 
   it("lists every team's matches once with «Todos los equipos», asking for one team at a time", async () => {
@@ -112,9 +116,9 @@ describe("Partidos with the real source", () => {
     expect(teamSelect()).toHaveValue("all");
     expect(order).toEqual([jaen.id, alcorcon.id, ibiza.id]);
     // m3 (Jaén – Ibiza) and m6 (Ibiza – Alcorcón) appear in two lists, listed once; by kickoff, undated last.
-    expect(hrefs()).toEqual(["m1", "m6", "m2", "m3", "m5", "m4"].map((id) => link(id, "&team=all")));
+    expect(hrefs()).toEqual(destinations([finished, ibizaOnly, goalless, pending, unknown, undated], (id) => link(id, "&team=all")));
     await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Estado" }), "pending");
-    expect(hrefs()).toEqual(["m3", "m4"].map((id) => link(id, "&team=all&state=pending")));
+    expect(hrefs()).toEqual(destinations([pending, undated], (id) => link(id, "&team=all&state=pending")));
   });
 
   it("opens the team of the URL, and falls back to Real Jaén for one the catalog does not offer, saying so", async () => {
@@ -137,7 +141,7 @@ describe("Partidos with the real source", () => {
     render(<MatchesView initialTeamId="all" initialState="pending" />);
     await list();
     expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("pending");
-    expect(hrefs()).toEqual(["m3", "m4"].map((id) => link(id, "&team=all&state=pending")));
+    expect(hrefs()).toEqual(destinations([pending, undated], (id) => link(id, "&team=all&state=pending")));
   });
 
   it("keeps to the current season of the scope: another season never shows, a match without a season name stays", async () => {
@@ -145,7 +149,8 @@ describe("Partidos with the real source", () => {
       match("m8", { season: null, kickoff: "2026-09-20T10:00:00Z" })]));
     render(<MatchesView />);
     await list();
-    expect(hrefs()).toEqual([link("m1"), link("m8")]);
+    const seasonless = match("m8", { season: null, kickoff: "2026-09-20T10:00:00Z" });
+    expect(hrefs()).toEqual(destinations([finished, seasonless], (id) => link(id)));
   });
 
   it("brings the competition and season selectors back when the source serves more than one", async () => {
@@ -155,7 +160,7 @@ describe("Partidos with the real source", () => {
     render(<MatchesView />);
     await list();
     await user.selectOptions(screen.getByRole("combobox", { name: "Competición" }), "Copa del Rey");
-    expect(hrefs()).toEqual([link("m9")]);
+    expect(hrefs()).toEqual(destinations([cup], (id) => link(id)));
     expect(screen.getByRole("combobox", { name: "Temporada" })).toBeVisible();
   });
 

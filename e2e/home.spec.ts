@@ -24,7 +24,7 @@ test("Home changes preparation context by keyboard and opens a recent match", as
   await expect(page.getByRole("region", { name: "Encuentro de preparación" }).getByText(opponent, { exact: true })).toBeVisible();
   await expect(page).toHaveURL(url);
   await expect(page.getByRole("heading", { level: 2, name: `Últimos 5 partidos del ${opponent}` })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link")).toHaveCount(5);
+  await expect(page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link")).toHaveCount(15);
   await expect(page.getByText(/Partidos anteriores|Material complementario/)).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -34,11 +34,46 @@ test("Home changes preparation context by keyboard and opens a recent match", as
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
   // A match opened from Inicio returns to the same season and target.
-  await page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link").first().click();
+  await page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("link", { name: /^Ver partido/ }).first().click();
   await expect(page).toHaveURL(/\/matches\/[^/?]+\?from=home&season=[^&]+&match=[^&]+$/);
   await page.getByRole("link", { name: "Volver a Inicio" }).click();
   await expect(page).toHaveURL(url);
   await expect(page.getByRole("region", { name: "Encuentro de preparación" }).getByText(opponent, { exact: true })).toBeVisible();
+});
+
+test("Home gives the target and recent fixtures independent team and match destinations", async ({ page }) => {
+  await page.goto("/");
+  const target = page.getByRole("region", { name: "Encuentro de preparación" });
+  const targetTeams = target.getByRole("link", { name: /^Ver equipo/ });
+  await expect(targetTeams).toHaveCount(2);
+  for (const index of [0, 1]) {
+    const link = targetTeams.nth(index);
+    const href = await link.getAttribute("href");
+    const name = (await link.getAttribute("aria-label"))!.replace("Ver equipo ", "");
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(href!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"));
+    await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
+    await page.goBack();
+    await expect(target.getByRole("link", { name: /^Ver equipo/ })).toHaveCount(2);
+  }
+
+  const first = page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("listitem").first();
+  const teamLinks = first.getByRole("link", { name: /^Ver equipo/ });
+  await expect(teamLinks).toHaveCount(2);
+  const homeTeamHref = await teamLinks.first().getAttribute("href");
+  await teamLinks.first().click();
+  await expect(page).toHaveURL(new RegExp(homeTeamHref!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"));
+  await page.goBack();
+  const awayLink = page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("listitem").first()
+    .getByRole("link", { name: /^Ver equipo/ }).nth(1);
+  const awayHref = await awayLink.getAttribute("href");
+  await awayLink.click();
+  await expect(page).toHaveURL(new RegExp(awayHref!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"));
+  await page.goBack();
+  const match = page.getByRole("list", { name: "Últimos partidos del rival" }).getByRole("listitem").first()
+    .getByRole("link", { name: /^Ver partido/ });
+  await match.click();
+  await expect(page).toHaveURL(/\/matches\/[^/?]+\?from=home&season=[^&]+&match=[^&]+$/);
 });
 
 test("Ver todos preserves season and opens all rounds for the selected rival", async ({ page }) => {

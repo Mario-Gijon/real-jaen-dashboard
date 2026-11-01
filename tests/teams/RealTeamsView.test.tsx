@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ApiRequestError, getCompetitions, getObservedPlayers, getObservedSquad, getPlayer, getSeasonTeams, getSource,
+  ApiRequestError, getCompetitions, getObservedPlayers, getObservedSquad, getObservedTeam, getPlayer, getSeasonTeams, getSource,
   getTeamObservedPerformance, getTeamSeason,
 } from "@/client/api";
 import {
@@ -15,7 +15,7 @@ import { DEMO_SOURCE, REAL_SOURCE } from "../shared/sources";
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
   getSource: vi.fn(), getTeamObservedPerformance: vi.fn(), getObservedPlayers: vi.fn(), getObservedSquad: vi.fn(),
-  getCompetitions: vi.fn(), getSeasonTeams: vi.fn(), getTeamSeason: vi.fn(), getPlayer: vi.fn(),
+  getCompetitions: vi.fn(), getSeasonTeams: vi.fn(), getTeamSeason: vi.fn(), getPlayer: vi.fn(), getObservedTeam: vi.fn(),
 }));
 
 const jaen = { id: "team-real-jaen", name: "Real Jaén" };
@@ -92,6 +92,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   real();
   vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance());
+  vi.mocked(getObservedTeam).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
 });
 
 const loaded = () => screen.findByRole("heading", { level: 2, name: "Real Jaén" });
@@ -200,8 +201,11 @@ describe("Equipos con la fuente real", () => {
       expect.stringMatching(/^3.*Localvs.*CE Europa.*V 1-0$/), expect.stringMatching(/^2.*Localvs.*Huesca.*E 2-2$/),
       expect.stringMatching(/^1.*Visitanteen.*CE Europa.*V 3-0$/),
     ]);
-    expect(within(table).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
+    expect(within(table).getAllByRole("link", { name: /^Ver partido/ }).map((link) => link.getAttribute("href"))).toEqual(
       ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?from=teams`));
+    expect(within(table).getAllByRole("link", { name: /^Ver equipo/ }).map((link) => link.getAttribute("href"))).toEqual([
+      "/teams?team=sofascore-team-135672", "/teams?team=sofascore-team-24265", "/teams?team=sofascore-team-135672",
+    ]);
     unmount();
   });
 
@@ -243,19 +247,32 @@ describe("Equipos con la fuente real", () => {
     expect(getTeamSeason).not.toHaveBeenCalled();
   });
 
-  it("never swaps a synthetic season or a team without correspondence from the URL", async () => {
+  it("shows an identity-only team without substituting Real Jaén's performance", async () => {
     const { unmount } = render(<TeamsView initialSeasonId="season-demo-2026-27" />);
     expect(await screen.findByText(/La temporada indicada no corresponde a la fuente real de equipos/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Ver la temporada real" })).toHaveAttribute("href", "/teams");
     unmount();
     vi.mocked(getTeamObservedPerformance).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
-    render(<TeamsView initialTeamId="team-montealto" />);
-    expect(await screen.findByText("Este equipo no está disponible en la fuente real de equipos: sin correspondencia explícita o sin exportación propia.")).toBeVisible();
-    expect(getTeamObservedPerformance).toHaveBeenCalledWith("team-montealto", expect.anything());
-    // The way out resets the team chosen by the URL (same page, no remount).
+    vi.mocked(getObservedTeam).mockResolvedValue(europa);
+    render(<TeamsView initialTeamId={europa.id} />);
+    expect(await screen.findByRole("heading", { level: 2, name: "CE Europa" })).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("está identificado, pero no tiene estadísticas propias disponibles");
+    expect(screen.queryByLabelText("Balance")).toBeNull();
+    expect(screen.queryByRole("table", { name: "Partidos disputados" })).toBeNull();
+    expect(getTeamObservedPerformance).toHaveBeenCalledWith(europa.id, expect.anything());
+    expect(getObservedTeam).toHaveBeenCalledWith(europa.id, expect.anything());
+    // Return to the real club without relying on browser history.
     vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance());
     await userEvent.setup().click(screen.getByRole("link", { name: "Ver el Real Jaén" }));
     await loaded();
+  });
+
+  it("leaves a team with no resolvable identity as an honest unavailable state", async () => {
+    vi.mocked(getTeamObservedPerformance).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
+    vi.mocked(getObservedTeam).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
+    render(<TeamsView initialTeamId="team-montealto" />);
+    expect(await screen.findByText("La fuente real no pudo resolver la identidad de este equipo.")).toBeVisible();
+    expect(screen.queryByRole("heading", { level: 2, name: "Real Jaén" })).toBeNull();
   });
 
   describe("URL of the shown team (?team=, season and tab)", () => {
@@ -290,8 +307,9 @@ describe("Equipos con la fuente real", () => {
     it("never replaces an unknown or unavailable team, nor a synthetic season, with the club in the URL", async () => {
       window.history.replaceState(null, "", "/teams?team=team-montealto");
       vi.mocked(getTeamObservedPerformance).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
+      vi.mocked(getObservedTeam).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "No"));
       const { unmount } = render(<TeamsView initialTeamId="team-montealto" />);
-      expect(await screen.findByText(/no está disponible en la fuente real de equipos/)).toBeVisible();
+      expect(await screen.findByText(/no pudo resolver la identidad/)).toBeVisible();
       expect(window.location.search).toBe("?team=team-montealto");
       expect(screen.queryByRole("heading", { level: 2, name: "Real Jaén" })).toBeNull();
       unmount();

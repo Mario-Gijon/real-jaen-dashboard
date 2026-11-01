@@ -8,6 +8,7 @@ import type {
   ObservedPlayers,
   ObservedSquad,
   ObservedTeamMatches,
+  ObservedTeam,
   ObservedTeamPerformance,
   PlayerProfile,
   RealSection,
@@ -21,6 +22,7 @@ import {
   createLocalApiObservedPlayers,
   createLocalApiObservedSquad,
   createLocalApiTeamPerformance,
+  createLocalApiTeamIdentity,
   createLocalApiPlayerProfile,
   createLocalApiMatchDetail,
   createLocalApiTeamMatches,
@@ -48,6 +50,8 @@ export interface DataSource {
    * for that team. A real source that fails throws `UpstreamUnavailableError`.
    */
   observedPlayers(teamId: string): Promise<ObservedPlayers | null>;
+  /** Public identity of a real team, including teams without a statistics export. */
+  teamIdentity(teamId: string): Promise<ObservedTeam | null>;
   /**
    * A team's observed players with their figures in each competition of a
    * real source's scope; `null` without a real source or correspondence.
@@ -128,6 +132,7 @@ export function createRealSource(baseUrl: string): DataSource {
     teamSeason: async () => null,
     player: async () => null,
     observedPlayers: createLocalApiObservedPlayers(local),
+    teamIdentity: createLocalApiTeamIdentity(local),
     observedSquad: createLocalApiObservedSquad(local),
     playerProfile: createLocalApiPlayerProfile(local),
     playerObservedMatches: createLocalApiObservedMatches(local),
