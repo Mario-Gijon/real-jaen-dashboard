@@ -118,11 +118,32 @@ export function HistorySection({ team, rows, summary, expectation, allHref, cove
       {coverage}
       {rows.length ? <>
         {summary ? <dl className={css.summary} aria-label="Síntesis de partidos recientes">
-          <div><dt>Forma</dt><dd><strong>{summary.wins}</strong> V · <strong>{summary.draws}</strong> E · <strong>{summary.losses}</strong> D</dd></div>
-          <div><dt>Goles</dt><dd><SummaryValue label="GF" stat={summary.goalsFor} /><span aria-hidden="true"> · </span><SummaryValue label="GC" stat={summary.goalsAgainst} /></dd></div>
-          <div><dt>Expectativa</dt><dd>{"loading" in expectation ? <span role="status">Cargando xG…</span>
-            : "error" in expectation ? <span className={css.inlineError} role="alert">No se pudo cargar el xG <Button size="sm" onClick={expectation.retry}>Reintentar</Button></span>
-              : <><SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} /><span aria-hidden="true"> · </span><SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} /></>}</dd></div>
+          <div>
+            <dt>Forma</dt>
+            <dd className={css.formValues}>
+              <span className={css.formValue}><strong>{summary.wins}</strong>{" "}<span>V</span></span>
+              <span className={css.valueSeparator} aria-hidden="true"> · </span>
+              <span className={css.formValue}><strong>{summary.draws}</strong>{" "}<span>E</span></span>
+              <span className={css.valueSeparator} aria-hidden="true"> · </span>
+              <span className={css.formValue}><strong>{summary.losses}</strong>{" "}<span>D</span></span>
+            </dd>
+          </div>
+          <div>
+            <dt>Goles</dt>
+            <dd>
+              <SummaryValue label="GF" stat={summary.goalsFor} />
+              <span className={css.valueSeparator} aria-hidden="true"> · </span>
+              <SummaryValue label="GC" stat={summary.goalsAgainst} />
+            </dd>
+          </div>
+          <div>
+            <dt>Expectativa</dt>
+            <dd>{"loading" in expectation ? <span role="status">Cargando xG…</span>
+              : "error" in expectation ? <span className={css.inlineError} role="alert">No se pudo cargar el xG <Button size="sm" onClick={expectation.retry}>Reintentar</Button></span>
+                : <><SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} />
+                  <span className={css.valueSeparator} aria-hidden="true"> · </span>
+                  <SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} /></>}</dd>
+          </div>
         </dl> : null}
         <PreparationMatches rows={rows} label="Últimos partidos del rival" />
       </> : <p className={css.message}>Todavía no hay partidos finalizados con fecha anterior al encuentro objetivo.</p>}
@@ -133,10 +154,16 @@ export function HistorySection({ team, rows, summary, expectation, allHref, cove
 function SummaryValue({ label, stat, decimals = 0 }: { label: string; stat: SeasonStat; decimals?: number }) {
   const note = stat.value === null ? stat.reason === "not_collected" ? "Dato no recogido" : "Dato no disponible"
     : stat.coverage === "partial" ? `Datos disponibles en ${stat.matches} de ${stat.of} partidos` : undefined;
-  return <span className={css.measure}><span className={css.reading}><strong title={note} aria-label={note}>
-    {stat.value === null ? "—" : formatNumber(stat.value, decimals)}
-    {stat.coverage === "partial" ? <sup aria-hidden="true">*</sup> : null}
-  </strong> {label}</span>{stat.coverage === "partial" ? <span className={css.coverage}>{stat.matches}/{stat.of} partidos con dato</span> : null}</span>;
+  return <span className={css.measure}>
+    <span className={css.reading}>
+      <strong title={note} aria-label={note}>
+        {stat.value === null ? "—" : formatNumber(stat.value, decimals)}
+        {stat.coverage === "partial" ? <sup aria-hidden="true">*</sup> : null}
+      </strong>
+      <span className={css.valueLabel}>{" "}{label}</span>
+    </span>
+    {stat.coverage === "partial" ? <span className={css.coverage}>{stat.matches}/{stat.of} partidos con dato</span> : null}
+  </span>;
 }
 
 function PreparationMatches({ rows, label }: { rows: readonly HistoryRow[]; label: string }) {
