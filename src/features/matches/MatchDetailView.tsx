@@ -5,6 +5,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { ApiRequestError, getCompetitions, getMatch } from "@/client/api";
 import type { MatchDetail, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "@/lib/format";
 import { useApi } from "@/hooks/use-api";
@@ -51,7 +52,9 @@ export function MatchDetailView({ matchId, initialSection = "summary", playerRet
     {detail.error ? <div role="alert" className={css.message}>
       <h1>{notFound ? "Partido no encontrado" : "No se pudo cargar el partido"}</h1>
       {!notFound ? <Button size="sm" onClick={detail.retry}>Reintentar</Button> : null}
-    </div> : !match ? <p role="status" className={css.message}>Cargando partido…</p> : <>
+    </div> : !match ? <section aria-label="Detalles del partido" aria-busy="true">
+      <LoadingState variant="section" label="Cargando partido…" />
+    </section> : <>
       <header className={css.header}>
         <h1 className={css.matchHeading}>{match.home.name} contra {match.away.name}</h1>
         {competition && season ? <p className={css.competition}>{competition.name} · {season.name}</p> : null}

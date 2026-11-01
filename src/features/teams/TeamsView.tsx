@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { getSource } from "@/client/api";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { teamsInitialView } from "@/lib/navigation";
 import { failureReason, useApi } from "@/hooks/use-api";
 import { RealTeamsView } from "./RealTeamsView";
@@ -28,9 +29,7 @@ export function TeamsView(serverView: Props) {
       <Button onClick={source.retry} size="sm">Reintentar</Button>
     </div>
   </>;
-  if (!source.data) return <>
-    <p className={css.status} role="status">Cargando equipos…</p>
-  </>;
+  if (!source.data) return <LoadingState variant="page" label="Cargando equipos…" />;
   // Search-param links can change the entity without leaving /teams. Remount
   // the view from the URL so its selected team, season and tab stay in sync.
   const viewKey = [props.initialTeamId ?? "", props.initialSeasonId ?? "", props.initialTab ?? "performance"].join("|");

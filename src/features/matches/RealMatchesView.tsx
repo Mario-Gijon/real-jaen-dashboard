@@ -7,6 +7,7 @@ import type { ObservedMatch } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
+import { LoadingState } from "@/ui/LoadingState";
 import { CLUB_ID } from "@/lib/club";
 import { matchesHref, observedMatchHref, type MatchesState } from "@/lib/navigation";
 import { useApi } from "@/hooks/use-api";
@@ -111,14 +112,15 @@ export function RealMatchesView({ initialSeasonId, initialTeamId, initialState =
         ) : (
           <>
             <div className={css.filters}>
-              <label className={`${css.field} ${css.teamPicker}`}>
+              <label className={`${css.field} ${css.teamPicker}`} aria-busy={!teams && !catalog.error || undefined}>
                 <span>Equipo</span>
                 <Select value={teamId ?? chosen} disabled={!teams} onChange={(e) => setChosen(e.target.value)}>
                   {teams ? <>
                     {teams.map((t) => <option key={t.id} value={t.id}>{t.name ?? "Equipo sin identificar"}</option>)}
                     <option value={ALL_TEAMS}>Todos los equipos</option>
-                  </> : <option value={teamId ?? chosen}>{chosen === CLUB_ID ? "Real Jaén" : chosen === ALL_TEAMS ? "Todos los equipos" : "Cargando equipos…"}</option>}
+                  </> : <option value={teamId ?? chosen}>{chosen === CLUB_ID ? "Real Jaén" : chosen === ALL_TEAMS ? "Todos los equipos" : "Equipo seleccionado"}</option>}
                 </Select>
+                {!teams && !catalog.error ? <LoadingState variant="inline" label="Cargando equipos…" /> : null}
               </label>
               <label className={`${css.field} ${css.teamPicker}`}>
                 <span>Estado</span>
@@ -147,7 +149,9 @@ export function RealMatchesView({ initialSeasonId, initialTeamId, initialState =
                 <Button size="sm" onClick={load.retry}>Reintentar</Button>
               </div>
             ) : teamId === ALL_TEAMS && catalog.error ? null : !load.data ? (
-              <p className={css.status} role="status">Cargando partidos…</p>
+              <section aria-label="Resultados de partidos" aria-busy={load.loading || undefined} className={css.surface}>
+                <LoadingState variant="section" label="Cargando partidos…" />
+              </section>
             ) : (
               <section aria-label="Resultados de partidos" className={css.surface}>
                 {all.length === 0 ? <p className={css.status} role="status">{teamId === ALL_TEAMS ? "La fuente no tiene partidos de estos equipos." : "La fuente no tiene partidos de este equipo."}</p>

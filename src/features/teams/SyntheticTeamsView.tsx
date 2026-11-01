@@ -5,6 +5,7 @@ import { getCompetitions, getPlayer, getSeasonTeams, getTeamSeason } from "@/cli
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
+import { LoadingState } from "@/ui/LoadingState";
 import { CLUB_ID } from "@/lib/club";
 import { footLabel } from "@/lib/format";
 import { useApi } from "@/hooks/use-api";
@@ -100,11 +101,9 @@ export function SyntheticTeamsView({ initialTeamId, initialSeasonId, initialTab 
           </Button>
         </div>
       ) : !team ? (
-        <p className={css.status} role="status">
-          {competitions.loading || standings.loading
-            ? "Cargando equipos…"
-            : "No hay equipos en esta temporada."}
-        </p>
+        competitions.loading || standings.loading
+          ? <section aria-label="Equipos de la temporada" aria-busy="true"><LoadingState variant="section" label="Cargando equipos…" /></section>
+          : <p className={css.status} role="status">No hay equipos en esta temporada.</p>
       ) : (
         <TeamShell
           busy={detail.loading}
@@ -123,9 +122,7 @@ export function SyntheticTeamsView({ initialTeamId, initialSeasonId, initialTab 
               </Button>
             </div>
           ) : !detail.data ? (
-            <p className={css.status} role="status">
-              Cargando temporada…
-            </p>
+            <LoadingState variant="section" label="Cargando temporada…" />
           ) : tab === "performance" ? (
             <TeamPerformance season={detail.data} />
           ) : (

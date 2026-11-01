@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
+import { LoadingState } from "@/ui/LoadingState";
 import { isActive, useUpdates } from "./use-updates";
 import { CoverageSummary } from "./CoverageSummary";
 import { PHASE_LABELS, STEPS, hasPending, jobLine, updateTime } from "./labels";
@@ -17,7 +18,11 @@ export function OperatorView() {
   const { status, job, busy, problem, publishedNow, start, cancel, reload } = useUpdates();
 
   if (status === null) {
-    return <><PageHeader title="Actualización de datos" />{problem ? <p className={css.problem} role="alert">{problem}</p> : <p>Cargando…</p>}</>;
+    return <>
+      <PageHeader title="Actualización de datos" />
+      {problem ? <p className={css.problem} role="alert">{problem}</p>
+        : <section aria-label="Estado de actualización" aria-busy="true"><LoadingState variant="section" label="Cargando estado de actualización…" /></section>}
+    </>;
   }
   if (!status.available) {
     return (

@@ -7,6 +7,7 @@ import type { Season } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PageHeader } from "@/ui/PageHeader";
 import { Select } from "@/ui/Select";
+import { LoadingState } from "@/ui/LoadingState";
 import type { MatchesState } from "@/lib/navigation";
 import { useApi } from "@/hooks/use-api";
 import { MatchList } from "./MatchList";
@@ -60,10 +61,10 @@ export function SyntheticMatchesView({ initialSeasonId, initialTeamId }: Props) 
         <LoadError message="No se pudieron cargar las competiciones." retry={competitions.retry} />
       ) : season ? (
         <SeasonMatches key={season.id} season={season} initialTeamId={season.id === initialSeasonId ? initialTeamId : undefined} />
+      ) : competitions.loading ? (
+        <section aria-label="Competiciones" aria-busy="true"><LoadingState variant="section" label="Cargando competiciones…" /></section>
       ) : (
-        <p className={css.status} role="status">
-          {competitions.loading ? "Cargando competiciones…" : "No hay temporadas disponibles."}
-        </p>
+        <p className={css.status} role="status">No hay temporadas disponibles.</p>
       )}
     </>
   );
@@ -126,7 +127,7 @@ function SeasonMatches({ season, initialTeamId }: { season: Season; initialTeamI
         ) : matches.data ? (
           matches.data.length ? <MatchList matches={matches.data} showRound={round === "all"} />
             : <p className={css.status} role="status">No hay partidos con estos filtros.</p>
-        ) : <p className={css.status} role="status">Cargando partidos…</p>}
+        ) : <LoadingState variant="section" label="Cargando partidos…" />}
       </section>
     </div>
   );

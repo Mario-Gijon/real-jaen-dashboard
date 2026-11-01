@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  experimental: { useTypeScriptCli: false },
 };
 
 export default nextConfig;

@@ -8,6 +8,7 @@ import { CLUB_ID } from "@/lib/club";
 import { homeHref, matchesHref, observedMatchHref, teamsHref } from "@/lib/navigation";
 import { observedCrest } from "@/lib/team-crests";
 import { useApi } from "@/hooks/use-api";
+import { LoadingState } from "@/ui/LoadingState";
 import { daysUntil, preparationChoices, preparationSummary, upcomingMatches } from "./preparation";
 import { fixtureLabel, HistorySection, LoadError, TargetSection, type Expectation, type Fixture, type HistoryRow } from "./PreparationParts";
 import { orientedTeamStats, rivalHistory, unconfirmedClubMatches } from "./real-preparation";
@@ -53,7 +54,7 @@ function RealPreparation({ matchId, now }: { matchId?: string; now: number }) {
     signal => Promise.all(countedIds.map(id => getObservedMatchDetail(id, { signal }))));
 
   if (club.error) return <LoadError message="No se pudo cargar el calendario real del Real Jaén." retry={club.retry} />;
-  if (!club.data) return <p role="status" className={css.message}>Cargando calendario…</p>;
+  if (!club.data) return <LoadingState variant="page" label="Cargando calendario…" />;
 
   // The competition as the source's scope declares it, as Equipos names it (a match carries the provider's own name).
   const context = club.data.competitions.map(c => [c.name, c.season].filter(Boolean).join(" · ")).join("; ");
@@ -82,7 +83,9 @@ function RealPreparation({ matchId, now }: { matchId?: string; now: number }) {
       : noExport ? <p role="status" className={css.message}>Este rival no tiene exportación propia en la fuente real: no se muestran sus últimos partidos.</p>
         : performance.error || rivalMatches.error ? <LoadError message="No se pudieron cargar los partidos del rival."
           retry={() => { if (performance.error) performance.retry(); if (rivalMatches.error) rivalMatches.retry(); }} />
-          : !history ? <p role="status" className={css.message}>Cargando partidos del rival…</p>
+          : !history ? <section aria-label="Partidos recientes del rival" aria-busy="true">
+            <LoadingState variant="section" label="Cargando partidos del rival…" />
+          </section>
             : <RealHistory history={history} details={details} targetId={target.id} rival={crestTeam(rival)} />}
   </>;
 }

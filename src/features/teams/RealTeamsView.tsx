@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ApiRequestError, getObservedSquad, getObservedTeam, getTeamObservedPerformance } from "@/client/api";
 import type { ObservedCompetitionPerformance, ObservedTeam, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { CLUB_ID } from "@/lib/club";
 import { observedCrest } from "@/lib/team-crests";
 import { observedMatchHref } from "@/lib/navigation";
@@ -67,7 +68,9 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
           <p>La fuente real no pudo resolver la identidad de este equipo.</p>
           <Button onClick={identity.retry} size="sm">Reintentar</Button>
           <Link href="/teams" onClick={() => setTeamId(null)}>Ver el Real Jaén</Link>
-        </div> : !identity.data ? <p className={css.status} role="status">Resolviendo equipo…</p>
+        </div> : !identity.data ? <section aria-label="Identidad del equipo" aria-busy="true">
+          <LoadingState variant="section" label="Resolviendo equipo…" />
+        </section>
           : <section className={css.identityOnly} aria-labelledby="team-identity-name">
             <header className={css.identity}>
               <TeamCrest size={44} team={realTeamRef(identity.data)} />
@@ -82,7 +85,7 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
           <Button onClick={load.retry} size="sm">Reintentar</Button>
         </div>
       ) : !load.data ? (
-        <p className={css.status} role="status">Cargando equipo…</p>
+        <LoadingState variant="page" label="Cargando equipo…" />
       ) : !competition ? (
         <div className={css.status} role="status">
           <p>
@@ -110,7 +113,7 @@ export function RealTeamsView({ initialTeamId, initialSeasonId, initialTab = "pe
           ) : squad.error ? (
             <ObservedError error={squad.error} retry={squad.retry} />
           ) : !squad.data ? (
-            <p className={css.status} role="status">Cargando jugadores…</p>
+            <LoadingState variant="section" label="Cargando jugadores…" />
           ) : (
             <ObservedSquadTable competitionId={competition.id} squad={squad.data} />
           )}

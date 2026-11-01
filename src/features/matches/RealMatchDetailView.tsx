@@ -5,6 +5,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { ApiRequestError, getObservedMatchDetail } from "@/client/api";
 import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedSectionKey, ObservedSectionReview, ObservedTeam } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { dateLabel } from "@/lib/format";
@@ -56,7 +57,9 @@ export function RealMatchDetailView({ matchId, initialSection = "summary", playe
         <h1>Partido no encontrado en la fuente real</h1>
       </div>
       : detail.error ? <Failure title="No se pudo cargar el partido" retry={detail.retry} />
-      : !detail.data ? <p role="status" className={css.message}>Cargando partido…</p>
+      : !detail.data ? <section aria-label="Detalles del partido" aria-busy="true">
+        <LoadingState variant="section" label="Cargando partido…" />
+      </section>
       : <Detail data={detail.data} retry={detail.retry} section={section} setSection={setSection}
         linkProfiles matchesOrigin={originQuery.from === "matches" ? { kind: "matches", teamId: new URLSearchParams(matchesReturnHref?.split("?")[1]).get("team"), state: matchesInitialState(originQuery) } : undefined} relatedHref={(id) => relatedObservedMatchHref(id, originQuery)} />}
   </div>;

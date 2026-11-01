@@ -128,6 +128,30 @@ test("Inicio real keeps a partial xG value readable on a phone", async ({ page }
   await page.screenshot({ path: testInfo.outputPath("partial-xg-phone.png"), fullPage: true });
 });
 
+test("Inicio real shows inline xG loading while keeping the rival history visible", async ({ page }) => {
+  await serveReal(page);
+  let release!: () => void;
+  let markStarted!: () => void;
+  const responseGate = new Promise<void>((resolve) => { release = resolve; });
+  const requestStarted = new Promise<void>((resolve) => { markStarted = resolve; });
+  await page.route("**/api/v1/matches/*/observed", async (route) => {
+    markStarted();
+    await responseGate;
+    await route.fallback();
+  });
+
+  await page.goto("/");
+  await requestStarted;
+  const expectation = page.getByRole("term").filter({ hasText: "Expectativa" }).locator("xpath=following-sibling::dd");
+  await expect(page.getByRole("heading", { name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
+  await expect(expectation).toHaveAttribute("aria-busy", "true");
+  await expect(expectation.getByRole("status")).toHaveText("Cargando xG…");
+
+  release();
+  await expect(expectation).not.toHaveAttribute("aria-busy");
+  await expect(expectation).toHaveText(/0,80\s*xG a favor\s*0,95\s*xG en contra/);
+});
+
 test("Inicio real opens both target teams and the teams and scores in its history", async ({ page }) => {
   await serveReal(page);
   const identities = Object.fromEntries([jaen, rival, next, other].map(team => [team.id, team.name]));

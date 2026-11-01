@@ -4,6 +4,7 @@ import { ApiRequestError, getPlayer } from "@/client/api";
 import type { PlayerSeason, PlayerSeasonStats } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
+import { LoadingState } from "@/ui/LoadingState";
 import { Tabs, tabId, tabPanelId } from "@/ui/Tabs";
 import { useState } from "react";
 import Link from "next/link";
@@ -42,7 +43,10 @@ export function PlayerDetailView({ playerId, seasonId, returnHref, origin = null
       {!notFound ? <Button size="sm" onClick={profile.retry}>Reintentar</Button> : null}
     </div>;
   }
-  if (!profile.data) return <p role="status" className={css.message}>Cargando jugador…</p>;
+  if (!profile.data) return <div className={css.page} aria-busy="true">
+    <Link className={css.back} href={returnHref ?? playerReturnHref(seasonId, {})}>← Volver</Link>
+    <LoadingState variant="page" label="Cargando jugador…" />
+  </div>;
   const data = profile.data;
   const noParticipation = data.stats.appearances.value === 0;
   const matchHref = (matchId: string) => playerMatchHref(matchId, { playerId: data.player.id, seasonId: data.season.id, origin });

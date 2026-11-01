@@ -5,6 +5,7 @@ import Link from "next/link";
 import { House, LogOut } from "lucide-react";
 import type { ObservedMatchStatKey, ObservedPlayerMatch, ObservedPlayerMatches, PlayerPosition, Stat } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { Select } from "@/ui/Select";
 import { dateLabel, positionLabel, statText } from "@/lib/format";
 import { teamsHref } from "@/lib/navigation";
@@ -99,7 +100,10 @@ export function ObservedMatches({ load, usualPosition, initialMatchId = null, ma
       <Button size="sm" onClick={retry}>Reintentar</Button>
     </div>
   </section>;
-  if (!data) return <p role="status" className={shared.message}>Cargando partidos…</p>;
+  if (!data) return <section className={css.matchSelector} aria-labelledby="player-match-history" aria-busy="true">
+    <h2 className={sections.zoneTitle} id="player-match-history">Partidos</h2>
+    <LoadingState variant="section" label="Cargando partidos…" />
+  </section>;
 
   const rows = data.matches;
   // An unknown selection selects nothing; without one, the newest confirmed appearance (else the newest call-up).

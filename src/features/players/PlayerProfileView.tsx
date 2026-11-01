@@ -5,6 +5,7 @@ import { ApiRequestError, getPlayerObservedMatches, getPlayerProfile } from "@/c
 import type { PlayerProfile } from "@/contract";
 import { Button } from "@/ui/Button";
 import { PlayerAvatar } from "@/ui/PlayerAvatar";
+import { LoadingState } from "@/ui/LoadingState";
 import { birthLabel, footLabel, heightLabel, positionLabel } from "@/lib/format";
 import { countryLabel } from "./country-label";
 import { useApi } from "@/hooks/use-api";
@@ -50,7 +51,10 @@ export function PlayerProfileView({ playerId, returnHref, context = { seasonId: 
       </div>
     </div>;
   }
-  if (!profile.data) return <p role="status" className={css.message}>Cargando jugador…</p>;
+  if (!profile.data) return <div className={css.page} aria-busy="true">
+    {back}
+    <LoadingState variant="page" label="Cargando jugador…" />
+  </div>;
   return <div className={css.page}>
     {back}
     <Identity data={profile.data} />

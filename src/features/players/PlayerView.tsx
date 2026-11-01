@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { getSource } from "@/client/api";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { failureReason, useApi } from "@/hooks/use-api";
 import type { PlayerOrigin, PlayerTab, ProfileOrigin } from "./navigation";
 import { PlayerDetailView } from "./PlayerDetailView";
@@ -32,7 +33,10 @@ export function PlayerView({ playerId, returnHref, seasonId, origin, seasonOrigi
       <Button size="sm" onClick={source.retry}>Reintentar</Button>
     </div>
   </div>;
-  if (!source.data) return <p role="status" className={css.message}>Cargando jugador…</p>;
+  if (!source.data) return <div className={css.page} aria-busy="true">
+    <Link className={css.back} href={returnHref}>← Volver</Link>
+    <LoadingState variant="page" label="Cargando jugador…" />
+  </div>;
   return source.data.synthetic
     ? <PlayerDetailView playerId={playerId} seasonId={seasonId} returnHref={returnHref} origin={seasonOrigin}
       initialTab={initialTab} initialMatchId={seasonMatchId} />

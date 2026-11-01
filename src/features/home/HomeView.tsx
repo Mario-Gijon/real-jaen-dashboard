@@ -5,6 +5,7 @@ import { failureReason, useApi } from "@/hooks/use-api";
 import { LoadError } from "./PreparationParts";
 import { RealHomeView } from "./RealHomeView";
 import { SyntheticHomeView, type Props } from "./SyntheticHomeView";
+import { LoadingState } from "@/ui/LoadingState";
 import css from "./HomeView.module.css";
 
 /**
@@ -17,7 +18,7 @@ export function HomeView(props: Props) {
   const source = useApi("source", signal => getSource({ signal }));
   return <div className={css.page}>
     {source.error ? <LoadError message={`No se pudo determinar la fuente de los datos. ${failureReason(source.error)}`} retry={source.retry} />
-      : !source.data ? <p role="status" className={css.message}>Cargando preparación…</p>
+      : !source.data ? <LoadingState variant="page" label="Cargando preparación…" />
         : source.data.synthetic ? <SyntheticHomeView {...props} /> : <RealHomeView {...props} />}
   </div>;
 }

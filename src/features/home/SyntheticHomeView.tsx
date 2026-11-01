@@ -6,6 +6,7 @@ import type { MatchSummary, TeamMatch } from "@/contract";
 import { CLUB_ID } from "@/lib/club";
 import { homeHref, matchHref, seasonMatchesHref, teamsHref } from "@/lib/navigation";
 import { useApi } from "@/hooks/use-api";
+import { LoadingState } from "@/ui/LoadingState";
 import { daysUntil, preparationChoices, preparationHistory, preparationSummary, upcomingMatches } from "./preparation";
 import { HistorySection, LoadError, TargetSection, type Fixture, type HistoryRow } from "./PreparationParts";
 import css from "./HomeView.module.css";
@@ -28,10 +29,10 @@ export function SyntheticHomeView({ seasonId, matchId, now }: Props) {
     signal => getTeamSeason(season!.id, rival!.id, { signal }));
 
   return competitions.error ? <LoadError message="No se pudieron cargar las temporadas." retry={competitions.retry} />
-    : !competitions.data ? <p role="status" className={css.message}>Cargando preparación…</p>
+    : !competitions.data ? <LoadingState variant="page" label="Cargando preparación…" />
       : !season ? <p role="alert" className={css.message}>{seasonId ? "Temporada no encontrada." : "No hay temporadas disponibles."}</p>
         : calendar.error ? <LoadError message="No se pudo cargar el calendario del Real Jaén." retry={calendar.retry} />
-          : !calendar.data ? <p role="status" className={css.message}>Cargando calendario…</p>
+          : !calendar.data ? <LoadingState variant="page" label="Cargando calendario…" />
             : <>
               <TargetSection context={season.name} target={target ? fixture(target, season.id) : null}
                 choices={preparationChoices(future, target).map(match => fixture(match, season.id))}
@@ -43,7 +44,9 @@ export function SyntheticHomeView({ seasonId, matchId, now }: Props) {
               {target && rival ? team.error ? <LoadError message="No se pudieron cargar los partidos del rival." retry={team.retry} />
                 : team.data ? <SyntheticHistory team={rival.name} matches={team.data.matches} target={target} seasonId={season.id}
                   allHref={seasonMatchesHref(season.id, rival.id)} />
-                  : <p role="status" className={css.message}>Cargando partidos del rival…</p> : null}
+                  : <section aria-label="Partidos recientes del rival" aria-busy="true">
+                    <LoadingState variant="section" label="Cargando partidos del rival…" />
+                  </section> : null}
             </>;
 }
 

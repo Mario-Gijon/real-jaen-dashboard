@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Score, SeasonStat, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { activateRowLink } from "@/ui/activate-row-link";
 import { dateLabel, formatNumber } from "@/lib/format";
@@ -135,7 +136,7 @@ export function HistorySection({ team, rows, summary, expectation, allHref, cove
           </div>
           <div>
             <dt>Expectativa</dt>
-            <dd className={css.metricPair}>{"loading" in expectation ? <span role="status">Cargando xG…</span>
+            <dd className={css.metricPair} aria-busy={"loading" in expectation || undefined}>{"loading" in expectation ? <LoadingState variant="inline" label="Cargando xG…" />
               : "error" in expectation ? <span className={css.inlineError} role="alert">No se pudo cargar el xG <Button size="sm" onClick={expectation.retry}>Reintentar</Button></span>
                 : <><SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} />
                   <SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} /></>}</dd>

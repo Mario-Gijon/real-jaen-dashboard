@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { getSource } from "@/client/api";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { failureReason, useApi } from "@/hooks/use-api";
 import { MatchDetailView } from "./MatchDetailView";
 import { RealMatchDetailView } from "./RealMatchDetailView";
@@ -28,7 +29,10 @@ export function MatchView({ matchId, tab, playerReturnHref, teamsReturnHref, hom
       <Button size="sm" onClick={source.retry}>Reintentar</Button>
     </div>
   </div>;
-  if (!source.data) return <div className={css.page}><p role="status" className={css.message}>Cargando partido…</p></div>;
+  if (!source.data) return <div className={css.page}>
+    <Link href={matchesReturnHref ?? "/matches"} className={css.back}>‹ Volver a partidos</Link>
+    <LoadingState variant="page" label="Cargando partido…" />
+  </div>;
   return source.data.synthetic
     ? <MatchDetailView matchId={matchId} initialSection={tab === "timeline" || tab === "lineups" ? tab : "summary"}
       playerReturnHref={playerReturnHref} teamsReturnHref={teamsReturnHref} homeReturnHref={homeReturnHref} />

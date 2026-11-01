@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { getSeasonMatches } from "@/client/api";
 import type { MatchEvent, MatchSummary, PlayerMatch, PlayerSeason, Stat } from "@/contract";
 import { Button } from "@/ui/Button";
+import { LoadingState } from "@/ui/LoadingState";
 import { dateLabel, statText } from "@/lib/format";
 import { useApi } from "@/hooks/use-api";
 import { matchHref as buildMatchHref, teamsHref } from "@/lib/navigation";
@@ -34,7 +35,9 @@ export function PlayerMatches({ data, initialMatchId = null, matchHref = buildMa
   if (calendar.error) return <div role="alert" className={shared.message}>
     <p>No se pudo cargar el calendario del equipo.</p><Button size="sm" onClick={calendar.retry}>Reintentar</Button>
   </div>;
-  if (!calendar.data) return <p role="status" className={shared.message}>Cargando partidos…</p>;
+  if (!calendar.data) return <section aria-label="Histórico de partidos" aria-busy="true">
+    <LoadingState variant="section" label="Cargando partidos…" />
+  </section>;
   const matches = calendar.data.filter(match => match.status === "finished")
     .sort((a, b) => (a.kickoff && b.kickoff ? a.kickoff.localeCompare(b.kickoff) : 0) || a.round - b.round);
   const appearances = new Map(data.matches.map(appearance => [appearance.match.id, appearance]));
