@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectEntityAwareRowHover, expectInlineEntityHover, expectKeyboardFocus } from "./interactive-row";
 
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -41,12 +42,50 @@ test("Equipos: Real Jaén by default, team change, tabs and direct player naviga
 
   const first = table.getByRole("link", { name: /Ver ficha de/ }).first();
   const name = (await first.getAttribute("aria-label"))!.replace("Ver ficha de ", "");
-  await first.click();
+  if (!phone) {
+    const playerRow = first.locator("xpath=../../..");
+    await expectInlineEntityHover(page, playerRow, playerRow.locator("td").first(), first);
+  }
+  await expectKeyboardFocus(page, first);
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "\u2190 Volver", exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: "CD Montealto" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Jugadores" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("Rendimiento resalta solo las zonas libres de cada fila de partido", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Hover feedback is checked with a fine pointer.");
+  await page.goto("/teams");
+  const table = page.getByRole("table", { name: "Partidos disputados" });
+  const row = table.locator("tbody tr").first();
+  const opponent = row.getByRole("link", { name: /^Ver equipo/ });
+  await expectEntityAwareRowHover(page, row, row.locator("td").first(), opponent);
+
+  const matchLink = row.getByRole("link", { name: /^Ver partido/ });
+  await page.mouse.move(0, 0);
+  const baseBackground = await row.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await expectKeyboardFocus(page, matchLink);
+  const hoverColor = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.cssText = "position:fixed;visibility:hidden;background:var(--rj-bg-hover)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+  await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(hoverColor);
+  const opponentBox = await opponent.boundingBox();
+  expect(opponentBox).not.toBeNull();
+  await page.mouse.move(opponentBox!.x + opponentBox!.width / 2, opponentBox!.y + opponentBox!.height / 2);
+  await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(baseBackground);
+  const freeBox = await row.locator("td").first().boundingBox();
+  expect(freeBox).not.toBeNull();
+  await page.mouse.move(freeBox!.x + freeBox!.width / 2, freeBox!.y + freeBox!.height / 2);
+  await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(hoverColor);
+  await matchLink.press("Enter");
+  await expect(page).toHaveURL(/\/matches\/match-/);
 });
 
 test("Rendimiento: Temporada and Últimos 3 with the three matches highlighted", async ({

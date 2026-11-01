@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectEntityAwareRowHover } from "./interactive-row";
 import { REAL_SOURCE } from "./sources";
 
 /*
@@ -181,7 +182,7 @@ async function serveDetail(page: Page, statistics: Record<string, unknown> = DET
   });
 }
 
-test("Partidos reales: exact team text opens its team; row space, crest and score open the match", async ({ page }) => {
+test("Partidos reales: exact team text opens its team; row space, crest and score open the match", async ({ page }, testInfo) => {
   await serveDetail(page);
   await page.route("**/api/v1/teams/sofascore-team-1/observed-performance", route =>
     route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Sin análisis propio." } } }));
@@ -193,6 +194,9 @@ test("Partidos reales: exact team text opens its team; row space, crest and scor
   const item = list.getByRole("listitem").first();
   const row = item.locator(":scope > div");
   const teamLink = item.getByRole("link", { name: "Ver equipo CE Europa" });
+  if (testInfo.project.name === "desktop") {
+    await expectEntityAwareRowHover(page, row, row.locator(":scope > div").first(), teamLink);
+  }
   await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
   const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
   const teamBox = await teamLink.boundingBox();

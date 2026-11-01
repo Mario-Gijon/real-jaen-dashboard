@@ -56,10 +56,6 @@
   text-align: left;
   white-space: nowrap;
 }
-.table tbody tr:hover,
-.table tbody tr:focus-within {
-  background: var(--rj-bg-hover);
-}
 .stat {
   text-align: right !important;
   font-variant-numeric: tabular-nums;
@@ -89,7 +85,7 @@
   color: var(--rj-purple-700);
 }
 .playerIdentity { display: flex; align-items: center; gap: var(--rj-space-2); }
-.open { color: inherit; text-decoration: none; border-radius: var(--rj-radius-sm); }
+.open { color: inherit; text-decoration: none; border-radius: var(--rj-radius-sm); cursor: pointer; }
 .open:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .open:hover .name,
 .open:focus-visible .name {

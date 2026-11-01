@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectEntityAwareRowHover } from "./interactive-row";
 
 test("Home changes preparation context by keyboard and opens a recent match", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -124,6 +125,15 @@ test("Home recent-match hit areas distinguish team names from the match row", as
   const crestMatchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
   await page.mouse.click(crestBox!.x + crestBox!.width / 2, crestBox!.y + crestBox!.height / 2);
   await expect(page).toHaveURL(crestMatchHref);
+});
+
+test("Home recent rows highlight free space but not a hovered team name", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Hover feedback is checked with a fine pointer.");
+  await page.goto("/");
+  const row = page.getByRole("list", { name: "Últimos partidos del rival" })
+    .getByRole("listitem").first().locator(":scope > div");
+  const teamLink = row.getByRole("link", { name: /^Ver equipo/ }).nth(1);
+  await expectEntityAwareRowHover(page, row, row.locator(":scope > div").first(), teamLink);
 });
 
 test("Home entity links keep keyboard focus and leave platform-modified clicks to the native link", async ({ page }) => {

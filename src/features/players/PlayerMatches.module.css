@@ -40,14 +40,14 @@
 }
 .matchStrip { display: flex; gap: var(--rj-space-2); overflow-x: auto; padding: 3px; margin: 0; list-style: none; scrollbar-width: thin; scrollbar-color: var(--rj-border-strong) transparent; }
 .matchStrip > li { display: flex; flex: 0 0 160px; min-width: 0; }
-.matchCard { position: relative; display: grid; grid-template-rows: auto 1fr auto; gap: 4px; width: 100%; height: 116px; box-sizing: border-box; padding: var(--rj-space-3); border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); background: var(--rj-bg-card); color: inherit; text-align: left; font: inherit; }
-.matchCard:hover { background: var(--rj-bg-hover); }
+.matchCard { position: relative; display: grid; grid-template-rows: auto 1fr auto; gap: 4px; width: 100%; height: 116px; box-sizing: border-box; padding: var(--rj-space-3); border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); background: var(--rj-bg-card); color: inherit; text-align: left; font: inherit; transition: background-color var(--rj-motion-fast); }
+.matchCard:focus-within:not(:has(.cardOpponent a:focus)):not(:has(.cardOpponent a:hover)) { background: var(--rj-bg-hover); }
 .matchCard[data-selected="true"] { background: var(--rj-purple-100); border-color: var(--rj-purple-700); box-shadow: inset 0 0 0 1px var(--rj-purple-700); }
 .matchSelect { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
 .matchSelect:focus-visible { outline: var(--rj-focus-ring); outline-offset: 1px; }
 .matchCard > :not(.matchSelect) { position: relative; z-index: 1; pointer-events: none; }
 .cardOpponent { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--rj-text-sm); line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; }
-.cardOpponent a { color: inherit; text-decoration: none; pointer-events: auto; border-radius: var(--rj-radius-sm); }
+.cardOpponent a { color: inherit; text-decoration: none; pointer-events: auto; border-radius: var(--rj-radius-sm); cursor: pointer; }
 .cardOpponent a:hover { color: var(--rj-purple-900); text-decoration: underline; text-underline-offset: 3px; }
 .cardOpponent a:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .matchCard .score { text-align: left; font-size: var(--rj-text-md); font-weight: 700; }
@@ -57,9 +57,9 @@
 .master .history { max-height: min(680px, 75vh); overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--rj-border-strong) transparent; }
 .desktopDetail { position: sticky; top: var(--rj-space-4); min-width: 0; }
 .inlineDetail { display: none; }
-.historyRow { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 48px; gap: 4px var(--rj-space-2); align-items: center; width: 100%; min-width: 0; padding: var(--rj-space-3) 6px; border-bottom: 1px solid var(--rj-border-default); background: none; text-align: left; font: inherit; color: inherit; }
+.historyRow { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 48px; gap: 4px var(--rj-space-2); align-items: center; width: 100%; min-width: 0; padding: var(--rj-space-3) 6px; border-bottom: 1px solid var(--rj-border-default); background: none; text-align: left; font: inherit; color: inherit; transition: background-color var(--rj-motion-fast); }
+.historyRow[data-selectable="true"]:focus-within:not(:has(.teams a:focus)):not(:has(.teams a:hover)) { background: var(--rj-bg-hover); }
 .historyRow[data-selectable="true"] > :not(.matchSelect) { position: relative; z-index: 1; pointer-events: none; }
-.historyRow[data-selectable="true"]:hover { background: var(--rj-bg-hover); }
 .historyRow[data-selected="true"] { background: var(--rj-purple-100); }
 .matchSelect { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .matchSelect:focus-visible { outline: var(--rj-focus-ring); outline-offset: -2px; }
@@ -69,9 +69,13 @@
 .playerContext { grid-column: 2 / 4; grid-row: 2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--rj-space-3); }
 .fixture { min-width: 0; }
 .teams { font-size: var(--rj-text-sm); font-weight: 600; overflow-wrap: anywhere; }
-.teams a { position: relative; z-index: 2; color: inherit; text-decoration: none; pointer-events: auto; border-radius: var(--rj-radius-sm); }
+.teams a { position: relative; z-index: 2; color: inherit; text-decoration: none; pointer-events: auto; border-radius: var(--rj-radius-sm); cursor: pointer; }
 .teams a:hover { color: var(--rj-purple-900); text-decoration: underline; text-underline-offset: 3px; }
 .teams a:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .matchCard:hover:not(:has(.cardOpponent a:hover)) { background: var(--rj-bg-hover); }
+  .historyRow[data-selectable="true"]:hover:not(:has(.teams a:hover)) { background: var(--rj-bg-hover); }
+}
 .meta { display: block; margin-top: 3px; font-size: var(--rj-text-xs); color: var(--rj-text-secondary); font-weight: 400; }
 .score { font-size: var(--rj-text-sm); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: center; }
 .role { font-size: var(--rj-text-xs); color: var(--rj-text-secondary); }

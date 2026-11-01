@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectEntityAwareRowHover } from "./interactive-row";
 
 test("Partidos: current round, combined filters and full calendar without horizontal scroll", async ({ page }) => {
   await page.goto("/matches");
@@ -80,4 +81,13 @@ test("Partidos sintéticos: the team text opens its team; nearby space, score an
   const crestMatchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
   await page.mouse.click(crestBox!.x + crestBox!.width / 2, crestBox!.y + crestBox!.height / 2);
   await expect(page).toHaveURL(crestMatchHref);
+});
+
+test("Partidos sintéticos resaltan la fila en zonas libres y separan el hover del nombre", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Hover feedback is checked with a fine pointer.");
+  await page.goto("/matches");
+  const row = page.getByRole("list", { name: "Partidos de la temporada" }).getByRole("listitem").first()
+    .locator(":scope > div");
+  const teamLink = row.getByRole("link", { name: /^Ver equipo/ }).nth(1);
+  await expectEntityAwareRowHover(page, row, row.locator(":scope > div").first(), teamLink);
 });

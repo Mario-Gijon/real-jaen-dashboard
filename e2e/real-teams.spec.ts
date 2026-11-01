@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectEntityAwareRowHover, expectInlineEntityHover, expectKeyboardFocus } from "./interactive-row";
 import { REAL_SOURCE } from "./sources";
 
 /*
@@ -206,6 +207,10 @@ test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, si
   await expect(table.getByRole("link", { name: /^Ver equipo/ })).toHaveCount(3);
   await expect(table.getByRole("link", { name: /^Ver partido/ })).toHaveCount(3);
   await expect(table.getByRole("link", { name: /^Ver partido/ }).first()).toHaveAttribute("href", "/matches/sofascore-match-5?from=teams");
+  if (testInfo.project.name === "desktop") {
+    const row = table.locator("tbody tr").first();
+    await expectEntityAwareRowHover(page, row, row.locator("td").first(), row.getByRole("link", { name: /^Ver equipo/ }));
+  }
   expect(synthetic).toEqual([]);
 });
 
@@ -290,7 +295,13 @@ test("Equipos reales: jugadores con acumulados reales, orden, filtro, ficha y vu
   await page.getByRole("button", { name: /^Todos/ }).click();
 
   // The real profile, and back to this real season and tab.
-  await row("Moha Keita").getByRole("link").click();
+  const mohaRow = row("Moha Keita");
+  const mohaLink = mohaRow.getByRole("link");
+  if (testInfo.project.name === "desktop") {
+    await expectInlineEntityHover(page, mohaRow, mohaRow.locator("td").first(), mohaLink);
+  }
+  await expectKeyboardFocus(page, mohaLink);
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/players/sofascore-player-966303[?]view=profile&season=${GROUP_2}&from=team&origin=team-real-jaen`));
   await expect(page.getByRole("heading", { name: "Moha Keita" })).toBeVisible();
   await page.getByRole("link", { name: "← Volver", exact: true }).click();

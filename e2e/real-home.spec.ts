@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectEntityAwareRowHover } from "./interactive-row";
 import { REAL_SOURCE } from "./sources";
 
 /*
@@ -133,7 +134,7 @@ test("Inicio real opens both target teams and the teams and scores in its histor
   await expect(page.getByRole("status")).toContainText("identificado, pero no tiene estadísticas propias disponibles");
 });
 
-test("Inicio real keeps team names independent from the recent-match row action", async ({ page }) => {
+test("Inicio real keeps team names independent from the recent-match row action", async ({ page }, testInfo) => {
   await serveReal(page);
   const identities = Object.fromEntries([jaen, rival, next, other].map(team => [team.id, team.name]));
   await page.route("**/api/v1/teams/*", route => {
@@ -152,6 +153,9 @@ test("Inicio real keeps team names independent from the recent-match row action"
   const item = list.getByRole("listitem").first();
   const row = item.locator(":scope > div");
   const teamLink = item.getByRole("link", { name: /^Ver equipo/ }).first();
+  if (testInfo.project.name === "desktop") {
+    await expectEntityAwareRowHover(page, row, row.locator(":scope > div").first(), teamLink);
+  }
   const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
   await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
   const teamBox = await teamLink.boundingBox();

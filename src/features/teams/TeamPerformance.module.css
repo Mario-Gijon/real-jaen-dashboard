@@ -321,14 +321,11 @@
   border-bottom: 1px solid var(--rj-border-default);
   white-space: nowrap;
 }
-.table tbody tr:hover, .table tbody tr:focus-within {
-  background: var(--rj-bg-hover);
-}
-.table tbody tr { cursor: pointer; }
+.table tbody tr { cursor: pointer; transition: background-color var(--rj-motion-fast); }
+.table tbody tr:has(a[data-row-primary]:focus-visible):not(:has(.opponent:hover)) { background: var(--rj-bg-hover); }
 /* A match without a detail to open (real matches not enabled) is not interactive. */
 .table tbody tr[data-linked="false"] { cursor: default; }
-.table tbody tr[data-linked="false"]:hover { background: none; }
-.opponent { display: inline-block; max-width: calc(100% - 30px); color: inherit; font-weight: 700; text-decoration: none; vertical-align: middle; }
+.opponent { display: inline-block; max-width: calc(100% - 30px); color: inherit; font-weight: 700; text-decoration: none; vertical-align: middle; cursor: pointer; }
 .opponent:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .opponent:hover { color: var(--rj-purple-900); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .matchResult { display: inline-flex; border-radius: var(--rj-radius-pill); text-decoration: none; }
@@ -336,6 +333,11 @@
 .matchResult:hover .score { filter: brightness(.96); }
 .table tbody tr[data-in-period] {
   background: var(--rj-purple-100);
+}
+@media (hover: hover) and (pointer: fine) {
+  .table tbody tr:hover:not([data-linked="false"]):not(:has(.opponent:hover)) {
+    background: var(--rj-bg-hover);
+  }
 }
 .table tbody tr[data-in-period] > td:first-child {
   box-shadow: inset 3px 0 0 var(--rj-purple-700);

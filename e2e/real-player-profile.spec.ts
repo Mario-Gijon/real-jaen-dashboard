@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectEntityAwareRowHover } from "./interactive-row";
 import { REAL_SOURCE } from "./sources";
 
 /*
@@ -417,7 +418,7 @@ test("Real player match: an identified rival opens its identity-only team view",
   await expect(page.getByLabel("Balance")).toHaveCount(0);
 });
 
-test("Real player history: the opponent name opens the team; card space and score keep selecting", async ({ page }) => {
+test("Real player history: the opponent name opens the team; card space and score keep selecting", async ({ page }, testInfo) => {
   await serveReal(page);
   await page.route("**/api/v1/teams/sofascore-team-1", route =>
     route.fulfill({ json: { id: "sofascore-team-1", name: "Rayo Majadahonda" } }));
@@ -432,6 +433,10 @@ test("Real player history: the opponent name opens the team; card space and scor
   const firstCard = first.locator("xpath=..");
   const secondCard = second.locator("xpath=..");
   await expect(first).toHaveAttribute("aria-pressed", "true");
+  if (testInfo.project.name === "desktop") {
+    await expectEntityAwareRowHover(page, secondCard, secondCard.locator(":scope > span").first(),
+      secondCard.getByRole("link", { name: /^Ver equipo/ }));
+  }
 
   const opponent = firstCard.getByRole("link", { name: "Ver equipo Rayo Majadahonda" });
   await expect(opponent.locator("[data-crest]")).toHaveCount(0);

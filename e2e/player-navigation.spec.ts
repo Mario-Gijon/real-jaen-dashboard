@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectEntityAwareRowHover, expectKeyboardFocus } from "./interactive-row";
 
 test("Team to player: reload preserves the team, season and players tab", async ({ page }) => {
   await page.goto("/teams?team=team-montealto&season=season-demo-2026-27&tab=players");
@@ -101,7 +102,7 @@ test("Player match history team links open their team and browser Back restores 
   await expect(history.getByRole("button", { name: /Seleccionar partido J1:/ })).toHaveAttribute("aria-pressed", "true");
 });
 
-test("Player history links only the team text and the row selection stays in the profile", async ({ page }) => {
+test("Player history links only the team text and the row selection stays in the profile", async ({ page }, testInfo) => {
   await page.goto("/matches/match-r01-01?tab=lineups");
   await page.getByRole("list", { name: "Once inicial de Real Jaén CF" }).locator('a[href^="/players/"]').first().click();
   const history = page.getByRole("list", { name: "Histórico de partidos" });
@@ -111,6 +112,9 @@ test("Player history links only the team text and the row selection stays in the
   const j2Row = j2.locator("xpath=..");
   await expect(selectedJ1).toHaveAttribute("aria-pressed", "true");
   const teamLink = j2Row.getByRole("link").first();
+  if (testInfo.project.name === "desktop") {
+    await expectEntityAwareRowHover(page, j2Row, j2Row.locator(":scope > span").first(), teamLink);
+  }
   await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
   const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
   await teamLink.scrollIntoViewIfNeeded();
@@ -123,7 +127,10 @@ test("Player history links only the team text and the row selection stays in the
   await expect(j2).toHaveAttribute("aria-pressed", "true");
 
   const j3 = availableMatches.nth(2);
-  await j3.click();
+  const j3Row = j3.locator("xpath=..");
+  await expectKeyboardFocus(page, j3);
+  await expect.poll(() => j3Row.evaluate((row) => getComputedStyle(row).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+  await page.keyboard.press("Enter");
   await expect(j3).toHaveAttribute("aria-pressed", "true");
 });
 
