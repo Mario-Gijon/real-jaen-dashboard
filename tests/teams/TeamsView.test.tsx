@@ -185,7 +185,8 @@ describe("Rendimiento del equipo", () => {
     expect(chips[2]).toHaveAccessibleName("Jornada 3: Derrota 1-2 en casa contra Atlético Bravo");
     await user.click(chips[1]);
     expect(chips[1]).toHaveAttribute("aria-pressed", "true");
-    const detail = screen.getByText("UD Vegaclara", { selector: "strong" }).closest("p")!;
+    const detail = screen.getAllByRole("link", { name: "Ver equipo UD Vegaclara" })
+      .find(link => link.closest("p")?.textContent?.includes("J2"))!.closest("p")!;
     for (const text of ["J2", "Visitante", "UD Vegaclara", "E 1-1"])
       expect(detail).toHaveTextContent(text);
   });

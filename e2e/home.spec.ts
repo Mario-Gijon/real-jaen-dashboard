@@ -48,6 +48,7 @@ test("Home gives the target and recent fixtures independent team and match desti
   await expect(targetTeams).toHaveCount(2);
   for (const index of [0, 1]) {
     const link = targetTeams.nth(index);
+    await expect(link.locator("[data-crest]")).toHaveCount(0);
     const href = await link.getAttribute("href");
     const name = (await link.getAttribute("aria-label"))!.replace("Ver equipo ", "");
     await link.click();
@@ -74,6 +75,81 @@ test("Home gives the target and recent fixtures independent team and match desti
     .getByRole("link", { name: /^Ver partido/ });
   await match.click();
   await expect(page).toHaveURL(/\/matches\/[^/?]+\?from=home&season=[^&]+&match=[^&]+$/);
+});
+
+test("Home recent-match hit areas distinguish team names from the match row", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const list = page.getByRole("list", { name: "Últimos partidos del rival" });
+  const item = list.getByRole("listitem").first();
+  const row = item.locator(":scope > div");
+  const teamLink = item.getByRole("link", { name: /^Ver equipo/ }).nth(1);
+  await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
+  await expect(row.locator("a a")).toHaveCount(0);
+
+  const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
+  let teamBox = await teamLink.boundingBox();
+  expect(teamBox).not.toBeNull();
+  await page.mouse.click(teamBox!.x + teamBox!.width / 2, teamBox!.y + teamBox!.height / 2);
+  await expect(page).toHaveURL(teamHref);
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  // The two pixels immediately beside the visible away-team text are still in the row's match action.
+  teamBox = await item.getByRole("link", { name: /^Ver equipo/ }).nth(1).boundingBox();
+  const rowBox = await row.boundingBox();
+  expect(teamBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  for (const x of [teamBox!.x - 2, teamBox!.x + teamBox!.width + 2]) {
+    expect(x).toBeGreaterThan(rowBox!.x);
+    expect(x).toBeLessThan(rowBox!.x + rowBox!.width);
+    const y = teamBox!.y + teamBox!.height / 2;
+    const matchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
+    await page.mouse.click(x, y);
+    await expect(page).toHaveURL(matchHref);
+    await page.goBack();
+    await expect(list).toBeVisible();
+  }
+
+  const score = item.getByRole("link", { name: /^Ver partido/ });
+  const scoreHref = new URL((await score.getAttribute("href"))!, page.url()).href;
+  await score.click();
+  await expect(page).toHaveURL(scoreHref);
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const crest = row.locator("[data-crest]").first();
+  const crestBox = await crest.boundingBox();
+  expect(crestBox).not.toBeNull();
+  const crestMatchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
+  await page.mouse.click(crestBox!.x + crestBox!.width / 2, crestBox!.y + crestBox!.height / 2);
+  await expect(page).toHaveURL(crestMatchHref);
+});
+
+test("Home entity links keep keyboard focus and leave platform-modified clicks to the native link", async ({ page }) => {
+  await page.goto("/");
+  const homeUrl = page.url();
+  const teamLink = page.getByRole("region", { name: "Encuentro de preparación" })
+    .getByRole("link", { name: /^Ver equipo/ }).first();
+  await teamLink.focus();
+  await expect(teamLink).toBeFocused();
+  expect(await teamLink.evaluate(link => getComputedStyle(link).outlineStyle)).not.toBe("none");
+  await teamLink.evaluate(link => {
+    link.addEventListener("click", nativeEvent => {
+      const event = nativeEvent as MouseEvent;
+      const anchor = event.currentTarget as HTMLAnchorElement;
+      setTimeout(() => {
+        anchor.dataset.modifiedClick = JSON.stringify({
+          ctrlKey: event.ctrlKey, metaKey: event.metaKey, defaultPrevented: event.defaultPrevented,
+        });
+      }, 0);
+    }, { capture: true, once: true });
+  });
+  await teamLink.click({ modifiers: ["Control"] });
+  await expect(page).toHaveURL(homeUrl);
+  await expect(teamLink).toHaveAttribute("data-modified-click", JSON.stringify({
+    ctrlKey: true, metaKey: false, defaultPrevented: false,
+  }));
 });
 
 test("Ver todos preserves season and opens all rounds for the selected rival", async ({ page }) => {

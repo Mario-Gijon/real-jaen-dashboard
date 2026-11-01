@@ -131,15 +131,6 @@ export function PlayedZone({ played, highlighted }: { played: readonly Played[];
             <tbody>
               {[...played].reverse().map((m) => {
                 const marked = highlighted.has(m.id);
-                const opponent = (
-                  <>
-                    <span aria-hidden="true" className={css.venueShort}>
-                      {m.side === "home" ? "vs" : "en"}
-                    </span>
-                    <TeamCrest size={22} team={m.opponent} />
-                    <span className={css.opponentName}>{m.opponent.name}</span>
-                  </>
-                );
                 const Row = m.href ? LinkedTableRow : "tr";
                 return (
                   <Row
@@ -157,8 +148,10 @@ export function PlayedZone({ played, highlighted }: { played: readonly Played[];
                     </td>
                     <td className={css.venue}>{m.side === "home" ? "Local" : "Visitante"}</td>
                     <td className={css.rival}>
+                      <span aria-hidden="true" className={css.venueShort}>{m.side === "home" ? "vs" : "en"}</span>
+                      <TeamCrest size={22} team={m.opponent} />
                       <Link href={m.opponentHref} className={css.opponent} prefetch={false} aria-label={`Ver equipo ${m.opponent.name}`}>
-                        {opponent}
+                        <span className={css.opponentName}>{m.opponent.name}</span>
                       </Link>
                     </td>
                     <td className={css.end}>
@@ -279,10 +272,12 @@ export function SeasonZone({ balance, lead, venues, played }: {
             <p aria-live="polite" className={css.detail}>
               {active.round !== null ? <span className={css.detailRound}>J{active.round}</span> : null}
               <span>{active.side === "home" ? "Local" : "Visitante"}</span>
-              <Link className={css.detailOpponent} href={active.opponentHref} aria-label={`Ver equipo ${active.opponent.name}`}>
+              <span className={css.detailOpponent}>
                 <TeamCrest size={20} team={active.opponent} />
-                <strong>{active.opponent.name}</strong>
-              </Link>
+                <Link href={active.opponentHref} className={css.detailOpponentName} aria-label={`Ver equipo ${active.opponent.name}`}>
+                  {active.opponent.name}
+                </Link>
+              </span>
               {active.href ? <Link href={active.href} className={css.detailMatch} prefetch={false}
                 aria-label={`Ver partido: ${resultLabel(active)}`}>
                 <span className={css.score} data-result={active.result}>

@@ -8,6 +8,7 @@
   padding: 16px 0;
   color: var(--rj-text-primary);
   border-radius: var(--rj-radius-sm);
+  cursor: pointer;
 }
 .match:focus-within { background: var(--rj-bg-hover); }
 /* Real rows keep their wider context column (season · round, date), so teams and scores stay put. */
@@ -16,12 +17,13 @@
 }
 .meta { display: grid; gap: 2px; color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .round { font-weight: 700; }
-.team { display: flex; align-items: center; gap: var(--rj-space-3); min-width: 0; color: inherit; text-decoration: none; border-radius: var(--rj-radius-sm); }
+.team { display: flex; align-items: center; gap: var(--rj-space-3); min-width: 0; }
+.teamName { min-width: 0; color: inherit; text-decoration: none; border-radius: var(--rj-radius-sm); }
 .home { flex-direction: row-reverse; text-align: right; }
 .name { font-size: var(--rj-text-sm); font-weight: 600; overflow-wrap: anywhere; }
 .name[data-club] { font-weight: 800; }
-.team:hover .name { color: var(--rj-purple-900); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.team:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
+.teamName:hover .name { color: var(--rj-purple-900); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.teamName:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .shortName { display: none; }
 .center { display: grid; justify-items: center; gap: 1px; text-align: center; }
 .result, .postponed { color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; white-space: nowrap; border-radius: var(--rj-radius-sm); }

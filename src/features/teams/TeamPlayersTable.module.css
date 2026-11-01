@@ -88,22 +88,8 @@
 .sort[data-active] svg {
   color: var(--rj-purple-700);
 }
-.open {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--rj-space-2);
-  min-height: 34px;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: none;
-}
-.table tbody tr { cursor: pointer; }
+.playerIdentity { display: flex; align-items: center; gap: var(--rj-space-2); }
+.open { color: inherit; text-decoration: none; border-radius: var(--rj-radius-sm); }
 .open:focus-visible { outline: var(--rj-focus-ring); outline-offset: 2px; }
 .open:hover .name,
 .open:focus-visible .name {

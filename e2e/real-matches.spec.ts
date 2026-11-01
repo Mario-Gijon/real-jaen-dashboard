@@ -181,6 +181,56 @@ async function serveDetail(page: Page, statistics: Record<string, unknown> = DET
   });
 }
 
+test("Partidos reales: exact team text opens its team; row space, crest and score open the match", async ({ page }) => {
+  await serveDetail(page);
+  await page.route("**/api/v1/teams/sofascore-team-1/observed-performance", route =>
+    route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Sin análisis propio." } } }));
+  await page.route("**/api/v1/teams/sofascore-team-1", route =>
+    route.fulfill({ json: { id: "sofascore-team-1", name: "CE Europa" } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/matches");
+  const list = page.getByRole("list", { name: "Partidos reales" });
+  const item = list.getByRole("listitem").first();
+  const row = item.locator(":scope > div");
+  const teamLink = item.getByRole("link", { name: "Ver equipo CE Europa" });
+  await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
+  const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
+  const teamBox = await teamLink.boundingBox();
+  expect(teamBox).not.toBeNull();
+  await page.mouse.click(teamBox!.x + teamBox!.width / 2, teamBox!.y + teamBox!.height / 2);
+  await expect(page).toHaveURL(teamHref);
+  await expect(page.getByRole("heading", { level: 2, name: "CE Europa" })).toBeVisible();
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const nameBox = await item.getByRole("link", { name: "Ver equipo CE Europa" }).boundingBox();
+  const rowBox = await row.boundingBox();
+  expect(nameBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  for (const x of [nameBox!.x - 2, nameBox!.x + nameBox!.width + 2]) {
+    expect(x).toBeGreaterThan(rowBox!.x);
+    expect(x).toBeLessThan(rowBox!.x + rowBox!.width);
+    await page.mouse.click(x, nameBox!.y + nameBox!.height / 2);
+    await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?from=matches$/);
+    await expect(page.getByRole("heading", { level: 1, name: "CE Europa contra Real Jaén" })).toBeVisible();
+    await page.goBack();
+    await expect(list).toBeVisible();
+  }
+
+  const score = item.getByRole("link", { name: /^Ver partido/ });
+  await score.click();
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?from=matches$/);
+  await expect(page.getByRole("heading", { level: 1, name: "CE Europa contra Real Jaén" })).toBeVisible();
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const crestBox = await row.locator("[data-crest]").first().boundingBox();
+  expect(crestBox).not.toBeNull();
+  await page.mouse.click(crestBox!.x + crestBox!.width / 2, crestBox!.y + crestBox!.height / 2);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?from=matches$/);
+  await expect(page.getByRole("heading", { level: 1, name: "CE Europa contra Real Jaén" })).toBeVisible();
+});
+
 test("Partido real: from the list to its detail with team stats, unknown red cards and back", async ({ page }, testInfo) => {
   await serveDetail(page);
   const synthetic: string[] = [];

@@ -139,9 +139,10 @@ export function ObservedMatches({ load, usualPosition, initialMatchId = null, ma
                 {hasMinutes(row)
                   ? <span className={css.cardMinutes} aria-label={`${statText(row.stats.minutes)} minutos jugados`}><MatchValue stat={row.stats.minutes} />′</span> : null}
               </span>
-              <Link className={css.cardOpponent} title={opponentName(row)}
-                href={teamsHref({ teamId: (row.side === "home" ? row.match.away : row.match.home).id })}
-                aria-label={"Ver equipo " + opponentName(row)}>{opponentName(row)}</Link>
+              <span className={css.cardOpponent} title={opponentName(row)}>
+                <Link href={teamsHref({ teamId: (row.side === "home" ? row.match.away : row.match.home).id })}
+                  aria-label={"Ver equipo " + opponentName(row)}>{opponentName(row)}</Link>
+              </span>
               <span className={css.cardBottom}><Score row={row} /><Venue side={row.side} /></span>
             </div>
           </li>;

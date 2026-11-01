@@ -88,10 +88,13 @@ describe("Match chronology", () => {
     expect(screen.getByText(player.name)).toBeVisible();
     expect(screen.queryByRole("link", { name: player.name })).toBeNull();
     expect(screen.getByRole("link", { name: other.name })).toHaveAttribute("href", "/players/p2?season=season-other&tab=matches&match=m1&from=match&origin=m1&originTab=timeline");
-    const homeLinks = screen.getAllByRole("link", { name: "Real Jaén · Local" });
+    const homeLinks = screen.getAllByRole("link", { name: "Real Jaén" });
     expect(homeLinks).toHaveLength(2);
     expect(homeLinks.every(link => link.getAttribute("href") === "/teams?season=season-other&team=home")).toBe(true);
-    expect(screen.getByRole("link", { name: "Rival · Visitante" })).toHaveAttribute("href", "/teams?season=season-other&team=away");
+    expect(homeLinks.every(link => link.textContent === "Real Jaén")).toBe(true);
+    expect(screen.getByRole("link", { name: "Rival" })).toHaveAttribute("href", "/teams?season=season-other&team=away");
+    expect(screen.getByLabelText("Equipos del partido")).toHaveTextContent("Real Jaén · Local");
+    expect(screen.getByLabelText("Equipos del partido")).toHaveTextContent("Rival · Visitante");
     expect(screen.getAllByRole("link")).toHaveLength(4);
   });
 

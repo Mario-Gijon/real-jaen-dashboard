@@ -9,6 +9,14 @@ test("Team to player: reload preserves the team, season and players tab", async 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const link = table.getByRole("link", { name: /Ver ficha de/ }).first();
   const href = (await link.getAttribute("href"))!;
+  await expect(link.locator("[data-avatar], .shirt")).toHaveCount(0);
+  const row = link.locator("xpath=ancestor::tr");
+  const avatar = row.locator("[data-avatar]");
+  const avatarBox = await avatar.boundingBox();
+  expect(avatarBox).not.toBeNull();
+  const teamUrl = page.url();
+  await page.mouse.click(avatarBox!.x + avatarBox!.width / 2, avatarBox!.y + avatarBox!.height / 2);
+  await expect(page).toHaveURL(teamUrl);
   await link.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"));
@@ -91,6 +99,32 @@ test("Player match history team links open their team and browser Back restores 
   await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
   await page.goBack();
   await expect(history.getByRole("button", { name: /Seleccionar partido J1:/ })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("Player history links only the team text and the row selection stays in the profile", async ({ page }) => {
+  await page.goto("/matches/match-r01-01?tab=lineups");
+  await page.getByRole("list", { name: "Once inicial de Real Jaén CF" }).locator('a[href^="/players/"]').first().click();
+  const history = page.getByRole("list", { name: "Histórico de partidos" });
+  const selectedJ1 = history.getByRole("button", { name: /Seleccionar partido J1:/ });
+  const availableMatches = history.getByRole("button", { name: /Seleccionar partido/ });
+  const j2 = availableMatches.nth(1);
+  const j2Row = j2.locator("xpath=..");
+  await expect(selectedJ1).toHaveAttribute("aria-pressed", "true");
+  const teamLink = j2Row.getByRole("link").first();
+  await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
+  const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
+  await teamLink.scrollIntoViewIfNeeded();
+  await teamLink.click();
+  await expect(page).toHaveURL(teamHref);
+  await page.goBack();
+  await expect(selectedJ1).toHaveAttribute("aria-pressed", "true");
+
+  await j2.click();
+  await expect(j2).toHaveAttribute("aria-pressed", "true");
+
+  const j3 = availableMatches.nth(2);
+  await j3.click();
+  await expect(j3).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Match timeline to player opens Partidos on that match and returns to Cronología", async ({ page }, testInfo) => {

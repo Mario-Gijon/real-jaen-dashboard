@@ -37,3 +37,47 @@ test("Partidos: current round, combined filters and full calendar without horizo
   await expect(list.getByText("Programado", { exact: true })).toHaveCount(10);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test("Partidos sintéticos: the team text opens its team; nearby space, score and crest open the match", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/matches");
+  const list = page.getByRole("list", { name: "Partidos de la temporada" });
+  const item = list.getByRole("listitem").first();
+  const row = item.locator(":scope > div");
+  const teamLink = item.getByRole("link", { name: /^Ver equipo/ }).nth(1);
+  await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
+  const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
+  const teamBox = await teamLink.boundingBox();
+  expect(teamBox).not.toBeNull();
+  await page.mouse.click(teamBox!.x + teamBox!.width / 2, teamBox!.y + teamBox!.height / 2);
+  await expect(page).toHaveURL(teamHref);
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const nameBox = await item.getByRole("link", { name: /^Ver equipo/ }).nth(1).boundingBox();
+  const rowBox = await row.boundingBox();
+  expect(nameBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  for (const x of [nameBox!.x - 2, nameBox!.x + nameBox!.width + 2]) {
+    expect(x).toBeGreaterThan(rowBox!.x);
+    expect(x).toBeLessThan(rowBox!.x + rowBox!.width);
+    const matchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
+    await page.mouse.click(x, nameBox!.y + nameBox!.height / 2);
+    await expect(page).toHaveURL(matchHref);
+    await page.goBack();
+    await expect(list).toBeVisible();
+  }
+
+  const score = item.getByRole("link", { name: /^Ver partido/ });
+  const scoreHref = new URL((await score.getAttribute("href"))!, page.url()).href;
+  await score.click();
+  await expect(page).toHaveURL(scoreHref);
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const crestBox = await row.locator("[data-crest]").first().boundingBox();
+  expect(crestBox).not.toBeNull();
+  const crestMatchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
+  await page.mouse.click(crestBox!.x + crestBox!.width / 2, crestBox!.y + crestBox!.height / 2);
+  await expect(page).toHaveURL(crestMatchHref);
+});

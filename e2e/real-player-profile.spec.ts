@@ -417,6 +417,60 @@ test("Real player match: an identified rival opens its identity-only team view",
   await expect(page.getByLabel("Balance")).toHaveCount(0);
 });
 
+test("Real player history: the opponent name opens the team; card space and score keep selecting", async ({ page }) => {
+  await serveReal(page);
+  await page.route("**/api/v1/teams/sofascore-team-1", route =>
+    route.fulfill({ json: { id: "sofascore-team-1", name: "Rayo Majadahonda" } }));
+  await page.route("**/api/v1/teams/sofascore-team-1/observed-performance", route =>
+    route.fulfill({ status: 404, json: { error: { code: "NOT_FOUND", message: "Sin análisis propio." } } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/players/sofascore-player-966303?view=profile");
+  const history = page.getByRole("list", { name: "Histórico de partidos" });
+  const cards = history.getByRole("button", { name: /^Seleccionar/ });
+  const first = cards.nth(0);
+  const second = cards.nth(1);
+  const firstCard = first.locator("xpath=..");
+  const secondCard = second.locator("xpath=..");
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+
+  const opponent = firstCard.getByRole("link", { name: "Ver equipo Rayo Majadahonda" });
+  await expect(opponent.locator("[data-crest]")).toHaveCount(0);
+  const teamHref = new URL((await opponent.getAttribute("href"))!, page.url()).href;
+  const opponentBox = await opponent.boundingBox();
+  expect(opponentBox).not.toBeNull();
+  await page.mouse.click(opponentBox!.x + opponentBox!.width / 2, opponentBox!.y + opponentBox!.height / 2);
+  await expect(page).toHaveURL(teamHref);
+  await expect(page.getByRole("heading", { level: 2, name: "Rayo Majadahonda" })).toBeVisible();
+  await page.goBack();
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+
+  const secondLinkBox = await secondCard.getByRole("link").boundingBox();
+  const secondBox = await secondCard.boundingBox();
+  expect(secondLinkBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  const beforeX = secondLinkBox!.x - 2;
+  expect(beforeX).toBeGreaterThan(secondBox!.x);
+  await page.mouse.click(beforeX, secondLinkBox!.y + secondLinkBox!.height / 2);
+  await expect(second).toHaveAttribute("aria-pressed", "true");
+
+  const third = cards.nth(2);
+  const thirdCard = third.locator("xpath=..");
+  const thirdLinkBox = await thirdCard.getByRole("link").boundingBox();
+  const thirdBox = await thirdCard.boundingBox();
+  expect(thirdLinkBox).not.toBeNull();
+  expect(thirdBox).not.toBeNull();
+  const afterX = thirdLinkBox!.x + thirdLinkBox!.width + 2;
+  expect(afterX).toBeLessThan(thirdBox!.x + thirdBox!.width);
+  await page.mouse.click(afterX, thirdLinkBox!.y + thirdLinkBox!.height / 2);
+  await expect(third).toHaveAttribute("aria-pressed", "true");
+
+  const score = firstCard.getByLabel(/Resultado local–visitante/);
+  const scoreBox = await score.boundingBox();
+  expect(scoreBox).not.toBeNull();
+  await page.mouse.click(scoreBox!.x + scoreBox!.width / 2, scoreBox!.y + scoreBox!.height / 2);
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+});
+
 test("Real players: from a match's line-ups the profile opens on that match; another player returns to the line-ups", async ({ page }) => {
   await serveRealWithMatches(page);
   // Opened from Huesca's line-ups (not the newest match): that match is selected.

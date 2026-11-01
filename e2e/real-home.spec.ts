@@ -133,6 +133,63 @@ test("Inicio real opens both target teams and the teams and scores in its histor
   await expect(page.getByRole("status")).toContainText("identificado, pero no tiene estadísticas propias disponibles");
 });
 
+test("Inicio real keeps team names independent from the recent-match row action", async ({ page }) => {
+  await serveReal(page);
+  const identities = Object.fromEntries([jaen, rival, next, other].map(team => [team.id, team.name]));
+  await page.route("**/api/v1/teams/*", route => {
+    const segments = new URL(route.request().url()).pathname.split("/").filter(Boolean);
+    if (segments.length !== 4) return route.fallback();
+    const id = decodeURIComponent(segments[3]);
+    const name = identities[id];
+    return route.fulfill(name
+      ? { json: { id, name } }
+      : { status: 404, json: { error: { code: "NOT_FOUND", message: "Equipo no identificado." } } });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const list = page.getByRole("list", { name: "Últimos partidos del rival" });
+  const item = list.getByRole("listitem").first();
+  const row = item.locator(":scope > div");
+  const teamLink = item.getByRole("link", { name: /^Ver equipo/ }).first();
+  const teamHref = new URL((await teamLink.getAttribute("href"))!, page.url()).href;
+  await expect(teamLink.locator("[data-crest]")).toHaveCount(0);
+  const teamBox = await teamLink.boundingBox();
+  expect(teamBox).not.toBeNull();
+  await page.mouse.click(teamBox!.x + teamBox!.width / 2, teamBox!.y + teamBox!.height / 2);
+  await expect(page).toHaveURL(teamHref);
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const nameBox = await item.getByRole("link", { name: /^Ver equipo/ }).first().boundingBox();
+  const rowBox = await row.boundingBox();
+  expect(nameBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  for (const x of [nameBox!.x - 2, nameBox!.x + nameBox!.width + 2]) {
+    expect(x).toBeGreaterThan(rowBox!.x);
+    expect(x).toBeLessThan(rowBox!.x + rowBox!.width);
+    const matchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
+    await page.mouse.click(x, nameBox!.y + nameBox!.height / 2);
+    await expect(page).toHaveURL(matchHref);
+    await expect(page.getByRole("link", { name: "‹ Volver a Inicio" })).toBeVisible();
+    await page.goBack();
+    await expect(list).toBeVisible();
+  }
+
+  const score = item.getByRole("link", { name: /^Ver partido/ });
+  const scoreHref = new URL((await score.getAttribute("href"))!, page.url()).href;
+  await score.click();
+  await expect(page).toHaveURL(scoreHref);
+  await page.goBack();
+  await expect(list).toBeVisible();
+
+  const crestBox = await row.locator("[data-crest]").first().boundingBox();
+  expect(crestBox).not.toBeNull();
+  const crestMatchHref = new URL((await item.getByRole("link", { name: /^Ver partido/ }).getAttribute("href"))!, page.url()).href;
+  await page.mouse.click(crestBox!.x + crestBox!.width / 2, crestBox!.y + crestBox!.height / 2);
+  await expect(page).toHaveURL(crestMatchHref);
+});
+
 test("Inicio target teams open a known identity-only team view", async ({ page }) => {
   await serveReal(page);
   const identities = Object.fromEntries([jaen, rival, next, other].map(team => [team.id, team.name]));

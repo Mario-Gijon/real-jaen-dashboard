@@ -3,7 +3,6 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { LinkedTableRow } from "@/ui/LinkedTableRow";
 import { playerHref } from "../players/navigation";
 import type { PlayerPosition, PlayerRef, PlayerSeasonStats, PreferredFoot, SeasonStat } from "@/contract";
 import {
@@ -214,17 +213,12 @@ export function TeamPlayersTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <LinkedTableRow
+              <tr
                 data-unused={(row.stats.appearances.value === 0 && row.stats.appearances.coverage === "complete") || undefined}
                 key={row.player.id}
               >
                 <th className={css.player} scope="row">
-                  <Link
-                    aria-label={`Ver ficha de ${row.player.name}`}
-                    className={css.open}
-                    href={observed ? observed.href(row.player.id) : playerHref(row.player.id, seasonId, { kind: "team", id: teamId })}
-                    prefetch={false}
-                  >
+                  <span className={css.playerIdentity}>
                     <span
                       aria-hidden="true"
                       className={css.shirt}
@@ -234,8 +228,15 @@ export function TeamPlayersTable({
                     </span>
                     {/* The contract has no player picture yet: always the neutral fallback. */}
                     <PlayerAvatar name={row.player.name} />
-                    <span className={css.name}>{row.player.name}</span>
-                  </Link>
+                    <Link
+                      aria-label={`Ver ficha de ${row.player.name}`}
+                      className={css.open}
+                      href={observed ? observed.href(row.player.id) : playerHref(row.player.id, seasonId, { kind: "team", id: teamId })}
+                      prefetch={false}
+                    >
+                      <span className={css.name}>{row.player.name}</span>
+                    </Link>
+                  </span>
                 </th>
                 <td className={css.position}>
                   <span className={css.positionLong}>{positionLabel(row.player.position)}</span>
@@ -265,7 +266,7 @@ export function TeamPlayersTable({
                     <td>{footLabel(row.personal.preferredFoot)}</td>
                   </>
                 ) : personalCells?.(row.player.id) ?? <><td>—</td><td>—</td></>}
-              </LinkedTableRow>
+              </tr>
             ))}
           </tbody>
         </table>

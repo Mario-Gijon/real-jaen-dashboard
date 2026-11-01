@@ -18,8 +18,8 @@ export function MatchTimeline({ match }: { match: MatchDetail }) {
   const events = [...match.events].sort((a, b) => a.minute - b.minute || (a.addedTime ?? 0) - (b.addedTime ?? 0));
   return <>
     <div className={css.legend} aria-label="Equipos del partido">
-      <Link href={teamsHref({ seasonId: match.seasonId, teamId: match.home.id })}>{match.home.shortName} · Local</Link>
-      <Link href={teamsHref({ seasonId: match.seasonId, teamId: match.away.id })}>{match.away.shortName} · Visitante</Link>
+      <span><Link href={teamsHref({ seasonId: match.seasonId, teamId: match.home.id })}>{match.home.shortName}</Link> · Local</span>
+      <span><Link href={teamsHref({ seasonId: match.seasonId, teamId: match.away.id })}>{match.away.shortName}</Link> · Visitante</span>
     </div>
     <ol className={css.timeline} aria-label="Eventos del partido">
       {events.map((event) => {
@@ -30,9 +30,10 @@ export function MatchTimeline({ match }: { match: MatchDetail }) {
           aria-label={`${team.name} · ${side === "home" ? "Local" : "Visitante"}`}>
           <span className={css.minute}>{event.minute}{event.addedTime ? `+${event.addedTime}` : ""}′</span>
           <div className={css.action}>
-            <Link className={css.teamLabel} href={teamsHref({ seasonId: match.seasonId, teamId: team.id })}>
-              {team.shortName} · {side === "home" ? "Local" : "Visitante"}
-            </Link>
+            <div className={css.teamLabel}>
+              <Link href={teamsHref({ seasonId: match.seasonId, teamId: team.id })}>{team.shortName}</Link>
+              <span> · {side === "home" ? "Local" : "Visitante"}</span>
+            </div>
             <Action event={event} ownGoalTeam={match[actorSide].shortName} seasonId={match.seasonId} matchId={match.id} />
           </div>
         </li>;

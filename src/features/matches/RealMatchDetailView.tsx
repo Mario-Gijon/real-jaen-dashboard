@@ -217,8 +217,8 @@ function Lineups({ data: { match, lineups, incidents }, retry, linkProfiles, mat
 
 function Team({ team, side }: { team: ObservedTeam; side: "home" | "away" }) {
   const name = observedCrest(team).name;
-  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ teamId: team.id })} aria-label={`Ver equipo ${name}`}>
+  return <div className={`${css.team} ${css[side]}`}>
     <TeamCrest team={observedCrest(team)} size={52} />
-    <span>{name}</span>
-  </Link>;
+    <Link className={css.teamName} href={teamsHref({ teamId: team.id })} aria-label={`Ver equipo ${name}`}>{name}</Link>
+  </div>;
 }

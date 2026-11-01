@@ -95,10 +95,10 @@ export function MatchDetailView({ matchId, initialSection = "summary", playerRet
 }
 
 function Team({ team, side, seasonId }: { team: TeamRef; side: "home" | "away"; seasonId: string }) {
-  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ seasonId, teamId: team.id })} aria-label={`Ver equipo ${team.name}`}>
+  return <div className={`${css.team} ${css[side]}`}>
     <TeamCrest team={team} size={52} />
-    <span>{team.name}</span>
-  </Link>;
+    <Link className={css.teamName} href={teamsHref({ seasonId, teamId: team.id })} aria-label={`Ver equipo ${team.name}`}>{team.name}</Link>
+  </div>;
 }
 
 function Summary({ match }: { match: MatchDetail }) {

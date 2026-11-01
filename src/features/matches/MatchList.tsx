@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MatchSummary, TeamRef } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
+import { activateRowLink } from "@/ui/activate-row-link";
 import { dateLabel } from "@/lib/format";
 import { matchHref as buildMatchHref, teamsHref } from "@/lib/navigation";
 import css from "./MatchList.module.css";
@@ -30,14 +31,14 @@ export function MatchList({ matches, showRound, matchHref = buildMatchHref }: {
         const date = match.kickoff ? dateLabel(match.kickoff) : "Fecha por definir";
         return (
           <li key={match.id}>
-            <div className={css.match}>
+            <div className={css.match} onClick={event => activateRowLink(event.target, event.currentTarget, event)}>
               <div className={css.meta}>
                 {showRound ? <span className={css.round}>Jornada {match.round}</span> : null}
                 {match.kickoff ? <time dateTime={match.kickoff}>{date}</time> : <span>{date}</span>}
               </div>
               <Team team={match.home} side="home" seasonId={match.seasonId} />
               <div className={css.center}>
-                <Link className={match.status === "postponed" ? css.postponed : css.result}
+                <Link className={match.status === "postponed" ? css.postponed : css.result} data-row-primary=""
                   href={matchHref(match.id)} prefetch={false}
                   aria-label={`Ver partido ${match.home.name} contra ${match.away.name}, ${central}, jornada ${match.round}, ${date}${match.status === "postponed" ? "" : `, ${STATUS[match.status]}`}`}>
                   {central}
@@ -54,11 +55,13 @@ export function MatchList({ matches, showRound, matchHref = buildMatchHref }: {
 }
 
 function Team({ team, side, seasonId }: { team: TeamRef; side: "home" | "away"; seasonId: string }) {
-  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ seasonId, teamId: team.id })} aria-label={`Ver equipo ${team.name}`}>
+  return <div className={`${css.team} ${css[side]}`}>
     <TeamCrest team={team} size={40} />
-    <span className={css.name} data-club={team.id === "team-real-jaen" || undefined}>
-      <span className={css.fullName}>{team.name}</span>
-      <span className={css.shortName}>{team.shortName}</span>
-    </span>
-  </Link>;
+    <Link className={css.teamName} href={teamsHref({ seasonId, teamId: team.id })} aria-label={`Ver equipo ${team.name}`}>
+      <span className={css.name} data-club={team.id === "team-real-jaen" || undefined}>
+        <span className={css.fullName}>{team.name}</span>
+        <span className={css.shortName}>{team.shortName}</span>
+      </span>
+    </Link>
+  </div>;
 }

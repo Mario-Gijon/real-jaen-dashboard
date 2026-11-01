@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MatchStatus, ObservedMatch, ObservedTeam } from "@/contract";
 import { TeamCrest } from "@/ui/TeamCrest";
+import { activateRowLink } from "@/ui/activate-row-link";
 import { CLUB_ID } from "@/lib/club";
 import { observedMatchHref, teamsHref } from "@/lib/navigation";
 import { dateLabel } from "@/lib/format";
@@ -38,7 +39,7 @@ export function ObservedMatchList({ matches, matchHref = (matchId) => observedMa
         const seasonRound = [match.season, match.round !== null ? `J${match.round}` : null].filter(Boolean).join(" · ");
         return (
           <li key={match.id}>
-            <div className={css.match} data-observed="">
+            <div className={css.match} data-observed="" onClick={event => activateRowLink(event.target, event.currentTarget, event)}>
               <div className={css.meta}>
                 {/* The competition stays in the data; while every match is of the same one, it is not repeated per row. */}
                 {seasonRound ? <span className={css.round}>{seasonRound}</span> : null}
@@ -46,7 +47,7 @@ export function ObservedMatchList({ matches, matchHref = (matchId) => observedMa
               </div>
               <Team team={match.home} side="home" />
               <div className={css.center}>
-                <Link className={match.status === "finished" && match.score ? css.result : css.postponed}
+                <Link className={match.status === "finished" && match.score ? css.result : css.postponed} data-row-primary=""
                   href={matchHref(match.id)} prefetch={false}
                   aria-label={`Ver partido ${match.home.name ?? "Equipo sin identificar"} contra ${match.away.name ?? "Equipo sin identificar"}, ${central}, ${[match.season, match.round !== null ? `jornada ${match.round}` : null].filter(Boolean).join(" ")}, ${date}${state ? `, ${state}` : ""}`}>
                   {central}
@@ -66,11 +67,13 @@ export function ObservedMatchList({ matches, matchHref = (matchId) => observedMa
 function Team({ team, side }: { team: ObservedTeam; side: "home" | "away" }) {
   const name = team.name ?? "Equipo sin identificar";
   const club = team.id === CLUB_ID;
-  return <Link className={`${css.team} ${css[side]}`} href={teamsHref({ teamId: team.id })} aria-label={`Ver equipo ${name}`}>
+  return <div className={`${css.team} ${css[side]}`}>
     <TeamCrest team={observedCrest(team)} size={40} />
-    <span className={css.name} data-club={club || undefined}>
-      <span className={css.fullName}>{name}</span>
-      <span className={css.shortName}>{name}</span>
-    </span>
-  </Link>;
+    <Link className={css.teamName} href={teamsHref({ teamId: team.id })} aria-label={`Ver equipo ${name}`}>
+      <span className={css.name} data-club={club || undefined}>
+        <span className={css.fullName}>{name}</span>
+        <span className={css.shortName}>{name}</span>
+      </span>
+    </Link>
+  </div>;
 }
