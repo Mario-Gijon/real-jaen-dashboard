@@ -23,13 +23,13 @@ describe("«Partidos» as the origin of a real match", () => {
     expect(matchesHref({ teamId: "team-real-jaen", state: "all" })).toBe("/matches");
     expect(matchesHref({ teamId: "all", state: "pending" })).toBe("/matches?team=all&state=pending");
     const href = observedMatchHref("sofascore-match-1", { kind: "matches", teamId: "sofascore-team-24326", state: "finished" });
-    expect(href).toBe("/matches/sofascore-match-1?view=observed&from=matches&team=sofascore-team-24326&state=finished");
+    expect(href).toBe("/matches/sofascore-match-1?from=matches&team=sofascore-team-24326&state=finished");
     expect(observedMatchListReturnHref(queryOf(href))).toBe("/matches?team=sofascore-team-24326&state=finished");
     expect(observedMatchListReturnHref(queryOf(observedMatchHref("sofascore-match-1", { kind: "matches", teamId: "team-real-jaen", state: "all" }))))
       .toBe("/matches");
     // A related match keeps it; other origins are not one.
     expect(relatedObservedMatchHref("sofascore-match-2", queryOf(href)))
-      .toBe("/matches/sofascore-match-2?view=observed&from=matches&team=sofascore-team-24326&state=finished");
+      .toBe("/matches/sofascore-match-2?from=matches&team=sofascore-team-24326&state=finished");
     expect(observedMatchTeamsReturnHref(queryOf(href))).toBeNull();
     expect(homeReturnHref(queryOf(href))).toBeNull();
   });
@@ -53,12 +53,12 @@ describe("«Inicio» as the origin of a match", () => {
 
   it("returns from a real match to its target, with no season (a real Inicio has none), and keeps it in a related match", () => {
     const href = observedMatchHref("sofascore-match-16599934", { kind: "home", seasonId: null, matchId: "sofascore-match-16599973" });
-    expect(href).toBe("/matches/sofascore-match-16599934?view=observed&from=home&match=sofascore-match-16599973");
+    expect(href).toBe("/matches/sofascore-match-16599934?from=home&match=sofascore-match-16599973");
     expect(homeReturnHref(queryOf(href))).toBe("/?match=sofascore-match-16599973");
     expect(observedMatchTeamsReturnHref(queryOf(href))).toBeNull();
     expect(observedMatchReturnHref("sofascore-match-16599934", queryOf(href))).toBeNull();
     expect(relatedObservedMatchHref("sofascore-match-1", queryOf(href)))
-      .toBe("/matches/sofascore-match-1?view=observed&from=home&match=sofascore-match-16599973");
+      .toBe("/matches/sofascore-match-1?from=home&match=sofascore-match-16599973");
   });
 
   it("leaves the origins of Equipos and of a player as they were, and drops what it did not build", () => {
@@ -67,6 +67,13 @@ describe("«Inicio» as the origin of a match", () => {
     expect(observedMatchTeamsReturnHref(teams)).toBe("/teams?team=sofascore-team-24329");
     expect(homeReturnHref({ from: "home", season: "//example.com", match: "../x" })).toBe("/");
     expect(homeHref({})).toBe("/");
+  });
+
+  it("keeps the origin from a legacy link that still contains view=observed", () => {
+    const legacy = queryOf("/matches/sofascore-match-16599970?view=observed&from=home&match=sofascore-match-16600011");
+    expect(homeReturnHref(legacy)).toBe("/?match=sofascore-match-16600011");
+    expect(relatedObservedMatchHref("sofascore-match-16600012", legacy))
+      .toBe("/matches/sofascore-match-16600012?from=home&match=sofascore-match-16600011");
   });
 });
 
@@ -137,20 +144,20 @@ describe("Player navigation context", () => {
     expect(playerProfileHref("p", null, { kind: "team", id: "t" })).toBe("/players/p?view=profile&from=team&origin=t");
   });
 
-  it("returns from a real profile opened in a real match to that real match, never the synthetic detail", () => {
+  it("returns from a profile opened in a real match without adding a data-mode parameter", () => {
     const href = playerProfileHref("sofascore-player-7", null, { kind: "observedMatch", id: "sofascore-match-3" });
     expect(href).toBe("/players/sofascore-player-7?view=profile&from=observedMatch&origin=sofascore-match-3");
-    expect(playerReturnHref(null, queryOf(href))).toBe("/matches/sofascore-match-3?view=observed");
+    expect(playerReturnHref(null, queryOf(href))).toBe("/matches/sofascore-match-3");
   });
 
   it("returns to the line-ups tab of a real match when the profile was opened there", () => {
     const href = playerProfileHref("sofascore-player-7", null, { kind: "observedMatch", id: "sofascore-match-3", tab: "lineups" });
     expect(href).toBe("/players/sofascore-player-7?view=profile&from=observedMatch&origin=sofascore-match-3&originTab=lineups");
-    expect(playerReturnHref(null, queryOf(href))).toBe("/matches/sofascore-match-3?view=observed&tab=lineups");
+    expect(playerReturnHref(null, queryOf(href))).toBe("/matches/sofascore-match-3?tab=lineups");
   });
 
   it("opens a real match from the list without any return context", () => {
-    expect(observedMatchHref("sofascore-match-3")).toBe("/matches/sofascore-match-3?view=observed");
+    expect(observedMatchHref("sofascore-match-3")).toBe("/matches/sofascore-match-3");
     expect(observedMatchReturnHref("sofascore-match-3", queryOf(observedMatchHref("sofascore-match-3")))).toBeNull();
     expect(observedMatchTeamsReturnHref(queryOf(observedMatchHref("sofascore-match-3")))).toBeNull();
   });
@@ -168,12 +175,12 @@ describe("Player navigation context", () => {
 
   it("opens a related real match with the same origin, so «Volver» still leads there", () => {
     const fromTeams = queryOf(observedMatchHref("sofascore-match-16599956", { kind: "teams", seasonId: null, teamId: "sofascore-team-24329", tab: "performance" }));
-    expect(relatedObservedMatchHref("sofascore-match-17118209", fromTeams)).toBe("/matches/sofascore-match-17118209?view=observed&from=teams&team=sofascore-team-24329");
+    expect(relatedObservedMatchHref("sofascore-match-17118209", fromTeams)).toBe("/matches/sofascore-match-17118209?from=teams&team=sofascore-team-24329");
     const fromPlayer = queryOf(observedMatchHref("sofascore-match-1", { playerId: "sofascore-player-7", seasonId: "s", origin: { kind: "team", id: "team-3" } }));
     expect(relatedObservedMatchHref("sofascore-match-2", fromPlayer))
       .toBe(observedMatchHref("sofascore-match-2", { playerId: "sofascore-player-7", seasonId: "s", origin: { kind: "team", id: "team-3" } }));
-    expect(relatedObservedMatchHref("sofascore-match-2", {})).toBe("/matches/sofascore-match-2?view=observed");
-    expect(relatedObservedMatchHref("sofascore-match-2", { from: "teams", team: "//example.com" })).toBe("/matches/sofascore-match-2?view=observed&from=teams");
+    expect(relatedObservedMatchHref("sofascore-match-2", {})).toBe("/matches/sofascore-match-2");
+    expect(relatedObservedMatchHref("sofascore-match-2", { from: "teams", team: "//example.com" })).toBe("/matches/sofascore-match-2?from=teams");
   });
 
   it("drops an «Equipos» origin it did not build", () => {
@@ -190,7 +197,7 @@ describe("Player navigation context", () => {
     const query = queryOf(profile);
     const seasonId = query.season ?? null;
     const href = observedMatchHref("sofascore-match-9", { playerId: "sofascore-player-7", seasonId, origin: profileOrigin(query) });
-    expect(href.startsWith("/matches/sofascore-match-9?view=observed&from=player&player=sofascore-player-7")).toBe(true);
+    expect(href.startsWith("/matches/sofascore-match-9?from=player&player=sofascore-player-7")).toBe(true);
     const back = observedMatchReturnHref("sofascore-match-9", queryOf(href));
     expect(back).toBe(`${profile}&match=sofascore-match-9`);
     expect(profileInitialMatch(queryOf(back!))).toBe("sofascore-match-9");
@@ -205,7 +212,7 @@ describe("Player navigation context", () => {
       const match = observedMatchHref("sofascore-match-2", { playerId: "sofascore-player-7", seasonId: query.season, origin: profileOrigin(query) });
       // A profile opened from that match's line-ups returns to the match only.
       const lineupProfile = playerProfileHref("sofascore-player-8", null, { kind: "observedMatch", id: "sofascore-match-1", tab: "lineups" });
-      expect(playerReturnHref(null, queryOf(lineupProfile))).toBe("/matches/sofascore-match-1?view=observed&tab=lineups");
+      expect(playerReturnHref(null, queryOf(lineupProfile))).toBe("/matches/sofascore-match-1?tab=lineups");
       profile = observedMatchReturnHref("sofascore-match-2", queryOf(match))!;
     }
     expect(profile).toBe(first);

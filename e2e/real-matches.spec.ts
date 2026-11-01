@@ -62,7 +62,7 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
   await expect(list.getByRole("listitem").nth(2)).toContainText("Programado");
   await expect(list.getByRole("listitem").nth(2)).not.toContainText("0 – 0");
   await expect(list.getByRole("link")).toHaveCount(4);
-  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-1?view=observed&from=matches");
+  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-1?from=matches");
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-matches.png"), fullPage: true });
 
@@ -84,7 +84,7 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
   // Back from a match detail recovers the team from the URL.
   await page.getByRole("combobox", { name: "Equipo" }).selectOption(antequera.id);
   await list.getByRole("link").first().click();
-  await expect(page).toHaveURL(/\/matches\/sofascore-match-3\?view=observed&from=matches&team=sofascore-team-3$/);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-3\?from=matches&team=sofascore-team-3$/);
   await page.goBack();
   await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue(antequera.id);
   await expect(list.getByRole("listitem")).toHaveCount(1);
@@ -168,7 +168,7 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   await page.goto("/matches");
   await page.getByRole("combobox", { name: "Estado" }).selectOption("finished");
   await page.getByRole("list", { name: "Partidos reales" }).getByRole("link").first().click();
-  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?view=observed&from=matches&state=finished$/);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?from=matches&state=finished$/);
   await expect(page.getByText("0 – 3")).toBeVisible();
   // No competition nor season in the header, no provenance block; the round and date stay.
   await expect(page.getByText(/Primera Federacion/)).toHaveCount(0);
@@ -198,8 +198,13 @@ test("Partido real: from the list to its detail with team stats, unknown red car
   await expect(page).toHaveURL(/\/matches\?team=sofascore-team-3$/);
   await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue("sofascore-team-3");
 
-  // Opened directly, without a list behind it: plain «Partidos», the club.
+  // A direct URL without parameters opens normally and returns to plain «Partidos».
+  await page.goto("/matches/sofascore-match-1");
+  await expect(page.getByRole("link", { name: "‹ Volver a partidos" })).toHaveAttribute("href", "/matches");
+
+  // Legacy `view=observed` URLs remain usable and retain their old URL.
   await page.goto("/matches/sofascore-match-1?view=observed");
+  await expect(page).toHaveURL("/matches/sofascore-match-1?view=observed");
   await expect(page.getByRole("link", { name: "‹ Volver a partidos" })).toHaveAttribute("href", "/matches");
 });
 
@@ -260,7 +265,7 @@ test("Alineaciones reales: tab with once inicial and banquillo, recorded marks, 
   await expect(page).toHaveURL(/\/players\/sofascore-player-966303\?view=profile&from=observedMatch&origin=sofascore-match-1&originTab=lineups$/);
   await expect(page.getByRole("heading", { level: 1, name: "Moha Keita" })).toBeVisible();
   await page.getByRole("link", { name: "← Volver", exact: true }).click();
-  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?view=observed&tab=lineups$/);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-1\?tab=lineups$/);
   await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tabpanel", { name: "Alineaciones" })).toBeVisible();
   expect(synthetic).toEqual([]);

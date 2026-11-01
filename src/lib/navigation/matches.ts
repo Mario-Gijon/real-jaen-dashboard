@@ -35,9 +35,9 @@ export function matchHref(matchId: string, from?: HomeOrigin) {
   return query.size ? `/matches/${encodeURIComponent(matchId)}?${query}` : `/matches/${encodeURIComponent(matchId)}`;
 }
 
-/** Real match detail, always explicitly real (`view=observed`), never the synthetic one. */
+/** Real match detail; its origin query preserves the route back to the previous view. */
 export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin | ObservedMatchTeamsOrigin | HomeOrigin | ObservedMatchListOrigin) {
-  const query = new URLSearchParams({ view: "observed" });
+  const query = new URLSearchParams();
   if (from && "kind" in from && from.kind === "home") {
     setHomeOrigin(query, from);
   } else if (from && "kind" in from && from.kind === "matches") {
@@ -60,7 +60,8 @@ export function observedMatchHref(matchId: string, from?: ObservedMatchOrigin | 
       if (from.origin.kind === "observedMatch" && from.origin.matches) setProfileMatches(query, from.origin.matches);
     }
   }
-  return `/matches/${encodeURIComponent(matchId)}?${query}`;
+  const href = `/matches/${encodeURIComponent(matchId)}`;
+  return query.size ? `${href}?${query}` : href;
 }
 
 /** The real profile to return to from a real match, with that match selected, or null for the match list. */

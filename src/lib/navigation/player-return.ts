@@ -5,11 +5,11 @@ import { teamsHref } from "./teams";
 
 export function playerReturnHref(seasonId: string | null, query: { from?: string; origin?: string; originTab?: string } & ProfileMatchesQuery) {
   const validId = query.origin && SAFE_ID.test(query.origin);
-  // A real match keeps its explicit real view on return, never the synthetic detail.
+  // A real match return keeps its originating profile context and selected tab.
   if (query.from === "observedMatch" && validId) {
     const origin = profileOrigin(query);
     const href = observedMatchHref(query.origin!, origin?.kind === "observedMatch" ? origin.matches : undefined);
-    return `${href}${query.originTab === "lineups" ? "&tab=lineups" : ""}`;
+    return query.originTab === "lineups" ? `${href}${href.includes("?") ? "&" : "?"}tab=lineups` : href;
   }
   if (query.from === "match" && validId) {
     const tab = query.originTab === "lineups" || query.originTab === "timeline" ? `?tab=${query.originTab}` : "";

@@ -80,7 +80,7 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   expect(accent).toEqual({ width: "4px", color: "rgb(212, 167, 44)" });
   const list = page.getByRole("list", { name: "Últimos partidos del rival" });
   await expect(list.getByRole("link")).toHaveCount(5);
-  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-106?view=observed&from=home&match=sofascore-match-9");
+  await expect(list.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-106?from=home&match=sofascore-match-9");
   // xG from each match's detail, from the rival's side: (0.5 + 1.25 + 0.5 + 1.25 + 0.5) / 5 and (1.25 · 3 + 0.5 · 2) / 5.
   const expectation = page.getByRole("term").filter({ hasText: "Expectativa" }).locator("xpath=following-sibling::dd");
   await expect(expectation).toHaveText(/0,80\s*xG a favor\s*·\s*0,95\s*xG en contra/);
@@ -88,6 +88,9 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
 
   // A match opened here returns to this target.
   await list.getByRole("link").first().click();
+  await expect(page).toHaveURL("/matches/sofascore-match-106?from=home&match=sofascore-match-9");
+  await page.reload();
+  await expect(page).toHaveURL("/matches/sofascore-match-106?from=home&match=sofascore-match-9");
   await page.getByRole("link", { name: "‹ Volver a Inicio" }).click();
   await expect(page).toHaveURL(/\/\?match=sofascore-match-9$/);
   await expect(header.getByText("Atlético Madrileño", { exact: true })).toBeVisible();

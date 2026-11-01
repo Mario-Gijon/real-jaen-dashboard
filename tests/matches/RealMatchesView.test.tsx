@@ -56,7 +56,7 @@ const rows = () => within(screen.getByRole("list", { name: "Partidos reales" }))
 const hrefs = () => within(screen.getByRole("list", { name: "Partidos reales" })).getAllByRole("link").map((l) => l.getAttribute("href"));
 const teamSelect = () => screen.getByRole("combobox", { name: "Equipo" });
 /** A row's link: its real detail, carrying the list's team and status to return to. */
-const link = (id: string, context = "") => `/matches/${id}?view=observed&from=matches${context}`;
+const link = (id: string, context = "") => `/matches/${id}?from=matches${context}`;
 
 describe("Partidos with the real source", () => {
   it("opens on Real Jaén with only Equipo and Estado above, no provenance block and no competition per row", async () => {

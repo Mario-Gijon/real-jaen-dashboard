@@ -178,14 +178,14 @@ describe("Real match detail: Resumen", () => {
     expect(screen.getByText(/está sustituido por otro y no cuenta como encuentro vigente ni pendiente\. Aplazado y jugado con otro id\./)).toBeVisible();
     expect(screen.getByText(/No es un dato de la fuente: SofaScore no enlaza los dos eventos\./)).toBeVisible();
     expect(screen.getByRole("link", { name: "Ver el encuentro vigente" }))
-      .toHaveAttribute("href", "/matches/sofascore-match-17118209?view=observed&from=teams&team=sofascore-team-24329");
+      .toHaveAttribute("href", "/matches/sofascore-match-17118209?from=teams&team=sofascore-team-24329");
     unmount();
 
     vi.mocked(getObservedMatchDetail).mockResolvedValueOnce({ ...detail(),
       localReplacement: { replacedBy: null, replaces: [{ matchId: "sofascore-match-16599956", ...decided }] } });
     const { unmount: second } = render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
     expect(await screen.findByText(/sustituye a un evento anterior, que se conserva sin contar en el calendario/)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Ver el evento sustituido" })).toHaveAttribute("href", "/matches/sofascore-match-16599956?view=observed");
+    expect(screen.getByRole("link", { name: "Ver el evento sustituido" })).toHaveAttribute("href", "/matches/sofascore-match-16599956");
     second();
 
     // Without a local decision, nothing is said.

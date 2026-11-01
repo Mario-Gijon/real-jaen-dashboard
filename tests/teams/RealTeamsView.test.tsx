@@ -201,7 +201,7 @@ describe("Equipos con la fuente real", () => {
       expect.stringMatching(/^1.*Visitanteen.*CE Europa.*V 3-0$/),
     ]);
     expect(within(table).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
-      ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?view=observed&from=teams`));
+      ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?from=teams`));
     unmount();
   });
 

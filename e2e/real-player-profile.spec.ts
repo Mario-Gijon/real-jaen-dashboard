@@ -138,7 +138,7 @@ test("Real players: list to profile, personal data without provenance and back",
   await expect(history.getByRole("button").nth(2)).toContainText("J2Huesca2–2");
   await expect(page.getByRole("combobox", { name: "Ir a jornada" })).toHaveValue("sofascore-match-16599928");
   // The selected match opens its real detail, never a synthetic one.
-  await expect(page.getByRole("link", { name: "Ver partido completo" }).first()).toHaveAttribute("href", /^\/matches\/sofascore-match-\d+\?view=observed&from=player&/);
+  await expect(page.getByRole("link", { name: "Ver partido completo" }).first()).toHaveAttribute("href", /^\/matches\/sofascore-match-\d+\?from=player&/);
   expect(await noHorizontalOverflow(page)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("real-profile.png"), fullPage: true });
   // The real profile never asks for a synthetic season profile.
@@ -382,9 +382,9 @@ test("Real players: horizontal match selector, selection in place, kept on reloa
   // «Ver partido completo»: a real link (also in another tab) to the general detail, and back with the selection.
   const full = page.getByRole("link", { name: "Ver partido completo" });
   await expect(full).toHaveAttribute("href",
-    /^\/matches\/sofascore-match-16599500\?view=observed&from=player&player=sofascore-player-966303&season=[^&]+&playerFrom=team&playerOrigin=team-real-jaen$/);
+    /^\/matches\/sofascore-match-16599500\?from=player&player=sofascore-player-966303&season=[^&]+&playerFrom=team&playerOrigin=team-real-jaen$/);
   const [other] = await Promise.all([context.waitForEvent("page"), full.click({ modifiers: ["ControlOrMeta"] })]);
-  await expect(other).toHaveURL(/\/matches\/sofascore-match-16599500\?view=observed&from=player/);
+  await expect(other).toHaveURL(/\/matches\/sofascore-match-16599500\?from=player/);
   await other.close();
   await full.focus();
   await page.keyboard.press("Enter");
@@ -405,7 +405,7 @@ test("Real players: from a match's line-ups the profile opens on that match; ano
   const rows = page.getByRole("list", { name: "Histórico de partidos" }).getByRole("button");
   await expect(rows.nth(2)).toHaveAttribute("aria-pressed", "true");
   await expect(rows.nth(0)).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByRole("link", { name: "← Volver", exact: true })).toHaveAttribute("href", "/matches/sofascore-match-16599388?view=observed&tab=lineups");
+  await expect(page.getByRole("link", { name: "← Volver", exact: true })).toHaveAttribute("href", "/matches/sofascore-match-16599388?tab=lineups");
 
   await rows.nth(0).click();
   await page.getByRole("link", { name: "Ver partido completo" }).click();
@@ -413,7 +413,7 @@ test("Real players: from a match's line-ups the profile opens on that match; ano
   await page.getByRole("tabpanel", { name: "Alineaciones" }).getByRole("link", { name: "Jugador Sin Estatura" }).click();
   await expect(page).toHaveURL(/\/players\/sofascore-player-1429049\?view=profile&from=observedMatch&origin=sofascore-match-16599928&originTab=lineups$/);
   await page.getByRole("link", { name: "← Volver", exact: true }).click();
-  await expect(page).toHaveURL(/\/matches\/sofascore-match-16599928\?view=observed&tab=lineups$/);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-16599928\?tab=lineups$/);
   await expect(page.getByRole("tab", { name: "Alineaciones" })).toHaveAttribute("aria-selected", "true");
   // One level only: the parameters never pile up.
   expect(page.url().length).toBeLessThan(120);

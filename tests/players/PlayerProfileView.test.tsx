@@ -332,7 +332,7 @@ describe("Partidos (real)", () => {
     await loadMatches([played, benched], { context: { seasonId: "s", origin: { kind: "team", id: "team-real-jaen" } } });
     const link = await within(detail()).findByRole("link", { name: "Ver partido completo" });
     expect(link).toHaveAttribute("href",
-      "/matches/sofascore-match-1?view=observed&from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen");
+      "/matches/sofascore-match-1?from=player&player=sofascore-player-966303&season=s&playerFrom=team&playerOrigin=team-real-jaen");
     expect(getMatch).not.toHaveBeenCalled();
   });
 });

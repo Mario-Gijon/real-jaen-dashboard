@@ -204,7 +204,7 @@ test("Equipos reales: balance, casa/fuera, resultados y partidos del ámbito, si
   // Each played match opens its real detail.
   const table = page.getByRole("table", { name: "Partidos disputados" });
   await expect(table.getByRole("link")).toHaveCount(3);
-  await expect(table.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-5?view=observed&from=teams");
+  await expect(table.getByRole("link").first()).toHaveAttribute("href", "/matches/sofascore-match-5?from=teams");
   expect(synthetic).toEqual([]);
 });
 
@@ -389,7 +389,7 @@ test("Equipos reales: el equipo elegido, su temporada y su pestaña viven en la 
 
   // UD Ibiza → a match → Back: the same team, season and tab.
   await page.getByRole("table", { name: "Partidos disputados" }).getByRole("link").first().click();
-  await expect(page).toHaveURL(/\/matches\/sofascore-match-\d+[?]view=observed&from=teams&team=sofascore-team-24368$/);
+  await expect(page).toHaveURL(/\/matches\/sofascore-match-\d+[?]from=teams&team=sofascore-team-24368$/);
   await page.goBack();
   await expect(page.getByRole("heading", { level: 2, name: "UD Ibiza" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Temporada" })).toHaveCount(0);

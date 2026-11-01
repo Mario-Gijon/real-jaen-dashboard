@@ -15,7 +15,7 @@ const timeFormat = new Intl.DateTimeFormat("es-ES", {
 /**
  * Real matches as the source lists them, in the order given (by kickoff).
  * Same layout as the synthetic list; each row opens the real match detail,
- * explicitly marked as real (`view=observed`), never a synthetic one. Only a
+ * with its origin preserved in the query. Only a
  * finished match shows a score; a pending one shows its time or «Por
  * definir», never 0–0.
  */

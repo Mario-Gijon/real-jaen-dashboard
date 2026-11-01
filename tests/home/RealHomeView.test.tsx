@@ -59,7 +59,7 @@ describe("Inicio con la fuente real", () => {
     expect(screen.queryByText("Datos reales")).toBeNull();
     // By date, not by round; the target and the match after it are left out.
     expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(
-      ["107", "108", "104", "103", "102"].map((id) => `/matches/sofascore-match-${id}?view=observed&from=home&match=sofascore-match-9`));
+      ["107", "108", "104", "103", "102"].map((id) => `/matches/sofascore-match-${id}?from=home&match=sofascore-match-9`));
     expect(screen.getByRole("heading", { level: 2, name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
     expect(within(screen.getByRole("region", { name: "Últimos 5 partidos del Atlético Madrileño" })).getByRole("link", { name: "Ver todos" }))
       .toHaveAttribute("href", "/matches?team=sofascore-team-24326");
@@ -89,7 +89,7 @@ describe("Inicio con la fuente real", () => {
     expect(await screen.findByRole("link", { name: "Analizar Algeciras CF" }, WAIT)).toBeVisible();
     const list = await recent();
     expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href")))
-      .toEqual(["/matches/sofascore-match-201?view=observed&from=home&match=sofascore-match-10"]);
+      .toEqual(["/matches/sofascore-match-201?from=home&match=sofascore-match-10"]);
     expect(screen.getByRole("region", { name: "Último partido del Algeciras CF" })).toBeVisible();
     expect(screen.getByText(/1 de 5: son todos los partidos finalizados del rival antes del encuentro/)).toBeVisible();
   });
