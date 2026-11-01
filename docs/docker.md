@@ -21,7 +21,7 @@ app-real-jaen/
     secrets/                    # credenciales locales fuera de Git
 ```
 
-Los dos repositorios deben corresponder a las revisiones acordadas. Se pueden exportar con `git archive`; no incluir `.env.local`, entornos, builds, capturas o datos sintéticos externos. Los contextos Docker son `./dashboard` y `./api`, con listas explícitas de archivos permitidos. En la instalación base no se montan carpetas de código, venv ni node_modules. Solo el backend monta datos persistentes y entradas de solo lectura; el frontend no tiene acceso a SQLite. El servicio de desarrollo usa una imagen y artefactos Next separados; Compose Watch sincroniza únicamente el código del dashboard al contenedor, sin montar el workspace. La carpeta superior no es un tercer repositorio Git, así que los archivos Compose centrales quedan fuera de ambos repositorios.
+Los dos repositorios deben corresponder a las revisiones acordadas. Se pueden exportar con `git archive`; no incluir `.env.local`, entornos, builds, capturas o datos sintéticos externos. Los contextos Docker son `./dashboard` y `./api`, con listas explícitas de archivos permitidos. En la instalación base no se montan carpetas de código, venv ni node_modules. Solo el backend monta datos persistentes y entradas de solo lectura; el frontend no tiene acceso a SQLite. El servicio de desarrollo usa una imagen y artefactos Next separados; monta únicamente `dashboard/src` y `dashboard/public` en modo de solo lectura. La carpeta superior no es un tercer repositorio Git, así que los archivos Compose centrales quedan fuera de ambos repositorios.
 
 Desde la raíz `app-real-jaen/`, en una shell POSIX Linux:
 
@@ -58,34 +58,27 @@ Next usa siempre `DATA_MODE=real` y `LOCAL_DATA_API_URL=http://backend:8001`. El
 
 ## Desarrollo local con Hot Reload
 
-Este flujo requiere Docker Compose 2.22 o posterior (en el workspace está disponible 5.6.0).
+Este flujo funciona con Docker Compose desde la raíz del workspace. El servicio ejecuta `next dev` dentro de un contenedor separado y utiliza bind mounts convencionales de solo lectura para `dashboard/src` y `dashboard/public`. Las ediciones locales de React, TypeScript y CSS llegan directamente al contenedor; Next aplica Fast Refresh sin un proceso adicional de Compose Watch ni reconstruir la imagen.
 
-Desde la raíz del workspace, en una shell POSIX Linux:
-
-```sh
-set -eu
-dcdev() {
-  docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml --profile hot-reload "$@"
-}
-dcdev config --quiet
-dcdev build frontend-dev                    # primera vez o si cambia package.json/package-lock.json
-dcdev up -d --no-build --no-deps frontend-dev
-dcdev watch --no-up frontend-dev
-```
-
-La orden `up` crea solo `frontend-dev`; `--no-deps` evita reconciliar el backend y el frontend de producción. Compose Watch queda activo en esa terminal para sincronizar los archivos, y `--no-up` evita cambios adicionales en los servicios. Abre `http://127.0.0.1:3201`. La instalación existente en `127.0.0.1:3200` sigue ejecutándose en su propio contenedor. `frontend-dev` comparte la red Docker de la instalación y consulta `http://backend:8001`. Comprueba antes que el backend existente esté saludable.
-
-El servicio ejecuta `next dev`. Compose Watch sincroniza cambios de `src/` y `public/`, por lo que las ediciones de `.ts`, `.tsx` y CSS hechas por Codex o VS Code llegan al servidor y Next aplica Fast Refresh sin reconstruir la imagen. Los cambios de `next.config.ts` y `tsconfig.json` sincronizan y reinician solo `frontend-dev`. La lista `allowedDevOrigins` permite el acceso local por loopback; Next solo la utiliza en desarrollo. `node_modules` permanece dentro de la imagen de desarrollo y `.next` en su volumen Docker propio; `next-env.d.ts`, que Next genera, queda en el contenedor. Estos archivos y artefactos no se mezclan con el host ni con la imagen de producción. Si cambian las dependencias, detén el watcher con Ctrl+C, ejecuta `dcdev build frontend-dev`, vuelve a aplicar `dcdev up -d --no-build --no-deps frontend-dev` y después `dcdev watch --no-up frontend-dev`.
-
-El servicio usa `DATA_MODE=real` y solo incluye las credenciales de sesión necesarias para consultar el dashboard. No monta ni configura `RJ_CONTROL_SECRET_FILE`; por ello, las operaciones de actualización quedan deshabilitadas. Tampoco monta SQLite: las lecturas pasan por la API deportiva existente en la red Docker.
-
-Para dejar de sincronizar cambios, pulsa Ctrl+C en la terminal de Compose Watch. Para detener únicamente el servicio de desarrollo, conservando la imagen y el volumen de `.next`:
+Comprueba que el backend existente está saludable y que el puerto 3201 está libre. Desde la raíz del workspace, arranca solo el frontend de desarrollo:
 
 ```sh
-dcdev stop frontend-dev
+docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml --profile hot-reload up -d --no-deps frontend-dev
 ```
 
-Para reanudar el entorno con Hot Reload, ejecuta de nuevo `dcdev up -d --no-build --no-deps frontend-dev` y `dcdev watch --no-up frontend-dev`. No uses `down` sin seleccionar el servicio: el Compose base comparte la identidad de proyecto de la instalación.
+La primera vez, o si cambian `package.json` o `package-lock.json`, añade `--build` a `up` para incorporar las dependencias. Los cambios habituales bajo `src/` o `public/` no necesitan reconstrucción ni recreación. Abre `http://127.0.0.1:3201`. La instalación de producción en `http://127.0.0.1:3200` conserva su contenedor. `--no-deps` evita reconciliar el backend y el frontend de producción.
+
+`node_modules` permanece dentro de la imagen de desarrollo y `.next` en el volumen Docker propio `frontend-dev-next`; los bind mounts incluyen solo código fuente y recursos públicos. SQLite y las carpetas del backend no se montan en el frontend. La autenticación conserva los dos montajes individuales de credenciales bajo `/run/secrets`, ambos de solo lectura; esos archivos no forman parte de los bind mounts de código. `next-env.d.ts` y otros artefactos generados quedan en el contenedor. Los cambios de `next.config.ts`, `tsconfig.json` o dependencias requieren recrear el servicio; los archivos de configuración no forman parte de los bind mounts. La opción `allowedDevOrigins` permite el acceso local por loopback y Next solo la utiliza en desarrollo.
+
+El servicio usa `DATA_MODE=real` y consulta la API deportiva existente por la red Docker. Recibe únicamente las credenciales de sesión necesarias para el acceso; `RJ_CONTROL_SECRET_FILE` permanece ausente, así que las operaciones de actualización están deshabilitadas. No arranca SofaScore.
+
+Para detener únicamente el frontend de desarrollo, conservando la imagen y el volumen `.next`:
+
+```sh
+docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml --profile hot-reload stop frontend-dev
+```
+
+No uses `down` sin seleccionar el servicio: el Compose base comparte la identidad de proyecto de la instalación.
 
 ## Inicio manual de la instalación
 
@@ -97,7 +90,7 @@ dc up -d --no-build --no-recreate --wait --wait-timeout 120
 dc ps
 ```
 
-Este comando no inicia SofaScore ni el perfil de Hot Reload. Para apagar solo el entorno de desarrollo, usa `dcdev stop frontend-dev`; no detengas ni recrees el backend como parte del flujo Hot Reload.
+Este comando no inicia SofaScore ni el perfil de Hot Reload. Para apagar solo el entorno de desarrollo, usa `docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml --profile hot-reload stop frontend-dev`; no detengas ni recrees el backend como parte del flujo Hot Reload.
 
 ## 1. Arrancar con almacenamiento existente y base compatible
 
