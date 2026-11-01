@@ -17,7 +17,7 @@ Los repositorios son independientes y Compose vive en la raíz del workspace:
 app-real-jaen/
   compose.yaml, compose.dev.yaml, compose.acquisition.yaml  # orquestación compartida
   .env.docker                                               # configuración local, fuera de Git
-  dashboard/                                                # este repositorio, Next.js y Dockerfile
+  dashboard/                                                # este repositorio, Next.js y Dockerfiles
   api/                                                      # repositorio Python y Dockerfile
   deployment/                                               # fuera de ambos repositorios: imports/ y secrets/
 ```
@@ -35,7 +35,7 @@ docker compose --env-file .env.docker -f compose.yaml build
 docker compose --env-file .env.docker -f compose.yaml up -d --wait
 ```
 
-El Compose base no arranca la adquisición. Para el despliegue con datos reales, configuración de secretos, restauración, operación y recuperación, sigue [docs/docker.md](docs/docker.md) y [docs/despliegue-servidor.md](docs/despliegue-servidor.md). Los scripts de respaldo y restauración permanecen en este repositorio y se invocan desde la raíz como `sh dashboard/scripts/restaurar-instalacion.sh ...`.
+El Compose base no arranca la adquisición. Para desarrollo con Hot Reload, inicio manual de la instalación, configuración de secretos, restauración, operación y recuperación, sigue [docs/docker.md](docs/docker.md); para el despliegue en servidor, consulta [docs/despliegue-servidor.md](docs/despliegue-servidor.md). Los scripts de respaldo y restauración permanecen en este repositorio y se invocan desde la raíz como `sh dashboard/scripts/restaurar-instalacion.sh ...`.
 
 ## Arquitectura
 
@@ -61,7 +61,7 @@ UI (src/app, src/features, src/ui)
 | `src/hooks` | Hooks compartidos del cliente, incluido `useApi` para carga, cancelación y reintento |
 | `data/synthetic` | Temporada ficticia de la demostración (sólo la lee el adaptador sintético) |
 | `scripts` | Generador de la temporada de demostración (`npm run data:generate`); copia, recuperación y cambio de contraseña de la instalación; mitades de navegador de las validaciones Docker de `api` |
-| `Dockerfile` | Imagen Docker del frontend; la orquestación (`compose*.yaml`) está en la raíz del workspace |
+| `Dockerfile` / `Dockerfile.dev` | Imágenes de producción y desarrollo del frontend; la orquestación (`compose*.yaml`) está en la raíz del workspace |
 
 **Flujo de datos:** las pantallas llaman al cliente tipado; éste accede al BFF Next.js
 `/api/v1`, que selecciona el adaptador del servidor. En modo real, `local-api/` consume la
