@@ -121,27 +121,23 @@ export function HistorySection({ team, rows, summary, expectation, allHref, cove
           <div>
             <dt>Forma</dt>
             <dd className={css.formValues}>
-              <span className={css.formValue}><strong>{summary.wins}</strong>{" "}<span>V</span></span>
-              <span className={css.valueSeparator} aria-hidden="true"> · </span>
-              <span className={css.formValue}><strong>{summary.draws}</strong>{" "}<span>E</span></span>
-              <span className={css.valueSeparator} aria-hidden="true"> · </span>
-              <span className={css.formValue}><strong>{summary.losses}</strong>{" "}<span>D</span></span>
+              <span className={css.formChip} data-result="win"><strong>{summary.wins}</strong><abbr title="Victorias">V</abbr></span>
+              <span className={css.formChip} data-result="draw"><strong>{summary.draws}</strong><abbr title="Empates">E</abbr></span>
+              <span className={css.formChip} data-result="loss"><strong>{summary.losses}</strong><abbr title="Derrotas">D</abbr></span>
             </dd>
           </div>
           <div>
             <dt>Goles</dt>
-            <dd>
+            <dd className={css.metricPair}>
               <SummaryValue label="GF" stat={summary.goalsFor} />
-              <span className={css.valueSeparator} aria-hidden="true"> · </span>
               <SummaryValue label="GC" stat={summary.goalsAgainst} />
             </dd>
           </div>
           <div>
             <dt>Expectativa</dt>
-            <dd>{"loading" in expectation ? <span role="status">Cargando xG…</span>
+            <dd className={css.metricPair}>{"loading" in expectation ? <span role="status">Cargando xG…</span>
               : "error" in expectation ? <span className={css.inlineError} role="alert">No se pudo cargar el xG <Button size="sm" onClick={expectation.retry}>Reintentar</Button></span>
                 : <><SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} />
-                  <span className={css.valueSeparator} aria-hidden="true"> · </span>
                   <SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} /></>}</dd>
           </div>
         </dl> : null}

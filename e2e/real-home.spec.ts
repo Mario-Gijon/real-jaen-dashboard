@@ -84,7 +84,7 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   await expect(list.getByRole("link", { name: /^Ver partido/ }).first()).toHaveAttribute("href", "/matches/sofascore-match-106?from=home&match=sofascore-match-9");
   // xG from each match's detail, from the rival's side: (0.5 + 1.25 + 0.5 + 1.25 + 0.5) / 5 and (1.25 · 3 + 0.5 · 2) / 5.
   const expectation = page.getByRole("term").filter({ hasText: "Expectativa" }).locator("xpath=following-sibling::dd");
-  await expect(expectation).toHaveText(/0,80\s*xG a favor\s*·\s*0,95\s*xG en contra/);
+  await expect(expectation).toHaveText(/0,80\s*xG a favor\s*0,95\s*xG en contra/);
   expect(await noHorizontalOverflow(page)).toBe(true);
 
   // A match opened here returns to this target.
@@ -104,6 +104,28 @@ test("Inicio real: next current match, rival's last five before it, Volver a Ini
   await expect(page.getByText("Todavía no hay partidos finalizados con fecha anterior al encuentro objetivo.")).toBeVisible();
   expect(await noHorizontalOverflow(page)).toBe(true);
   expect(synthetic).toEqual([]);
+});
+
+test("Inicio real keeps a partial xG value readable on a phone", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Partial coverage is checked in the phone layout.");
+  await serveReal(page);
+  await page.route("**/api/v1/matches/*/observed", (route) => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
+    if (id !== "sofascore-match-106") return route.fallback();
+    const found = [...played, target, second].find((m) => m.id === id)!;
+    return route.fulfill({ json: { match: found, statistics: { state: "stored", fetchedAt: null,
+      home: stats(1.25), away: { ...stats(0.5), xg: { value: null, reason: "not_collected" } } },
+      lineups: { state: "not_stored", fetchedAt: null }, incidents: { state: "not_stored", fetchedAt: null },
+      scope: "Partido según la fuente.", source: SOURCE } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const summary = page.locator('dl[aria-label="Síntesis de partidos recientes"]');
+  await expect(summary).toBeVisible();
+  await expect(summary.getByText("4/5 partidos con dato")).toBeVisible();
+  await expect(summary.getByTitle("Datos disponibles en 4 de 5 partidos")).toContainText("0,");
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("partial-xg-phone.png"), fullPage: true });
 });
 
 test("Inicio real opens both target teams and the teams and scores in its history", async ({ page }) => {

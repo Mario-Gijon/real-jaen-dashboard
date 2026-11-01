@@ -172,3 +172,53 @@ test("Ver todos preserves season and opens all rounds for the selected rival", a
   await expect(page.getByRole("combobox", { name: "Equipo", exact: true })).toHaveValue(context.searchParams.get("team")!);
   await expect(page.getByRole("combobox", { name: "Jornada", exact: true })).toHaveValue("all");
 });
+
+test("Home summary centers three equal columns on desktop and tablet, then stacks them on phones", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Cambiar rival" }).click();
+  await page.getByRole("region", { name: "Próximos encuentros del Real Jaén" }).getByRole("button").nth(1).click();
+  const summary = page.locator('dl[aria-label="Síntesis de partidos recientes"]');
+  await expect(summary).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("summary-desktop.png"), fullPage: true });
+
+  const inspect = () => summary.evaluate(element => {
+    const container = element.getBoundingClientRect();
+    const groups = Array.from(element.children, group => {
+      const rect = group.getBoundingClientRect();
+      const title = group.querySelector("dt")!.getBoundingClientRect();
+      const values = group.querySelector("dd")!.getBoundingClientRect();
+      return { width: rect.width, center: rect.left + rect.width / 2, titleTop: title.top,
+        titleCenter: title.left + title.width / 2, valuesCenter: values.left + values.width / 2 };
+    });
+    return { width: container.width, columns: getComputedStyle(element).gridTemplateColumns.split(" ").length, groups };
+  });
+  const expectCentered = (groups: Awaited<ReturnType<typeof inspect>>["groups"]) => {
+    for (const group of groups) {
+      expect(Math.abs(group.titleCenter - group.center)).toBeLessThanOrEqual(1);
+      expect(Math.abs(group.valuesCenter - group.center)).toBeLessThanOrEqual(1);
+    }
+  };
+
+  const desktop = await inspect();
+  expect(desktop.columns).toBe(3);
+  expect(Math.max(...desktop.groups.map(group => group.width)) - Math.min(...desktop.groups.map(group => group.width))).toBeLessThanOrEqual(1);
+  expectCentered(desktop.groups);
+  expect(Math.max(...desktop.groups.map(group => group.titleTop)) - Math.min(...desktop.groups.map(group => group.titleTop))).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 768, height: 900 });
+  const tablet = await inspect();
+  expect(tablet.columns).toBe(3);
+  expect(Math.max(...tablet.groups.map(group => group.width)) - Math.min(...tablet.groups.map(group => group.width))).toBeLessThanOrEqual(1);
+  expectCentered(tablet.groups);
+  expect(Math.max(...tablet.groups.map(group => group.titleTop)) - Math.min(...tablet.groups.map(group => group.titleTop))).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const phone = await inspect();
+  expect(phone.columns).toBe(1);
+  expectCentered(phone.groups);
+  const phoneCenters = phone.groups.map(group => group.center);
+  expect(Math.max(...phoneCenters) - Math.min(...phoneCenters)).toBeLessThanOrEqual(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath("summary-phone.png"), fullPage: true });
+});

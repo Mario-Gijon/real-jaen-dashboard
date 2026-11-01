@@ -38,7 +38,12 @@ it("suggests the next fixture and links the rival and only its last five matches
       "/teams?season=s1&team=rival", `/matches/played-${i}?from=home&season=s1&match=target`, "/teams?season=s1&team=other",
     ]));
   expect(recent.querySelectorAll("a a")).toHaveLength(0);
-  expect(screen.getByText("Forma", { selector: "dt" }).nextElementSibling).toHaveTextContent("5 V · 0 E · 0 D");
+  const form = screen.getByText("Forma", { selector: "dt" }).nextElementSibling!;
+  expect(form).toHaveTextContent(/5\s*V\s*0\s*E\s*0\s*D/);
+  expect(form.querySelectorAll(":scope > [data-result]")).toHaveLength(3);
+  expect(form.querySelector('[data-result="win"] abbr')).toHaveAttribute("title", "Victorias");
+  expect(form.querySelector('[data-result="draw"] abbr')).toHaveAttribute("title", "Empates");
+  expect(form.querySelector('[data-result="loss"] abbr')).toHaveAttribute("title", "Derrotas");
   expect(screen.getAllByRole("list", { name: /del rival/ })).toHaveLength(1);
   expect(screen.queryByText(/Partidos anteriores|Material complementario/)).toBeNull();
 });

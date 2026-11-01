@@ -72,13 +72,13 @@ describe("Inicio con la fuente real", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Últimos 5 partidos del Atlético Madrileño" })).toBeVisible();
     expect(within(screen.getByRole("region", { name: "Últimos 5 partidos del Atlético Madrileño" })).getByRole("link", { name: "Ver todos" }))
       .toHaveAttribute("href", "/matches?team=sofascore-team-24326");
-    expect(summary("Forma")).toHaveTextContent("0 V · 3 E · 2 D");
-    expect(summary("Goles")).toHaveTextContent("9 GF · 11 GC");
+    expect(summary("Forma")).toHaveTextContent(/0\s*V\s*3\s*E\s*2\s*D/);
+    expect(summary("Goles")).toHaveTextContent(/9\s*GF\s*11\s*GC/);
     // xG oriented to the rival's side in each match: (0.39 + 2.15 + 1.74 + 1.32 + 1.27) / 5 = 1.374 and (1.56 + 3.13 + 2.33 + 3.81 + 0) / 5.
     expect(await screen.findByText("1,37", {}, WAIT)).toBeVisible();
     expect(screen.getByText("2,17")).toBeVisible();
     // From the analysed rival's side: its own xG, and its opponents'.
-    expect(summary("Expectativa")).toHaveTextContent("1,37 xG a favor · 2,17 xG en contra");
+    expect(summary("Expectativa")).toHaveTextContent(/1,37\s*xG a favor\s*2,17\s*xG en contra/);
     expect(getObservedMatchDetail).toHaveBeenCalledTimes(5);
     expect(getCompetitions).not.toHaveBeenCalled();
     expect(getSeasonMatches).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe("Inicio con la fuente real", () => {
     expect(screen.getByText("1 partido del rival con fecha ya pasada sigue sin resultado en los datos importados (aplazado o sin actualizar) y no se incluye.")).toBeVisible();
     expect(screen.queryByText(/todavía no se ha/)).toBeNull();
     expect(within(list).getByRole("link", { name: /resultado no contabilizado/ })).toHaveTextContent("—");
-    expect(summary("Forma")).toHaveTextContent("0 V · 0 E · 2 D");
+    expect(summary("Forma")).toHaveTextContent(/0\s*V\s*0\s*E\s*2\s*D/);
     // 107: the rival is away, its xG (away) missing and its rival's (home) 0.
     expect(await screen.findByTitle("Dato no disponible", {}, WAIT)).toHaveTextContent("—");
     expect(screen.getByTitle("Datos disponibles en 1 de 2 partidos")).toHaveTextContent("0,00");
@@ -180,7 +180,7 @@ describe("Inicio con la fuente real", () => {
     vi.mocked(getObservedMatchDetail).mockRejectedValueOnce(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "No"));
     render(<HomeView now={NOW} />);
     expect(await screen.findByText("No se pudo cargar el xG", {}, WAIT)).toBeVisible();
-    expect(summary("Forma")).toHaveTextContent("0 V · 3 E · 2 D");
+    expect(summary("Forma")).toHaveTextContent(/0\s*V\s*3\s*E\s*2\s*D/);
     await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByText("1,37", {}, WAIT)).toBeVisible();
   });
