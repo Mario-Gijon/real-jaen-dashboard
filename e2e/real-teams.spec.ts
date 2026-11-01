@@ -335,6 +335,24 @@ test("Equipos reales: las cifras parciales de goles y asistencias no ensanchan l
     const table = page.getByRole("table", { name: "Jugadores observados" });
     await expect(table).toBeVisible();
     const row = table.getByRole("row").filter({ has: page.getByRole("link", { name: "Ver ficha de Francisco Javier Gómez de la Torre" }) });
+    const nameLayout = await row.evaluate((element) => {
+      const cell = element.querySelector<HTMLElement>("th[scope='row']")!;
+      const link = cell.querySelector<HTMLElement>("a")!;
+      const name = link.querySelector<HTMLElement>("span")!;
+      const position = element.querySelector<HTMLElement>("td")!;
+      return {
+        cellRight: cell.getBoundingClientRect().right,
+        linkRight: link.getBoundingClientRect().right,
+        nameRight: name.getBoundingClientRect().right,
+        positionLeft: position.getBoundingClientRect().left,
+        textOverflow: getComputedStyle(name).textOverflow,
+        clipped: name.scrollWidth > name.clientWidth,
+      };
+    });
+    expect(nameLayout.linkRight).toBeLessThanOrEqual(nameLayout.cellRight);
+    expect(nameLayout.nameRight).toBeLessThanOrEqual(nameLayout.positionLeft);
+    expect(nameLayout.textOverflow).toBe("ellipsis");
+    expect(nameLayout.clipped).toBe(true);
     // Goals and assists keep their partial mark and the note read by screen readers.
     await expect(row.locator("td").nth(4)).toContainText("2*");
     await expect(row.locator("td").nth(4)).toContainText("(dato de 7 de 8 convocatorias)");

@@ -39,7 +39,7 @@
 .coverage { display: block; font-size: 11px; color: var(--rj-text-secondary); }
 .matches { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rj-border-default); }
 .matches li { border-bottom: 1px solid var(--rj-border-default); }
-.match { display: grid; grid-template-columns: 100px minmax(0, 1fr) 72px minmax(0, 1fr); align-items: center; gap: var(--rj-space-3); padding-block: var(--rj-space-3); color: inherit; border-radius: var(--rj-radius-sm); cursor: pointer; transition: background-color var(--rj-motion-fast); }
+.match { display: grid; grid-template-columns: 100px minmax(0, 1fr) 72px minmax(0, 1fr); align-items: center; gap: var(--rj-space-3); margin-inline: var(--rj-space-1); padding: var(--rj-space-3) var(--rj-space-3); color: inherit; border-radius: var(--rj-radius-sm); cursor: pointer; transition: background-color var(--rj-motion-fast); }
 .match:has(a[data-row-primary]:focus-visible):not(:has(.matchTeam a:hover)) { background: var(--rj-bg-hover); }
 @media (hover: hover) and (pointer: fine) {
   .match:hover:not(:has(.matchTeam a:hover)) { background: var(--rj-bg-hover); }

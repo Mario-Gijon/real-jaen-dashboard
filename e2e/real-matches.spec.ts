@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectEntityAwareRowHover } from "./interactive-row";
+import { expectEntityAwareRowHover, expectKeyboardFocus } from "./interactive-row";
 import { REAL_SOURCE } from "./sources";
 
 /*
@@ -90,6 +90,42 @@ test("Partidos reales: finished and pending, filters, coverage and links to the 
   await expect(page.getByRole("combobox", { name: "Equipo" })).toHaveValue(antequera.id);
   await expect(list.getByRole("listitem")).toHaveCount(1);
   expect(synthetic).toEqual([]);
+});
+
+test("Selectores reales reservan el canal de la flecha y muestran hover y foco visibles", async ({ page }, testInfo) => {
+  await serveReal(page);
+  await page.goto("/matches");
+  const team = page.getByRole("combobox", { name: "Equipo", exact: true });
+  const state = page.getByRole("combobox", { name: "Estado", exact: true });
+  for (const select of [team, state]) {
+    const metrics = await select.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        height: element.getBoundingClientRect().height,
+        paddingLeft: parseFloat(style.paddingLeft),
+        paddingRight: parseFloat(style.paddingRight),
+        appearance: style.appearance,
+        arrow: style.backgroundImage,
+      };
+    });
+    expect(metrics.height).toBe(44);
+    expect(metrics.paddingLeft).toBe(12);
+    expect(metrics.paddingRight).toBeGreaterThanOrEqual(36);
+    expect(metrics.appearance).toBe("none");
+    expect(metrics.arrow).not.toBe("none");
+  }
+  if (testInfo.project.name === "desktop") {
+    const desktopViewport = page.viewportSize()!;
+    // A 1,440 px desktop at 125% zoom has an effective layout viewport of about 1,152 CSS px.
+    await page.setViewportSize({ width: 1152, height: 800 });
+    expect(await noHorizontalOverflow(page)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("matches-effective-125-percent.png"), fullPage: true });
+    await page.setViewportSize(desktopViewport);
+    const baseBorder = await team.evaluate((element) => getComputedStyle(element).borderColor);
+    await team.hover();
+    await expect.poll(() => team.evaluate((element) => getComputedStyle(element).borderColor)).not.toBe(baseBorder);
+  }
+  await expectKeyboardFocus(page, state);
 });
 
 test("Partidos reales: a team the catalog does not offer falls back to Real Jaén, saying so", async ({ page }) => {

@@ -61,11 +61,13 @@ test("Rendimiento resalta solo las zonas libres de cada fila de partido", async 
   const table = page.getByRole("table", { name: "Partidos disputados" });
   const row = table.locator("tbody tr").first();
   const opponent = row.getByRole("link", { name: /^Ver equipo/ });
+  await page.mouse.move(0, 0);
+  const baseBackground = await row.evaluate((element) => getComputedStyle(element).backgroundColor);
   await expectEntityAwareRowHover(page, row, row.locator("td").first(), opponent);
 
   const matchLink = row.getByRole("link", { name: /^Ver partido/ });
   await page.mouse.move(0, 0);
-  const baseBackground = await row.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(baseBackground);
   await expectKeyboardFocus(page, matchLink);
   const hoverColor = await page.evaluate(() => {
     const probe = document.createElement("span");

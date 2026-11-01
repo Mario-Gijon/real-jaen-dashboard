@@ -14,6 +14,10 @@ export async function expectEntityAwareRowHover(
   expect(rowBox).not.toBeNull();
   expect(freeBox).not.toBeNull();
   expect(linkBox).not.toBeNull();
+  const stableBox = rowBox!;
+  const expectStableGeometry = async () => {
+    expect(await row.boundingBox()).toEqual(stableBox);
+  };
 
   const freePoint = { x: freeBox!.x + freeBox!.width / 2, y: freeBox!.y + freeBox!.height / 2 };
   const linkPoint = { x: linkBox!.x + linkBox!.width / 2, y: linkBox!.y + linkBox!.height / 2 };
@@ -36,6 +40,7 @@ export async function expectEntityAwareRowHover(
 
   await page.mouse.move(freePoint.x, freePoint.y);
   await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(hoverColor);
+  await expectStableGeometry();
   expect(await page.evaluate(({ x, y }) => {
     const target = document.elementFromPoint(x, y);
     return target ? getComputedStyle(target).cursor : "";
@@ -43,6 +48,7 @@ export async function expectEntityAwareRowHover(
 
   await page.mouse.move(linkPoint.x, linkPoint.y);
   await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(baseBackground);
+  await expectStableGeometry();
   const linkStyle = await entityLink.evaluate((element) => {
     const leaves = [...element.querySelectorAll("*")].filter((child) => child.children.length === 0 && child.textContent?.trim());
     const target = leaves[0] ?? element;
@@ -53,6 +59,7 @@ export async function expectEntityAwareRowHover(
 
   await page.mouse.move(freePoint.x, freePoint.y);
   await expect.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(hoverColor);
+  await expectStableGeometry();
 }
 
 /** A row with no delegated action leaves feedback and pointer behavior on the name link alone. */

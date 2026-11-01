@@ -403,7 +403,7 @@
   }
   .table th,
   .table td {
-    padding-inline: 5px;
+    padding-inline: var(--rj-space-2);
   }
   .venue,
   .year {

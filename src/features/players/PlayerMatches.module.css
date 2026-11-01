@@ -57,7 +57,7 @@
 .master .history { max-height: min(680px, 75vh); overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--rj-border-strong) transparent; }
 .desktopDetail { position: sticky; top: var(--rj-space-4); min-width: 0; }
 .inlineDetail { display: none; }
-.historyRow { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 48px; gap: 4px var(--rj-space-2); align-items: center; width: 100%; min-width: 0; padding: var(--rj-space-3) 6px; border-bottom: 1px solid var(--rj-border-default); background: none; text-align: left; font: inherit; color: inherit; transition: background-color var(--rj-motion-fast); }
+.historyRow { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 48px; gap: 4px var(--rj-space-2); align-items: center; min-width: 0; margin-inline: var(--rj-space-1); padding: var(--rj-space-3) var(--rj-space-3); border-bottom: 1px solid var(--rj-border-default); background: none; text-align: left; font: inherit; color: inherit; transition: background-color var(--rj-motion-fast); }
 .historyRow[data-selectable="true"]:focus-within:not(:has(.teams a:focus)):not(:has(.teams a:hover)) { background: var(--rj-bg-hover); }
 .historyRow[data-selectable="true"] > :not(.matchSelect) { position: relative; z-index: 1; pointer-events: none; }
 .historyRow[data-selected="true"] { background: var(--rj-purple-100); }

@@ -5,7 +5,8 @@
   grid-template-columns: 104px minmax(0, 1fr) 96px minmax(0, 1fr);
   align-items: center;
   gap: var(--rj-space-3);
-  padding: 16px 0;
+  margin-inline: var(--rj-space-1);
+  padding: 16px var(--rj-space-3);
   color: var(--rj-text-primary);
   border-radius: var(--rj-radius-sm);
   cursor: pointer;
