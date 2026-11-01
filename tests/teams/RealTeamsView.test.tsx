@@ -10,6 +10,7 @@ import {
   type ObservedSquadPlayer, type ObservedTeamPerformance, type SeasonStat, type TeamOutputIndicator,
 } from "@/contract";
 import { TeamsView } from "@/features/teams/TeamsView";
+import { PlayedZone, type Played } from "@/features/teams/TeamPerformanceParts";
 import { DEMO_SOURCE, REAL_SOURCE } from "../shared/sources";
 
 vi.mock("@/client/api", async (importOriginal) => ({
@@ -198,15 +199,39 @@ describe("Equipos con la fuente real", () => {
     const table = screen.getByRole("table", { name: "Partidos disputados" });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/^3.*Localvs.*CE Europa.*V 1-0$/), expect.stringMatching(/^2.*Localvs.*Huesca.*E 2-2$/),
-      expect.stringMatching(/^1.*Visitanteen.*CE Europa.*V 3-0$/),
+      expect.stringMatching(/^3.*LocalL.*CE Europa.*V 1-0$/), expect.stringMatching(/^2.*LocalL.*Huesca.*E 2-2$/),
+      expect.stringMatching(/^1.*VisitanteV.*CE Europa.*V 3-0$/),
     ]);
+    expect(within(rows[0]).getByLabelText("Local")).toHaveAccessibleName("Local");
+    expect(within(rows[0]).getByLabelText("Local")).toHaveTextContent("L");
+    expect(within(rows[2]).getByLabelText("Visitante")).toHaveAccessibleName("Visitante");
+    expect(within(rows[2]).getByLabelText("Visitante")).toHaveTextContent("V");
+    expect(rows[0].querySelector(".rival a [data-crest]")).toBeNull();
     expect(within(table).getAllByRole("link", { name: /^Ver partido/ }).map((link) => link.getAttribute("href"))).toEqual(
       ["sofascore-match-3", "sofascore-match-2", "sofascore-match-1"].map((id) => `/matches/${id}?from=teams`));
     expect(within(table).getAllByRole("link", { name: /^Ver equipo/ }).map((link) => link.getAttribute("href"))).toEqual([
       "/teams?team=sofascore-team-135672", "/teams?team=sofascore-team-24265", "/teams?team=sofascore-team-135672",
     ]);
     unmount();
+  });
+
+  it("keeps a real match row without a detail destination inert outside its team link", async () => {
+    const user = userEvent.setup();
+    const played: Played = {
+      id: "observed-without-detail", round: 9, kickoff: "2026-10-25T17:00:00Z", side: "away",
+      opponent: { id: "sofascore-team-135672", name: "CE Europa", shortName: "Europa", crestUrl: null,
+        colors: { primary: "#123456", secondary: "#ffffff" } },
+      result: "draw", goalsFor: 1, goalsAgainst: 1, href: null, opponentHref: "/teams?team=sofascore-team-135672",
+    };
+    render(<PlayedZone played={[played]} highlighted={new Set()} />);
+    const table = screen.getByRole("table", { name: "Partidos disputados" });
+    const row = within(table).getAllByRole("row")[1];
+    expect(row).toHaveAttribute("data-linked", "false");
+    expect(within(row).queryByRole("link", { name: /^Ver partido/ })).toBeNull();
+    expect(within(row).getByLabelText("Visitante")).toHaveAccessibleName("Visitante");
+    const pathBeforeClick = window.location.pathname;
+    await user.click(within(row).getByRole("cell", { name: "9" }));
+    expect(window.location.pathname).toBe(pathBeforeClick);
   });
 
   it("says what is left out: finished matches without a valid score, with contradictory versions and unknown states", async () => {

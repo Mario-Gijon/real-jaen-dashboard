@@ -391,6 +391,7 @@
   .balance {
     order: 3;
     width: 100%;
+    grid-auto-columns: minmax(0, 1fr);
   }
   .balance dd {
     font-size: 1.125rem;
@@ -398,22 +399,126 @@
   .venues {
     order: 4;
   }
-  .table {
+  .form,
+  .chips {
     min-width: 0;
+  }
+  .scroll {
+    overflow-x: visible;
+  }
+  .table {
+    display: block;
+    min-width: 0;
+  }
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .table tbody {
+    display: block;
+  }
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--rj-space-2);
+    margin-inline: var(--rj-space-1);
+    padding: var(--rj-space-2) var(--rj-space-2);
+    border-bottom: 1px solid var(--rj-border-default);
+    border-radius: var(--rj-radius-sm);
+  }
+  .table tbody tr > td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  .num,
+  .date {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+  .num {
+    justify-self: start;
+  }
+  .date {
+    justify-self: end;
+    font-size: var(--rj-text-xs);
+  }
+  .date::before {
+    content: "/";
+    margin-inline-end: var(--rj-space-1);
+    color: var(--rj-text-muted);
+  }
+  .table tbody tr > .rival {
+    display: grid;
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--rj-space-2);
+    width: auto;
+    max-width: none;
+    min-width: 0;
+  }
+  .table tbody tr > .venue {
+    display: none;
+  }
+  .venueShort {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--rj-border-default);
+    border-radius: 6px;
+    background: var(--rj-bg-soft);
+    color: var(--rj-text-secondary);
+    font-size: var(--rj-text-xs);
+    font-weight: 700;
+    line-height: 1;
+    cursor: inherit;
+  }
+  .rival > [data-crest] {
+    width: 22px;
+    height: 22px;
+  }
+  .end {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .score {
+    min-width: 0;
+    padding-inline: var(--rj-space-1);
+  }
+  .opponent {
+    display: block;
+    justify-self: start;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .opponentName {
+    white-space: nowrap;
   }
   .table th,
   .table td {
-    padding-inline: var(--rj-space-2);
+    padding-inline: 0;
   }
   .venue,
   .year {
     display: none;
   }
   .venueShort {
-    display: inline;
-  }
-  .opponent {
-    gap: 6px;
-    max-width: 100%;
+    cursor: inherit;
   }
 }

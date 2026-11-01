@@ -267,6 +267,9 @@ describe("Rendimiento del equipo", () => {
     expect(rows()[1]).toHaveTextContent("D 1-2");
     expect(rows()[1]).toHaveTextContent("Local");
     expect(rows()[0]).toHaveTextContent("Visitante");
+    expect(within(rows()[1]).getByLabelText("Local")).toHaveAccessibleName("Local");
+    expect(within(rows()[0]).getByLabelText("Visitante")).toHaveAccessibleName("Visitante");
+    expect(rows()[1].querySelector(".rival a [data-crest]")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Últimos 3" }));
     expect(rows()).toHaveLength(4);

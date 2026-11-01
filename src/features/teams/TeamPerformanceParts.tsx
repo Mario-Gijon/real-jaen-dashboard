@@ -132,6 +132,7 @@ export function PlayedZone({ played, highlighted }: { played: readonly Played[];
               {[...played].reverse().map((m) => {
                 const marked = highlighted.has(m.id);
                 const Row = m.href ? LinkedTableRow : "tr";
+                const venueLabel = m.side === "home" ? "Local" : "Visitante";
                 return (
                   <Row
                     data-in-period={marked || undefined}
@@ -146,9 +147,11 @@ export function PlayedZone({ played, highlighted }: { played: readonly Played[];
                     <td className={css.date}>
                       <DateCell kickoff={m.kickoff} />
                     </td>
-                    <td className={css.venue}>{m.side === "home" ? "Local" : "Visitante"}</td>
+                    <td className={css.venue}>{venueLabel}</td>
                     <td className={css.rival}>
-                      <span aria-hidden="true" className={css.venueShort}>{m.side === "home" ? "vs" : "en"}</span>
+                      <abbr aria-label={venueLabel} className={css.venueShort}>
+                        {m.side === "home" ? "L" : "V"}
+                      </abbr>
                       <TeamCrest size={22} team={m.opponent} />
                       <Link href={m.opponentHref} className={css.opponent} prefetch={false} aria-label={`Ver equipo ${m.opponent.name}`}>
                         <span className={css.opponentName}>{m.opponent.name}</span>

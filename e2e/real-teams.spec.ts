@@ -59,6 +59,81 @@ async function serveReal(page: Page, { down = false } = {}) {
 const noHorizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
+test("Equipos reales: la tabla de partidos cabe en móviles estrechos y conserva accesibles L/V y nombres largos", async ({ page }, testInfo) => {
+  const longName = "Atlético Madrileño del Noroeste";
+  const expanded = {
+    ...performance,
+    competitions: performance.competitions.map((scope) => ({
+      ...scope,
+      results: scope.results.map((entry, index) => index === 0
+        ? { ...entry, match: { ...entry.match, home: { ...entry.match.home, name: longName } } }
+        : entry),
+    })),
+  };
+  await serveReal(page);
+  await page.route("**/api/v1/teams/*/observed-performance", (route) => route.fulfill({ json: expanded }));
+  await page.goto("/teams");
+  const table = page.getByRole("table", { name: "Partidos disputados" });
+  await expect(table).toBeVisible();
+  const longLink = table.getByRole("link", { name: `Ver equipo ${longName}` });
+  const longRow = longLink.locator("xpath=../..");
+  await expect(longLink).toHaveCount(1);
+  await expect(longLink).toHaveAccessibleName(`Ver equipo ${longName}`);
+
+  for (const width of [320, 360, 375, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    const extent = await page.evaluate(() => ({
+      width: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      overflowing: [...document.body.querySelectorAll<HTMLElement>("*")]
+        .map((element) => ({
+          element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${typeof element.className === "string" && element.className ? `.${element.className.trim().replace(/\s+/g, ".")}` : ""}`,
+          text: element.innerText?.slice(0, 48),
+          left: Math.round(element.getBoundingClientRect().left),
+          right: Math.round(element.getBoundingClientRect().right),
+        }))
+        .filter((box) => box.right > window.innerWidth + 1 || box.left < -1)
+        .sort((a, b) => b.right - a.right)
+        .slice(0, 6),
+    }));
+    expect(extent.scrollWidth <= extent.width, `horizontal overflow at ${width}px: ${JSON.stringify(extent)}`).toBe(true);
+    const condition = table.locator("tbody tr td:nth-child(4) abbr[aria-label]").first();
+    const label = await condition.getAttribute("aria-label");
+    expect(["Local", "Visitante"]).toContain(label);
+    await expect(condition).toHaveAccessibleName(label!);
+    await expect(condition).toContainText(label === "Local" ? "L" : "V");
+    await expect(longLink.locator("span")).toHaveCSS("text-overflow", "ellipsis");
+    const rowBox = await longRow.boundingBox();
+    const nameBox = await longLink.locator("span").boundingBox();
+    expect(rowBox).not.toBeNull();
+    expect(nameBox).not.toBeNull();
+    expect(nameBox!.x).toBeGreaterThanOrEqual(rowBox!.x);
+    expect(nameBox!.x + nameBox!.width).toBeLessThanOrEqual(rowBox!.x + rowBox!.width);
+    if (width === 320) {
+      expect(await longLink.locator("span").evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    }
+  }
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.screenshot({ path: testInfo.outputPath("real-team-matches-320.png"), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: testInfo.outputPath("real-team-matches-390.png"), fullPage: true });
+  await page.setViewportSize({ width: 768, height: 900 });
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await expect(table.locator("thead th")).toHaveCount(5);
+  await expect(table.getByRole("columnheader", { name: "Condición" })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  await expect(table.locator("thead th")).toHaveCount(5);
+  await expect(table.getByRole("columnheader", { name: "Condición" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("real-team-matches-desktop.png"), fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const teamHref = await longLink.getAttribute("href");
+  await longLink.locator("span").click();
+  await expect(page).toHaveURL(teamHref!);
+});
+
 test("Equipos reales: the 20 teams keep their grid, full names and native tooltips", async ({ page }, testInfo) => {
   const teams = [jaen, ...[
     [24322, "AD Alcorcón"], [4489, "Algeciras CF"], [24323, "Antequera"], [24326, "Atlético Madrileño"],
