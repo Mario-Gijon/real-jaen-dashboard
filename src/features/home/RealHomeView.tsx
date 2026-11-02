@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiRequestError, getObservedMatchDetail, getTeamObservedMatches, getTeamObservedPerformance } from "@/client/api";
+import { ApiRequestError, getTeamObservedMatches, getTeamObservedPerformance } from "@/client/api";
 import type { ObservedMatch, ObservedTeam } from "@/contract";
 import { CLUB_ID } from "@/lib/club";
 import { homeHref, matchesHref, observedMatchHref, teamsHref } from "@/lib/navigation";
@@ -10,8 +10,8 @@ import { observedCrest } from "@/lib/team-crests";
 import { useApi } from "@/hooks/use-api";
 import { LoadingState } from "@/ui/LoadingState";
 import { daysUntil, preparationChoices, preparationSummary, upcomingMatches } from "./preparation";
-import { fixtureLabel, HistorySection, LoadError, TargetSection, type Expectation, type Fixture, type HistoryRow } from "./PreparationParts";
-import { orientedTeamStats, rivalHistory, unconfirmedClubMatches } from "./real-preparation";
+import { fixtureLabel, HistorySection, LoadError, TargetSection, type Fixture, type HistoryRow } from "./PreparationParts";
+import { rivalHistory, unconfirmedClubMatches } from "./real-preparation";
 import css from "./HomeView.module.css";
 
 const crestTeam = (team: ObservedTeam) => ({ id: team.id, ...observedCrest(team), href: teamsHref({ teamId: team.id }) });
@@ -49,9 +49,6 @@ function RealPreparation({ matchId, now }: { matchId?: string; now: number }) {
     signal => getTeamObservedMatches(rival!.id, { signal }));
   const history = target && performance.data && rivalMatches.data
     ? rivalHistory(rivalMatches.data.matches, target, performance.data.competitions, now) : null;
-  const countedIds = history?.counted.map(entry => entry.match.id) ?? [];
-  const details = useApi(countedIds.length ? `home-rival-xg|${countedIds.join(",")}` : null,
-    signal => Promise.all(countedIds.map(id => getObservedMatchDetail(id, { signal }))));
 
   if (club.error) return <LoadError message="No se pudo cargar el calendario real del Real Jaén." retry={club.retry} />;
   if (!club.data) return <LoadingState variant="page" label="Cargando calendario…" />;
@@ -86,21 +83,16 @@ function RealPreparation({ matchId, now }: { matchId?: string; now: number }) {
           : !history ? <section aria-label="Partidos recientes del rival" aria-busy="true">
             <LoadingState variant="section" label="Cargando partidos del rival…" />
           </section>
-            : <RealHistory history={history} details={details} targetId={target.id} rival={crestTeam(rival)} />}
+            : <RealHistory history={history} targetId={target.id} rival={crestTeam(rival)} />}
   </>;
 }
 
-function RealHistory({ history, details, targetId, rival }: {
+function RealHistory({ history, targetId, rival }: {
   history: ReturnType<typeof rivalHistory>; targetId: string; rival: { id: string; name: string };
-  details: { data: Awaited<ReturnType<typeof getObservedMatchDetail>>[] | null; error: unknown; retry: () => void };
 }) {
   const { recent, counted, upcomingBefore, overdueBefore, unknownStatus, undatedFinished } = history;
-  // Summarised over the counted matches only; their xG comes from each one's detail, in the same order.
-  const { xg, opponentXg, ...form } = preparationSummary(counted.map((entry, index) => ({
-    ...entry, teamStats: details.data ? orientedTeamStats(details.data[index], entry.side) : null,
-  })));
-  const expectation: Expectation = details.error || details.data?.some(detail => detail.statistics.state === "error")
-    ? { error: true, retry: details.retry } : !details.data ? { loading: true } : { xg, opponentXg };
+  // The performance response already orients each counted match's xG to this rival.
+  const { xg, opponentXg, ...form } = preparationSummary(counted.map(entry => ({ ...entry, teamStats: null })));
   // A match opened from here returns to this target.
   const rows: HistoryRow[] = recent.map(({ match, result }) => ({
     ...fixture(match), score: result === null ? null : match.score,
@@ -124,7 +116,7 @@ function RealHistory({ history, details, targetId, rival }: {
       "partidos del rival con estado desconocido en la fuente no se consideran")}: no se sabe si se disputó.` : null,
     undatedFinished ? `${plural(undatedFinished, "partido finalizado sin fecha no se incluye", "partidos finalizados sin fecha no se incluyen")}: no se puede situar antes del encuentro.` : null,
   ].filter((line): line is string => line !== null);
-  return <HistorySection team={rival.name} rows={rows} summary={counted.length ? form : null} expectation={expectation}
+  return <HistorySection team={rival.name} rows={rows} summary={counted.length ? form : null} expectation={{ xg, opponentXg }}
   allHref={matchesHref({ teamId: rival.id })}
     coverage={coverage.length ? <div className={css.notes}>{coverage.map(line => <p key={line}>{line}</p>)}</div> : null} />;
 }

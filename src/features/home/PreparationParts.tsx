@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Score, SeasonStat, TeamRef } from "@/contract";
 import { Button } from "@/ui/Button";
-import { LoadingState } from "@/ui/LoadingState";
 import { TeamCrest } from "@/ui/TeamCrest";
 import { activateRowLink } from "@/ui/activate-row-link";
 import { dateLabel, formatNumber } from "@/lib/format";
@@ -96,8 +95,8 @@ function FixtureTeam({ team, side }: { team: CrestTeam; side: "home" | "away" })
 
 /** Form and goals of the summary; `null` when no listed match has a result to summarise. */
 export type FormSummary = { wins: number; draws: number; losses: number; goalsFor: SeasonStat; goalsAgainst: SeasonStat };
-/** xG of the summary, or its own loading or failure (never read as missing data). */
-export type Expectation = { xg: SeasonStat; opponentXg: SeasonStat } | { loading: true } | { error: true; retry: () => void };
+/** xG of the summary, with coverage for the matches that contain a valid value. */
+export type Expectation = { xg: SeasonStat; opponentXg: SeasonStat };
 
 /**
  * The rival's previous matches and their summary. `rows` are at most five,
@@ -136,10 +135,10 @@ export function HistorySection({ team, rows, summary, expectation, allHref, cove
           </div>
           <div>
             <dt>Expectativa</dt>
-            <dd className={css.metricPair} aria-busy={"loading" in expectation || undefined}>{"loading" in expectation ? <LoadingState variant="inline" label="Cargando xG…" />
-              : "error" in expectation ? <span className={css.inlineError} role="alert">No se pudo cargar el xG <Button size="sm" onClick={expectation.retry}>Reintentar</Button></span>
-                : <><SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} />
-                  <SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} /></>}</dd>
+            <dd className={css.metricPair}>
+              <SummaryValue label="xG a favor" stat={expectation.xg} decimals={2} />
+              <SummaryValue label="xG en contra" stat={expectation.opponentXg} decimals={2} />
+            </dd>
           </div>
         </dl> : null}
         <PreparationMatches rows={rows} label="Últimos partidos del rival" />

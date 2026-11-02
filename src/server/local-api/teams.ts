@@ -54,6 +54,13 @@ function parseAverages(value: unknown, of: number, field: string): Record<TeamOu
   return averages;
 }
 
+/** A missing xG is null; values outside its numeric domain invalidate the response. */
+function optionalXg(value: unknown, field: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw invalid(field);
+  return value;
+}
+
 const near = (a: number | null, b: number) => a !== null && Math.abs(a - b) < 1e-9;
 
 /**
@@ -140,7 +147,11 @@ async function parseCompetitionPerformance(
     if (own !== goalsFor || other !== goalsAgainst) throw invalid(`${rat("goals_for")}: no coincide con el marcador`);
     const result = resultOf(goalsFor, goalsAgainst);
     if (row.result !== result) throw invalid(rat("result"));
-    return { match, side, result, goalsFor, goalsAgainst };
+    return {
+      match, side, result, goalsFor, goalsAgainst,
+      xgFor: optionalXg(row.xg_for, rat("xg_for")),
+      xgAgainst: optionalXg(row.xg_against, rat("xg_against")),
+    };
   });
 
   const tally = { win: 0, draw: 0, loss: 0 };

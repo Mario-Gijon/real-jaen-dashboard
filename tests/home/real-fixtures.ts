@@ -1,6 +1,6 @@
 import type {
-  MatchResult, MatchStatus, ObservedCompetitionPerformance, ObservedMatch, ObservedMatchDetail, ObservedTeam,
-  ObservedTeamMatches, ObservedTeamPerformance, Side, TeamMatchStats,
+  MatchResult, MatchStatus, ObservedCompetitionPerformance, ObservedMatch, ObservedTeam,
+  ObservedTeamMatches, ObservedTeamPerformance, Side,
 } from "@/contract";
 
 /** A small real calendar: the club, the rival of its next match and other teams, as the local API serves them. */
@@ -47,26 +47,22 @@ const resultOf = (match: ObservedMatch, side: Side): MatchResult => {
   const own = match.score![side], against = match.score![side === "home" ? "away" : "home"];
   return own > against ? "win" : own === against ? "draw" : "loss";
 };
+/** Individual xG from the analysed rival's side: [for, against], including a real zero and missing values. */
+const RIVAL_XG: Record<string, [number | null, number | null]> = {
+  "sofascore-match-107": [0.39, 1.56],
+  "sofascore-match-108": [2.15, 3.13],
+  "sofascore-match-104": [1.74, 2.33],
+  "sofascore-match-103": [1.32, 3.81],
+  "sofascore-match-102": [1.27, 0],
+};
 /** The rival's performance: `counted` are the matches the source counts (all the finished ones by default). */
 export function rivalPerformance(counted: ObservedMatch[] = [...rivalPlayed, afterTarget], team = rival): ObservedTeamPerformance {
   const results = counted.map((match) => {
     const { side } = rowOf(match, team);
-    return { match, side, result: resultOf(match, side), goalsFor: match.score![side], goalsAgainst: match.score![side === "home" ? "away" : "home"] };
+    const [xgFor, xgAgainst] = team.id === rival.id ? RIVAL_XG[match.id] ?? [null, null] : [null, null];
+    return { match, side, result: resultOf(match, side), goalsFor: match.score![side],
+      goalsAgainst: match.score![side === "home" ? "away" : "home"], xgFor, xgAgainst };
   });
   const competition = { id: "sofascore-scope-94191-97382", name: "Primera Federación, Grupo 2", season: "26/27", results } as unknown as ObservedCompetitionPerformance;
   return { teamId: team.id, competitions: [competition], teams: [jaen, rival, later], scope: "Rendimiento.", source: SOURCE };
-}
-
-const missing = { value: null, reason: "not_available" } as const;
-export const stats = (xg: number | null): TeamMatchStats => ({
-  possession: missing, shots: missing, shotsOnTarget: missing, xg: xg === null ? missing : { value: xg },
-  corners: missing, fouls: missing, yellowCards: missing, redCards: missing,
-});
-const notStored = { state: "not_stored", fetchedAt: null } as const;
-/** A match detail with the xG of each side (home, away), or with its statistics in another state. */
-export function detailOf(match: ObservedMatch, xg: [number | null, number | null] | ObservedMatchDetail["statistics"]["state"]): ObservedMatchDetail {
-  const statistics: ObservedMatchDetail["statistics"] = Array.isArray(xg)
-    ? { state: "stored", fetchedAt: null, home: stats(xg[0]), away: stats(xg[1]) }
-    : { state: xg as Exclude<ObservedMatchDetail["statistics"]["state"], "stored">, fetchedAt: null };
-  return { match, statistics, lineups: notStored, incidents: notStored, scope: "Detalle.", source: SOURCE };
 }

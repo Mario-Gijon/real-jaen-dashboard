@@ -5,10 +5,9 @@ import {
   ApiRequestError, getCompetitions, getObservedMatchDetail, getSeasonMatches, getSource, getTeamObservedMatches,
   getTeamObservedPerformance, getTeamSeason,
 } from "@/client/api";
-import type { ObservedMatch } from "@/contract";
 import { HomeView } from "@/features/home/HomeView";
 import {
-  afterTarget, clubMatches, detailOf, jaen, later, next, NOW, observed, other, postponed, rival, rivalMatches, rivalPerformance,
+  afterTarget, clubMatches, jaen, later, next, NOW, observed, other, postponed, rival, rivalMatches, rivalPerformance,
   rivalPlayed, target,
 } from "./real-fixtures";
 import { DEMO_SOURCE, REAL_SOURCE } from "../shared/sources";
@@ -21,12 +20,6 @@ vi.mock("@/client/api", async (importOriginal) => ({
   getCompetitions: vi.fn(), getSeasonMatches: vi.fn(), getTeamSeason: vi.fn(),
 }));
 
-/** xG of each match by id: [home, away]; any other match has its statistics stored without xG. */
-const XG: Record<string, [number | null, number | null]> = {
-  "sofascore-match-107": [1.56, 0.39], "sofascore-match-108": [2.15, 3.13], "sofascore-match-104": [2.33, 1.74],
-  "sofascore-match-103": [1.32, 3.81], "sofascore-match-102": [0, 1.27],
-};
-const all = [...rivalPlayed, afterTarget];
 const algecirasPlayed = observed(201, "2026-10-04T17:00:00Z", "finished", later, other, 6, { home: 0, away: 1 });
 
 beforeEach(() => {
@@ -36,9 +29,7 @@ beforeEach(() => {
   vi.mocked(getTeamObservedMatches).mockImplementation(async (teamId) =>
     teamId === jaen.id ? clubMatches() : teamId === later.id ? rivalMatches([algecirasPlayed, next], later) : rivalMatches());
   vi.mocked(getTeamObservedPerformance).mockImplementation(async (teamId) =>
-    teamId === later.id ? rivalPerformance([algecirasPlayed], later) : rivalPerformance(all));
-  vi.mocked(getObservedMatchDetail).mockImplementation(async (id) =>
-    detailOf(all.concat(algecirasPlayed).find((m) => m.id === id) as ObservedMatch, XG[id] ?? [null, null]));
+    teamId === later.id ? rivalPerformance([algecirasPlayed], later) : rivalPerformance([...rivalPlayed, afterTarget]));
 });
 
 // Several chained loads (source, calendar, rival, details): more margin than the default under a parallel run.
@@ -79,7 +70,8 @@ describe("Inicio con la fuente real", () => {
     expect(screen.getByText("2,17")).toBeVisible();
     // From the analysed rival's side: its own xG, and its opponents'.
     expect(summary("Expectativa")).toHaveTextContent(/1,37\s*xG a favor\s*2,17\s*xG en contra/);
-    expect(getObservedMatchDetail).toHaveBeenCalledTimes(5);
+    expect(getObservedMatchDetail).not.toHaveBeenCalled();
+    expect(screen.queryByText("Cargando xG…")).toBeNull();
     expect(getCompetitions).not.toHaveBeenCalled();
     expect(getSeasonMatches).not.toHaveBeenCalled();
     expect(getTeamSeason).not.toHaveBeenCalled();
@@ -101,6 +93,8 @@ describe("Inicio con la fuente real", () => {
       .toEqual(["/teams?team=sofascore-team-4489", "/matches/sofascore-match-201?from=home&match=sofascore-match-10", "/teams?team=sofascore-team-2840"]);
     expect(screen.getByRole("region", { name: "Último partido del Algeciras CF" })).toBeVisible();
     expect(screen.getByText(/1 de 5: son todos los partidos finalizados del rival antes del encuentro/)).toBeVisible();
+    expect(summary("Expectativa")).toHaveTextContent(/—\s*xG a favor\s*—\s*xG en contra/);
+    expect(getObservedMatchDetail).not.toHaveBeenCalled();
   });
 
   it("never proposes a postponed match, which is said to be still pending without a confirmed date", async () => {
@@ -154,13 +148,19 @@ describe("Inicio con la fuente real", () => {
     expect(await recent()).toBeVisible();
   });
 
-  it("shows fewer matches and what is left out, keeps 0 apart from missing and an xG failure apart from both", async () => {
+  it("shows fewer matches and what is left out, with missing xG distinct from a real zero and partial coverage", async () => {
     const uncounted = rivalPlayed.slice(3);
     vi.mocked(getTeamObservedMatches).mockImplementation(async (teamId) => teamId === jaen.id ? clubMatches() : rivalMatches(
       [...uncounted, observed(109, "2026-10-21T17:00:00Z", "postponed", rival, other, 9), target]));
-    vi.mocked(getTeamObservedPerformance).mockResolvedValue(rivalPerformance(uncounted.filter((m) => m.id !== "sofascore-match-108")));
-    vi.mocked(getObservedMatchDetail).mockImplementation(async (id) =>
-      detailOf(uncounted.find((m) => m.id === id)!, id === "sofascore-match-107" ? [0, null] : "not_stored"));
+    const performance = rivalPerformance(uncounted.filter((m) => m.id !== "sofascore-match-108"));
+    const countedResults = performance.competitions[0].results;
+    const away = countedResults.find(result => result.match.id === "sofascore-match-107")!;
+    const homeResult = countedResults.find(result => result.match.id === "sofascore-match-104")!;
+    away.xgFor = null;
+    away.xgAgainst = 0;
+    homeResult.xgFor = null;
+    homeResult.xgAgainst = null;
+    vi.mocked(getTeamObservedPerformance).mockResolvedValue(performance);
     render(<HomeView now={NOW} />);
     const list = await recent();
     expect(screen.getByRole("region", { name: "Últimos 3 partidos del Atlético Madrileño" })).toBeVisible();
@@ -170,19 +170,19 @@ describe("Inicio con la fuente real", () => {
     expect(screen.queryByText(/todavía no se ha/)).toBeNull();
     expect(within(list).getByRole("link", { name: /resultado no contabilizado/ })).toHaveTextContent("—");
     expect(summary("Forma")).toHaveTextContent(/0\s*V\s*0\s*E\s*2\s*D/);
-    // 107: the rival is away, its xG (away) missing and its rival's (home) 0.
+    // The away rival's xG is absent; the opponent's xG is a true zero for only one of two counted matches.
     expect(await screen.findByTitle("Dato no disponible", {}, WAIT)).toHaveTextContent("—");
     expect(screen.getByTitle("Datos disponibles en 1 de 2 partidos")).toHaveTextContent("0,00");
+    expect(getObservedMatchDetail).not.toHaveBeenCalled();
   });
 
-  // A failing detail is an error with a retry, never «no data».
-  it("shows an xG failure with its own retry, keeping form and goals", async () => {
-    vi.mocked(getObservedMatchDetail).mockRejectedValueOnce(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "No"));
+  it("keeps the existing retry for failed performance data", async () => {
+    vi.mocked(getTeamObservedPerformance).mockRejectedValueOnce(new ApiRequestError(503, "UPSTREAM_UNAVAILABLE", "No"));
     render(<HomeView now={NOW} />);
-    expect(await screen.findByText("No se pudo cargar el xG", {}, WAIT)).toBeVisible();
-    expect(summary("Forma")).toHaveTextContent(/0\s*V\s*3\s*E\s*2\s*D/);
+    expect(await screen.findByText("No se pudieron cargar los partidos del rival.", {}, WAIT)).toBeVisible();
     await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByText("1,37", {}, WAIT)).toBeVisible();
+    expect(getObservedMatchDetail).not.toHaveBeenCalled();
   });
 
   it("says a synthetic season in the URL does not belong to the real source, and the demonstration never asks the real one", async () => {

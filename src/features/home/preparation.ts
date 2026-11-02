@@ -1,4 +1,4 @@
-import { seasonStat, type MatchStatus, type Stat, type TeamMatch } from "@/contract";
+import { seasonStat, type MatchStatus, type SeasonStat, type Stat, type TeamMatch } from "@/contract";
 import { CLUB_ID } from "@/lib/club";
 import { average, type OrientedMatch } from "../teams/performance";
 
@@ -35,17 +35,33 @@ export function preparationHistory<T extends { match: DatedMatch }>(matches: rea
   return ordered.slice(0, 5);
 }
 
+/** Average the per-match values that exist; missing or invalid xG never becomes zero. */
+function averageValues(values: readonly (number | null)[]): SeasonStat {
+  const valid = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0);
+  if (!valid.length) return { value: null, coverage: "none", reason: "not_available", matches: 0, of: values.length };
+  return {
+    value: valid.reduce((sum, value) => sum + value, 0) / valid.length,
+    coverage: valid.length === values.length ? "complete" : "partial",
+    matches: valid.length,
+    of: values.length,
+  };
+}
+
+type SummaryMatch = OrientedMatch & Pick<TeamMatch, "result"> & { xgFor?: number | null; xgAgainst?: number | null };
+
 /** Form, goals and xG of some matches from the analysed team's side; each figure with its coverage. */
-export function preparationSummary(matches: readonly (OrientedMatch & Pick<TeamMatch, "result">)[]) {
+export function preparationSummary(matches: readonly SummaryMatch[]) {
   const goals = (conceded: boolean) => seasonStat(matches.map(({ match, side }): Stat =>
     match.score ? { value: match.score[conceded ? side === "home" ? "away" : "home" : side] }
       : { value: null, reason: "not_available" }));
+  const hasIndividualXg = matches.some(match => match.xgFor !== undefined || match.xgAgainst !== undefined);
   return {
     wins: matches.filter(match => match.result === "win").length,
     draws: matches.filter(match => match.result === "draw").length,
     losses: matches.filter(match => match.result === "loss").length,
     goalsFor: goals(false), goalsAgainst: goals(true),
-    xg: average(matches, "xg"), opponentXg: average(matches, "xgAgainst"),
+    xg: hasIndividualXg ? averageValues(matches.map(match => match.xgFor ?? null)) : average(matches, "xg"),
+    opponentXg: hasIndividualXg ? averageValues(matches.map(match => match.xgAgainst ?? null)) : average(matches, "xgAgainst"),
   };
 }
 

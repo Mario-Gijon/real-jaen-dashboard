@@ -40,6 +40,14 @@ describe("Preparation derivations", () => {
     expect(summary.xg).toMatchObject({ value: 1.5, coverage: "partial", matches: 1, of: 2 });
     expect(summary.opponentXg).toMatchObject({ value: 1, coverage: "complete" });
   });
+  it("averages individual real xG values, preserving zero and partial coverage", () => {
+    const summary = preparationSummary([
+      { ...played(1), xgFor: 0, xgAgainst: null },
+      { ...played(2), xgFor: null, xgAgainst: 1.5 },
+    ]);
+    expect(summary.xg).toMatchObject({ value: 0, coverage: "partial", matches: 1, of: 2 });
+    expect(summary.opponentXg).toMatchObject({ value: 1.5, coverage: "partial", matches: 1, of: 2 });
+  });
   it("keeps genuine zero xG, and never turns absent xG into zero", () => {
     const zero = { ...played(1), teamStats: { own: { ...played(1).teamStats!.own, xg: { value: 0 } }, opponent: played(1).teamStats!.opponent } };
     expect(preparationSummary([zero]).xg.value).toBe(0);

@@ -47,9 +47,9 @@ const competition = (fields: Partial<ObservedCompetitionPerformance> = {}): Obse
   record: { played: 3, wins: 2, draws: 1, losses: 0, goalsFor: 6, goalsAgainst: 2, goalDifference: 4 },
   venues: { home: { win: 1, draw: 1, loss: 0 }, away: { win: 1, draw: 0, loss: 0 } },
   results: [
-    { match: match("sofascore-match-1", 1, europa, jaen, [0, 3]), side: "away", result: "win", goalsFor: 3, goalsAgainst: 0 },
-    { match: match("sofascore-match-2", 2, jaen, huesca, [2, 2]), side: "home", result: "draw", goalsFor: 2, goalsAgainst: 2 },
-    { match: match("sofascore-match-3", 3, jaen, europa, [1, 0]), side: "home", result: "win", goalsFor: 1, goalsAgainst: 0 },
+    { match: match("sofascore-match-1", 1, europa, jaen, [0, 3]), side: "away", result: "win", goalsFor: 3, goalsAgainst: 0, xgFor: null, xgAgainst: null },
+    { match: match("sofascore-match-2", 2, jaen, huesca, [2, 2]), side: "home", result: "draw", goalsFor: 2, goalsAgainst: 2, xgFor: null, xgAgainst: null },
+    { match: match("sofascore-match-3", 3, jaen, europa, [1, 0]), side: "home", result: "win", goalsFor: 1, goalsAgainst: 0, xgFor: null, xgAgainst: null },
   ],
   output: OUTPUT,
   ...fields,

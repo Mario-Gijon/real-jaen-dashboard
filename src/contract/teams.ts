@@ -186,8 +186,11 @@ export type ObservedCompetitionPerformance = {
   };
   record: { played: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number; goalDifference: number };
   venues: Record<Side, Record<MatchResult, number>>;
-  /** The counted matches, oldest first, seen from the team. */
-  results: { match: ObservedMatch; side: Side; result: MatchResult; goalsFor: number; goalsAgainst: number }[];
+  /** The counted matches, oldest first, seen from the team. xG is null when absent or inconsistent at source. */
+  results: {
+    match: ObservedMatch; side: Side; result: MatchResult; goalsFor: number; goalsAgainst: number;
+    xgFor: number | null; xgAgainst: number | null;
+  }[];
   /** Production and concession over the same matches; `null` when the source's figures could not be read. */
   output: ObservedTeamOutput | null;
 };

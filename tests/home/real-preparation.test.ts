@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { preparationSummary, upcomingMatches } from "@/features/home/preparation";
-import { orientedTeamStats, rivalHistory, unconfirmedClubMatches } from "@/features/home/real-preparation";
+import { rivalHistory, unconfirmedClubMatches } from "@/features/home/real-preparation";
 import {
-  afterTarget, clubMatches, detailOf, jaen, later, next, NOW, observed, other, postponed, rival, rivalMatches, rivalPerformance,
-  rivalPlayed, rowOf, target,
+  afterTarget, clubMatches, jaen, later, next, NOW, observed, other, postponed, rival, rivalMatches, rivalPerformance,
+  rivalPlayed, target,
 } from "./real-fixtures";
 
 const ids = (rows: readonly { match: { id: string } }[]) => rows.map((row) => row.match.id.replace("sofascore-match-", ""));
@@ -75,21 +75,21 @@ describe("Real Inicio: the rival's last matches", () => {
 });
 
 describe("Real Inicio: the summary", () => {
-  it("orients each match's stats to the rival's side and keeps missing xG apart from 0", () => {
-    const away = rowOf(rivalPlayed[5], rival); // the rival plays away
-    expect(orientedTeamStats(detailOf(away.match, [2.5, 0.75]), away.side))
-      .toMatchObject({ own: { xg: { value: 0.75 } }, opponent: { xg: { value: 2.5 } } });
-    expect(orientedTeamStats(detailOf(away.match, "not_stored"), away.side)).toBeNull();
-
-    const home = rowOf(rivalPlayed[4], rival);
+  it("uses per-match xG from the rival's side for home and away matches", () => {
+    const history = rivalHistory(rivalMatches().matches, target, rivalPerformance().competitions, NOW);
+    const away = history.counted.find(entry => entry.match.id === "sofascore-match-107")!;
+    const home = history.counted.find(entry => entry.match.id === "sofascore-match-108")!;
+    expect([away.side, away.xgFor, away.xgAgainst]).toEqual(["away", 0.39, 1.56]);
+    expect([home.side, home.xgFor, home.xgAgainst]).toEqual(["home", 2.15, 3.13]);
     const summary = preparationSummary([
-      { ...away, result: "loss", teamStats: orientedTeamStats(detailOf(away.match, [2.5, 0.75]), away.side) },
-      { ...home, result: "draw", teamStats: orientedTeamStats(detailOf(home.match, [0, null]), home.side) },
+      { ...away, result: "loss", teamStats: null },
+      { ...home, result: "draw", teamStats: null },
     ]);
     expect([summary.wins, summary.draws, summary.losses]).toEqual([0, 1, 1]);
     expect([summary.goalsFor.value, summary.goalsAgainst.value]).toEqual([5, 6]);
-    expect(summary.xg).toMatchObject({ value: 0.375, coverage: "complete", matches: 2, of: 2 });
-    expect(summary.opponentXg).toMatchObject({ value: 2.5, coverage: "partial", matches: 1, of: 2 });
+    expect(summary.xg).toMatchObject({ value: 1.27, coverage: "complete", matches: 2, of: 2 });
+    expect(summary.opponentXg.value).toBeCloseTo(2.345, 12);
+    expect(summary.opponentXg).toMatchObject({ coverage: "complete", matches: 2, of: 2 });
   });
 
   it("excludes the target's own match and those after it from the summary", () => {

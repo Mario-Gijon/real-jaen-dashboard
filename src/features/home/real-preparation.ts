@@ -1,4 +1,4 @@
-import type { MatchResult, ObservedCompetitionPerformance, ObservedMatch, ObservedMatchDetail, Side, TeamMatch } from "@/contract";
+import type { MatchResult, ObservedCompetitionPerformance, ObservedMatch, Side } from "@/contract";
 import { preparationHistory, timestamp } from "./preparation";
 
 /**
@@ -33,7 +33,7 @@ export function unconfirmedClubMatches(rows: readonly ObservedRow[], now: number
 }
 
 /** A match of the rival's window, with its result only when the source counts it (`results` of its performance). */
-export type HistoryEntry = ObservedRow & { result: MatchResult | null };
+export type HistoryEntry = ObservedRow & { result: MatchResult | null; xgFor: number | null; xgAgainst: number | null };
 
 /**
  * The rival's last five finished matches before the target (`preparationHistory`)
@@ -48,9 +48,12 @@ export type HistoryEntry = ObservedRow & { result: MatchResult | null };
  */
 export function rivalHistory(rows: readonly ObservedRow[], target: ObservedMatch,
   competitions: readonly ObservedCompetitionPerformance[], now: number) {
-  const counted = new Map(competitions.flatMap((c) => c.results.map((r) => [r.match.id, r.result] as const)));
+  const counted = new Map(competitions.flatMap((c) => c.results.map((r) => [r.match.id, r] as const)));
   const recent: HistoryEntry[] = preparationHistory(rows, target)
-    .map((row) => ({ ...row, result: counted.get(row.match.id) ?? null }));
+    .map((row) => {
+      const result = counted.get(row.match.id);
+      return { ...row, result: result?.result ?? null, xgFor: result?.xgFor ?? null, xgAgainst: result?.xgAgainst ?? null };
+    });
   const before = rows.filter(({ match }) => dated(match) && timestamp(match.kickoff) < timestamp(target.kickoff));
   return {
     recent,
@@ -61,15 +64,4 @@ export function rivalHistory(rows: readonly ObservedRow[], target: ObservedMatch
       && (!dated(match) || timestamp(match.kickoff) < timestamp(target.kickoff))).length,
     undatedFinished: rows.filter(({ match }) => match.status === "finished" && !dated(match)).length,
   };
-}
-
-/**
- * The team stats of a real match seen from `side`, as `average` reads them
- * (`own`, `opponent`); `null` when the source keeps none for the match, so
- * every value is missing, never 0.
- */
-export function orientedTeamStats(detail: ObservedMatchDetail, side: Side): TeamMatch["teamStats"] {
-  const { statistics } = detail;
-  if (statistics.state !== "stored") return null;
-  return side === "home" ? { own: statistics.home, opponent: statistics.away } : { own: statistics.away, opponent: statistics.home };
 }

@@ -1027,13 +1027,19 @@ const performanceBody = (overrides: Record<string, unknown> = {}, results?: unkn
     venues: { home: { wins: 0, draws: 0, losses: 1 }, away: { wins: 1, draws: 0, losses: 0 } },
     output: OUTPUT,
     results: results ?? [
-      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", opponent_team_id: 135672, goals_for: 3, goals_against: 0, result: "win" },
-      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", opponent_team_id: 24322, goals_for: 0, goals_against: 2, result: "loss" },
+      { match: perfMatch(1, 135672, 2841, 0, 3, 1), side: "away", opponent_team_id: 135672, goals_for: 3, goals_against: 0,
+        xg_for: 1.25, xg_against: null, result: "win" },
+      { match: perfMatch(2, 2841, 24322, 0, 2, 2), side: "home", opponent_team_id: 24322, goals_for: 0, goals_against: 2,
+        xg_for: null, xg_against: null, result: "loss" },
     ],
     ...overrides,
   }] },
   meta: { note: "Resultados de los partidos finalizados observados…" },
 });
+const performanceBodyWithFirstResult = (overrides: Record<string, unknown>) => {
+  const results = performanceBody().data.competitions[0].results as Record<string, unknown>[];
+  return performanceBody({}, [{ ...results[0], ...overrides }, results[1]]);
+};
 const performanceSource = (fetch: typeof globalThis.fetch) =>
   createLocalApiTeamPerformance({ baseUrl: "http://127.0.0.1:8001", fetch });
 
@@ -1055,9 +1061,9 @@ describe("local API adapter: team performance", () => {
     expect((await performanceSource(replacedApi)("team-real-jaen"))!.competitions[0].matches.replacedLocally).toBe(1);
     expect(competition.record).toEqual({ played: 2, wins: 1, draws: 0, losses: 1, goalsFor: 3, goalsAgainst: 2, goalDifference: 1 });
     expect(competition.venues).toEqual({ home: { win: 0, draw: 0, loss: 1 }, away: { win: 1, draw: 0, loss: 0 } });
-    expect(competition.results.map((r) => [r.match.id, r.side, r.result, r.goalsFor, r.goalsAgainst, r.match.home.name])).toEqual([
-      ["sofascore-match-1", "away", "win", 3, 0, "CE Europa"],
-      ["sofascore-match-2", "home", "loss", 0, 2, "Real Jaén"],
+    expect(competition.results.map((r) => [r.match.id, r.side, r.result, r.goalsFor, r.goalsAgainst, r.xgFor, r.xgAgainst, r.match.home.name])).toEqual([
+      ["sofascore-match-1", "away", "win", 3, 0, 1.25, null, "CE Europa"],
+      ["sofascore-match-2", "home", "loss", 0, 2, null, null, "Real Jaén"],
     ]);
     expect(result!.teams).toEqual([{ id: "team-real-jaen", name: "Real Jaén" }]);
     // Averages with their coverage; absent when no match has the value, never 0.
@@ -1069,6 +1075,22 @@ describe("local API adapter: team performance", () => {
     expect(output.undated).toBe(0);
     expect(result!.scope).toMatch(/No es necesariamente la temporada completa/);
     expect(result!.source).toEqual({ synthetic: false, label: "Datos reales" });
+  });
+
+  it("keeps missing individual xG as null and rejects values outside the finite non-negative domain", async () => {
+    const fetch = teamApi(null);
+    const body = performanceBodyWithFirstResult({ xg_for: undefined, xg_against: null });
+    const response = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/performance") ? new Response(JSON.stringify(body)) : fetch(input));
+    const [competition] = (await performanceSource(response)("team-real-jaen"))!.competitions;
+    expect([competition.results[0].xgFor, competition.results[0].xgAgainst]).toEqual([null, null]);
+
+    for (const invalidValue of [-0.01, true, "0.4"]) {
+      const invalidBody = performanceBodyWithFirstResult({ xg_for: invalidValue });
+      const invalidResponse = vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith("/performance") ? new Response(JSON.stringify(invalidBody)) : fetch(input));
+      await expect(performanceSource(invalidResponse)("team-real-jaen")).rejects.toBeInstanceOf(UpstreamUnavailableError);
+    }
   });
 
   it("has nothing for a team without correspondence (no call) or one the service does not know", async () => {
