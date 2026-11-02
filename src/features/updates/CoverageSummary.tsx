@@ -12,7 +12,9 @@ import css from "./Updates.module.css";
 export function CoverageSummary({ coverage }: { coverage: UpdateCoverage }) {
   // A match by its teams (named by the backend from the data just published), linked to its page.
   const MatchName = ({ matchId }: { matchId: string }) => (
-    <Link href={`/matches/${matchId}`}>{coverage.matchNames[matchId] ?? "Partido"}</Link>
+    coverage.matchNames[matchId]
+      ? <Link href={`/matches/${matchId}`}>{coverage.matchNames[matchId]}</Link>
+      : <span>Evento externo {matchId}</span>
   );
   return (
     <div className={css.coverage}>
@@ -77,7 +79,8 @@ export function CoverageSummary({ coverage }: { coverage: UpdateCoverage }) {
       ) : null}
       {coverage.newMatches.length ? (
         <>
-          <h3>Partidos nuevos</h3>
+          <h3>Eventos detectados para revisión</h3>
+          <p className={css.muted}>No se han incorporado ni consultado sus detalles. Confirma su identidad antes de añadir una sustitución.</p>
           <ul className={css.pending}>
             {coverage.newMatches.map((match) => (
               <li key={match.matchId}>

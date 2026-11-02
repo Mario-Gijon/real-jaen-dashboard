@@ -149,7 +149,9 @@ describe("Group 2 scope", () => {
     const second = (await screen.findByRole("link", { name: "Huesca – UD Ibiza" })).closest("li")!;
     expect(second).toHaveTextContent("alineaciones (error de la fuente, se mantiene la versión anterior)");
     expect(screen.getByText(/1 revisión queda para\s+la próxima actualización por el límite de consultas\. Se siguen sirviendo sus datos anteriores\./)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Partido" })).toHaveAttribute("href", "/matches/sofascore-match-3");
+    expect(screen.getByRole("heading", { name: "Eventos detectados para revisión" })).toBeVisible();
+    expect(screen.getByText("Evento externo sofascore-match-3").closest("a")).toBeNull();
+    expect(screen.getByText(/No se han incorporado ni consultado sus detalles/)).toBeVisible();
     expect(await screen.findAllByRole("link", { name: "Real Murcia – Hércules CF" })).toHaveLength(2);
     expect(screen.getByText(/posible sustitución de/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Actualizar Grupo 2" })).toBeEnabled();
