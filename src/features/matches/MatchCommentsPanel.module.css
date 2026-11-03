@@ -7,6 +7,8 @@
 .content { min-width: 0; }
 .kind { display: inline-block; margin-bottom: var(--rj-space-2); padding: 2px var(--rj-space-2); border-radius: var(--rj-radius-sm); background: var(--rj-purple-100); color: var(--rj-purple-900); font-size: var(--rj-text-xs); font-weight: 700; overflow-wrap: anywhere; }
 .text { margin: 0; color: var(--rj-text-primary); line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.score { margin: var(--rj-space-2) 0 0; color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
+.score strong { margin-inline-start: var(--rj-space-1); color: var(--rj-text-primary); font-variant-numeric: tabular-nums; }
 .actors { display: flex; flex-wrap: wrap; gap: var(--rj-space-2) var(--rj-space-4); margin: var(--rj-space-2) 0 0; padding: 0; list-style: none; color: var(--rj-text-secondary); font-size: var(--rj-text-xs); }
 .actors span { font-weight: 700; }
 .empty, .message { color: var(--rj-text-secondary); font-size: var(--rj-text-sm); }

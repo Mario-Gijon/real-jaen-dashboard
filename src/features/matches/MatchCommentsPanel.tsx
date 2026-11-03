@@ -65,6 +65,10 @@ export function MatchCommentsPanel({ matchId }: { matchId: string }) {
           <div className={css.content}>
             <span className={css.kind}>{comment.type}</span>
             <p className={css.text}>{comment.text}</p>
+            {comment.score && (comment.score.home !== null || comment.score.away !== null) ? <p className={css.score}
+              aria-label={`Marcador: ${comment.score.home ?? "no disponible"} a ${comment.score.away ?? "no disponible"}`}>
+              Marcador <strong>{comment.score.home ?? "—"}–{comment.score.away ?? "—"}</strong>
+            </p> : null}
             {actors.length ? <ul className={css.actors} aria-label="Participantes mencionados">
               {actors.map(({ label, name }) => <li key={`${label}-${name}`}><span>{label}</span> {name}</li>)}
             </ul> : null}
