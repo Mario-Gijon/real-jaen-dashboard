@@ -2,6 +2,7 @@ import type {
   Competition,
   MatchDetail,
   MatchFilter,
+  MatchComments,
   MatchSummary,
   ObservedMatchDetail,
   ObservedPlayerMatches,
@@ -26,6 +27,7 @@ import {
   createLocalApiPlayerProfile,
   createLocalApiMatchDetail,
   createLocalApiTeamMatches,
+  createLocalApiMatchComments,
 } from "./local-api/local-api-source";
 import { syntheticSource } from "./synthetic/synthetic-source";
 
@@ -83,6 +85,8 @@ export interface DataSource {
    * match id or a match the source does not know. Throws like `observedPlayers`.
    */
   matchObservedDetail(matchId: string): Promise<ObservedMatchDetail | null>;
+  /** Narrative SofaScore comments of a match; `null` when the match is unknown. */
+  matchComments(matchId: string): Promise<MatchComments | null>;
 }
 
 /** A configuration that leaves no usable source: said as such, never replaced by other data. */
@@ -139,6 +143,7 @@ export function createRealSource(baseUrl: string): DataSource {
     teamObservedMatches: createLocalApiTeamMatches(local),
     teamObservedPerformance: createLocalApiTeamPerformance(local),
     matchObservedDetail: createLocalApiMatchDetail(local),
+    matchComments: createLocalApiMatchComments(local),
   };
 }
 

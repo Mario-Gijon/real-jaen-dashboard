@@ -1,13 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiRequestError, getCompetitions, getMatch } from "@/client/api";
-import { TEAM_STAT_KEYS, type MatchDetail, type TeamMatchStats, type TeamRef } from "@/contract";
+import { ApiRequestError, getCompetitions, getMatch, getMatchComments } from "@/client/api";
+import { TEAM_STAT_KEYS, type MatchComments, type MatchDetail, type TeamMatchStats, type TeamRef } from "@/contract";
 import { MatchDetailView } from "@/features/matches/MatchDetailView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
-  getMatch: vi.fn(), getCompetitions: vi.fn(),
+  getMatch: vi.fn(), getCompetitions: vi.fn(), getMatchComments: vi.fn(),
 }));
 const home: TeamRef = {
   id: "home", name: "Real Jaén CF", shortName: "Real Jaén", crestUrl: null,
@@ -25,6 +25,9 @@ const match: MatchDetail = {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getMatch).mockResolvedValue(match);
+  vi.mocked(getMatchComments).mockResolvedValue({ matchId: match.id, availability: "not_collected", capturedAt: null,
+    responseSha256: null, lastAttempt: { availability: "not_collected", occurredAt: null, httpStatus: null, errorCode: null },
+    comments: [] } satisfies MatchComments);
   vi.mocked(getCompetitions).mockResolvedValue([{
     id: "c1", name: "Liga Demo", shortName: "Demo",
     seasons: [{ id: "s1", competitionId: "c1", name: "2026/27", rounds: 38, currentRound: 14 }],
@@ -65,14 +68,17 @@ describe("Match quick summary", () => {
     expect(screen.getByRole("tab", { name: "Alineaciones" })).toHaveFocus();
     expect(screen.getByRole("tabpanel", { name: "Alineaciones" })).toHaveTextContent("No hay alineaciones disponibles para este partido.");
     await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Comentarios" })).toHaveFocus();
+    expect(await screen.findByRole("status")).toHaveTextContent("todavía no se han recopilado");
+    await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tabpanel", { name: "Resumen" })).toHaveTextContent("Estadísticas de equipo");
     await user.click(screen.getByRole("tab", { name: "Cronología" }));
     await user.keyboard("{Home}");
     expect(screen.getByRole("tab", { name: "Resumen" })).toHaveFocus();
     await user.keyboard("{End}");
-    expect(screen.getByRole("tab", { name: "Alineaciones" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Comentarios" })).toHaveFocus();
     await user.keyboard("{ArrowLeft}");
-    expect(screen.getByRole("tab", { name: "Cronología" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Alineaciones" })).toHaveFocus();
   });
 
   it("keeps a 0–0 result and zero statistics as real values", async () => {

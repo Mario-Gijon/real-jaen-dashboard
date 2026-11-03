@@ -13,10 +13,11 @@ import { teamsHref } from "@/lib/navigation";
 import { MatchTimeline } from "./MatchTimeline";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { MatchLineups } from "./MatchLineups";
+import { MatchCommentsPanel } from "./MatchCommentsPanel";
 import css from "./MatchDetailView.module.css";
 
 const STATUS = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };
-const SECTIONS = ["summary", "timeline", "lineups"] as const;
+const SECTIONS = ["summary", "timeline", "lineups", "comments"] as const;
 const timeFormat = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
 });
@@ -29,7 +30,7 @@ export function MatchDetailView({ matchId, initialSection = "summary", playerRet
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
     const index = SECTIONS.indexOf(section);
-    const next = event.key === "Home" ? "summary" : event.key === "End" ? "lineups"
+    const next = event.key === "Home" ? SECTIONS[0] : event.key === "End" ? SECTIONS[SECTIONS.length - 1]
       : event.key === "ArrowLeft" ? SECTIONS[(index + SECTIONS.length - 1) % SECTIONS.length]
         : event.key === "ArrowRight" ? SECTIONS[(index + 1) % SECTIONS.length] : null;
     if (!next) return;
@@ -88,10 +89,14 @@ export function MatchDetailView({ matchId, initialSection = "summary", playerRet
         <button type="button" role="tab" id="match-lineups-tab" aria-selected={section === "lineups"}
           tabIndex={section === "lineups" ? 0 : -1} onClick={() => setSection("lineups")} onKeyDown={moveTab}
           aria-controls="match-lineups-panel" className={css.tab}>Alineaciones</button>
+        <button type="button" role="tab" id="match-comments-tab" aria-selected={section === "comments"}
+          tabIndex={section === "comments" ? 0 : -1} onClick={() => setSection("comments")} onKeyDown={moveTab}
+          aria-controls="match-comments-panel" className={css.tab}>Comentarios</button>
       </div>
       <section role="tabpanel" id={`match-${section}-panel`} aria-labelledby={`match-${section}-tab`} className={css.summary}>
         {section === "summary" ? <Summary match={match} />
-          : section === "timeline" ? <MatchTimeline match={match} /> : <MatchLineups match={match} />}
+          : section === "timeline" ? <MatchTimeline match={match} />
+            : section === "lineups" ? <MatchLineups match={match} /> : <MatchCommentsPanel matchId={match.id} />}
       </section>
     </>}
   </div>;

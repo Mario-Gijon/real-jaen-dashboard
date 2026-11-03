@@ -331,3 +331,44 @@ export type ObservedMatchDetail = {
 
 /** Filters of `GET /api/v1/seasons/{seasonId}/matches` (`?round=&team=`). */
 export type MatchFilter = { round?: number; teamId?: string };
+
+/** Availability of the most recently selected narrative-comment capture. */
+export type NarrativeCommentsAvailability = "available" | "empty" | "not_collected" | "error";
+
+/** A SofaScore participant reference kept separate from local player identity. */
+export type NarrativeCommentParticipant = {
+  name: string | null;
+  shortName: string | null;
+  position: string | null;
+  jerseyNumber: string | null;
+};
+
+/** One original narrative item, in the provider response's order. */
+export type NarrativeComment = {
+  id: string;
+  position: number;
+  text: string;
+  type: string;
+  minute: number | null;
+  periodName: string | null;
+  isHome: boolean | null;
+  score: { home: number | null; away: number | null } | null;
+  incidentId: string | null;
+  participants: Partial<Record<"player" | "playerIn" | "playerOut" | "assist1", NarrativeCommentParticipant>>;
+};
+
+/** `GET /api/v1/matches/{matchId}/comments`; comments remain outside incidents and sports statistics. */
+export type MatchComments = {
+  matchId: string;
+  availability: NarrativeCommentsAvailability;
+  /** Local evidence capture time; the source response does not provide a fetch timestamp. */
+  capturedAt: string | null;
+  responseSha256: string | null;
+  lastAttempt: {
+    availability: NarrativeCommentsAvailability;
+    occurredAt: string | null;
+    httpStatus: number | null;
+    errorCode: string | null;
+  };
+  comments: NarrativeComment[];
+};

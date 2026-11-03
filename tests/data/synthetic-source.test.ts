@@ -51,6 +51,7 @@ describe("SyntheticSource", () => {
   it("returns null for anything unknown", async () => {
     expect(await source.seasonMatches("season-x", {})).toBeNull();
     expect(await source.match("match-x")).toBeNull();
+    expect(await source.matchComments("match-x")).toBeNull();
     expect(await source.seasonTeams("season-x")).toBeNull();
     expect(await source.teamSeason(SEASON, "team-x")).toBeNull();
     expect(await source.player("player-x", SEASON)).toBeNull();
@@ -65,6 +66,11 @@ describe("SyntheticSource", () => {
     expect(team).toHaveLength(38);
     expect(team.every((m) => m.home.id === RJ || m.away.id === RJ)).toBe(true);
     expect(await source.seasonMatches(SEASON, { round: 3, teamId: RJ })).toHaveLength(1);
+  });
+
+  it("marks demo comments as not collected and does not fabricate narratives", async () => {
+    const match = (await source.seasonMatches(SEASON, {}))![0];
+    expect(await source.matchComments(match.id)).toMatchObject({ availability: "not_collected", comments: [] });
   });
 
   it("ranks the table from the results", () => {

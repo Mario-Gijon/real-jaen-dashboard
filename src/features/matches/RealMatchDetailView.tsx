@@ -13,14 +13,15 @@ import { relatedObservedMatchHref, matchesInitialState, teamsHref, type Observed
 import { useApi } from "@/hooks/use-api";
 import { TeamStatsComparison } from "./TeamStatsComparison";
 import { ObservedLineups } from "./ObservedLineups";
+import { MatchCommentsPanel } from "./MatchCommentsPanel";
 import { observedCrest } from "@/lib/team-crests";
 import css from "./MatchDetailView.module.css";
 
 const STATUS: Record<MatchStatus, string> = { finished: "Finalizado", scheduled: "Programado", postponed: "Aplazado" };
 /** The synthetic detail's tabs without «Cronología»: no real timeline yet. */
-const SECTIONS = ["summary", "lineups"] as const;
+const SECTIONS = ["summary", "lineups", "comments"] as const;
 type Section = (typeof SECTIONS)[number];
-const LABEL: Record<Section, string> = { summary: "Resumen", lineups: "Alineaciones" };
+const LABEL: Record<Section, string> = { summary: "Resumen", lineups: "Alineaciones", comments: "Comentarios" };
 const timeFormat = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
 });
@@ -80,7 +81,7 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
     const index = SECTIONS.indexOf(section);
-    const next = event.key === "Home" ? "summary" : event.key === "End" ? "lineups"
+    const next = event.key === "Home" ? SECTIONS[0] : event.key === "End" ? SECTIONS[SECTIONS.length - 1]
       : event.key === "ArrowLeft" ? SECTIONS[(index + SECTIONS.length - 1) % SECTIONS.length]
         : event.key === "ArrowRight" ? SECTIONS[(index + 1) % SECTIONS.length] : null;
     if (!next) return;
@@ -124,7 +125,9 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
         aria-controls={`match-${id}-panel`} className={css.tab}>{LABEL[id]}</button>)}
     </div>
     <section role="tabpanel" id={`match-${section}-panel`} aria-labelledby={`match-${section}-tab`} className={css.summary}>
-      {section === "summary" ? <Summary data={data} retry={retry} /> : <Lineups data={data} retry={retry} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} />}
+        {section === "summary" ? <Summary data={data} retry={retry} />
+          : section === "lineups" ? <Lineups data={data} retry={retry} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} />
+            : <MatchCommentsPanel matchId={match.id} />}
     </section>
   </>;
 }

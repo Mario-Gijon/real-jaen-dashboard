@@ -34,9 +34,9 @@ export function MatchView({ matchId, tab, playerReturnHref, teamsReturnHref, hom
     <LoadingState variant="page" label="Cargando partido…" />
   </div>;
   return source.data.synthetic
-    ? <MatchDetailView matchId={matchId} initialSection={tab === "timeline" || tab === "lineups" ? tab : "summary"}
+    ? <MatchDetailView matchId={matchId} initialSection={tab === "timeline" || tab === "lineups" || tab === "comments" ? tab : "summary"}
       playerReturnHref={playerReturnHref} teamsReturnHref={teamsReturnHref} homeReturnHref={homeReturnHref} />
-    : <RealMatchDetailView matchId={matchId} initialSection={tab === "lineups" ? "lineups" : "summary"}
+    : <RealMatchDetailView matchId={matchId} initialSection={tab === "lineups" || tab === "comments" ? tab : "summary"}
       playerReturnHref={playerReturnHref} teamsReturnHref={teamsReturnHref} homeReturnHref={homeReturnHref}
       matchesReturnHref={matchesReturnHref} originQuery={originQuery} />;
 }

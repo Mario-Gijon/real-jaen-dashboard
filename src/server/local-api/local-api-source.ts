@@ -9,3 +9,4 @@ export { createLocalApiObservedPlayers, createLocalApiPlayerProfile, createLocal
 export { createLocalApiObservedMatches, createLocalApiTeamMatches } from "./matches";
 export { createLocalApiTeamIdentity, createLocalApiTeamPerformance } from "./teams";
 export { createLocalApiMatchDetail } from "./match-detail";
+export { createLocalApiMatchComments } from "./match-comments";

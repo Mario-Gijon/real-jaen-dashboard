@@ -5,6 +5,14 @@ import type { UpdateCoverage } from "@/contract";
 import { REASON_LABELS, RESOURCE_LABELS } from "./labels";
 import css from "./Updates.module.css";
 
+const COMMENT_FAILURE_LABELS: Record<string, string> = {
+  not_found: "No disponible en SofaScore (404)",
+  parse: "Respuesta ilegible",
+  error: "Error de consulta",
+  persistence_error: "No se pudo guardar la captura",
+  transport_error: "Error de transporte",
+};
+
 /**
  * What a group update published: new data, previous data kept and pending resources, never mixed. A pending
  * resource is not "no data": it keeps the previous version if there was one, and is never shown as zero.
@@ -92,6 +100,27 @@ export function CoverageSummary({ coverage }: { coverage: UpdateCoverage }) {
             ))}
           </ul>
         </>
+      ) : null}
+      <h3>Comentarios narrativos</h3>
+      <ul className={css.counts}>
+        <li><strong>{coverage.comments.newMatchIds.length}</strong> partidos con comentarios nuevos</li>
+        <li><strong>{coverage.comments.keptMatchIds.length}</strong> partidos con comentarios conservados</li>
+        <li><strong>{coverage.comments.pendingMatchIds.length}</strong> partidos pendientes de comentarios</li>
+        <li><strong>{coverage.comments.failed.length}</strong> partidos sin recopilar por error</li>
+      </ul>
+      {coverage.comments.pendingMatchIds.length ? (
+        <ul className={css.pending} aria-label="Partidos pendientes de comentarios narrativos">
+          {coverage.comments.pendingMatchIds.map((matchId) => (
+            <li key={matchId}><MatchName matchId={matchId} /></li>
+          ))}
+        </ul>
+      ) : null}
+      {coverage.comments.failed.length ? (
+        <ul className={css.pending} aria-label="Errores de comentarios narrativos">
+          {coverage.comments.failed.map(({ matchId, reason }) => (
+            <li key={matchId}><MatchName matchId={matchId} />: {COMMENT_FAILURE_LABELS[reason] ?? reason}</li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );

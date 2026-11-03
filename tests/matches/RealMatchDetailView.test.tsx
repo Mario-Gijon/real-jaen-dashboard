@@ -74,7 +74,7 @@ describe("Real match detail: Resumen", () => {
   it("shows the header without competition nor provenance block, and in Resumen the team stats from the source, unknown values as «—»", async () => {
     render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
     expect(await screen.findByRole("heading", { level: 1, name: "CE Europa contra Real Jaén" })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Resumen", "Alineaciones"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Resumen", "Alineaciones", "Comentarios"]);
     expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
     // Competition and season stay in the data, not on screen; the round and date do.
     expect(screen.queryByText(/Primera Federacion/)).toBeNull();

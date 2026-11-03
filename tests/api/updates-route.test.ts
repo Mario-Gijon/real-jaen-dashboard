@@ -177,6 +177,7 @@ describe("update routes", () => {
       restrictedMatchIds: ["sofascore-match-16600001"], detailRounds: [9],
       newMatches: [{ matchId: "sofascore-match-17000001", replaces: ["sofascore-match-16599919"] }],
       pending: [{ matchId: "sofascore-match-16599967", resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
+      comments: { newMatchIds: [], keptMatchIds: [], pendingMatchIds: [], failed: [] },
       matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" } });
   });
 

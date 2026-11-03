@@ -50,6 +50,12 @@ type BackendCoverage = {
   detail_rounds?: number[] | null;
   new_matches: { id: number; replaces: number[] }[];
   names?: Record<string, string>;
+  comments?: {
+    new: number[];
+    kept: number[];
+    pending: number[];
+    failed: { id: number; reason: string }[];
+  };
 };
 type BackendStatus = {
   scope: { kind: "pilot" | "group"; label: string; description: string; action: string; round: number | null; match_ids: number[] };
@@ -108,6 +114,14 @@ function coverage(value: BackendCoverage): UpdateCoverage {
     detailRounds: value.detail_rounds ?? null,
     newMatches: value.new_matches.map((m) => ({ matchId: publicMatchId(m.id), replaces: m.replaces.map(publicMatchId) })),
     matchNames: Object.fromEntries(Object.entries(value.names ?? {}).map(([id, name]) => [publicMatchId(Number(id)), name])),
+    comments: {
+      newMatchIds: (value.comments?.new ?? []).map(publicMatchId),
+      keptMatchIds: (value.comments?.kept ?? []).map(publicMatchId),
+      pendingMatchIds: (value.comments?.pending ?? []).map(publicMatchId),
+      failed: (value.comments?.failed ?? []).map((item) => ({
+        matchId: publicMatchId(item.id), reason: item.reason,
+      })),
+    },
   };
 }
 

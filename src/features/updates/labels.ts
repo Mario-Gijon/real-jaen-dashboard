@@ -41,7 +41,11 @@ export const REASON_LABELS: Record<UpdatePendingReason, string> = {
 };
 
 /** A completed update that published while some resources stayed pending. */
-export const hasPending = (job: UpdateJob) => job.status === "completed" && (job.result?.coverage?.pending.length ?? 0) > 0;
+export const hasPending = (job: UpdateJob) => job.status === "completed" && (
+  (job.result?.coverage?.pending.length ?? 0) > 0 ||
+  (job.result?.coverage?.comments.pendingMatchIds.length ?? 0) > 0 ||
+  (job.result?.coverage?.comments.failed.length ?? 0) > 0
+);
 
 /** One line for the analyst about where a job is or how it ended. Never claims more than was published. */
 export function jobLine(job: UpdateJob): string {

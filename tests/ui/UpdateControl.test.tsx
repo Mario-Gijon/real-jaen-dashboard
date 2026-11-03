@@ -131,8 +131,12 @@ describe("Group 2 scope", () => {
       { matchId: "sofascore-match-1", resources: [{ resource: "statistics" as const, reason: "empty" as const, kept: false }] },
       { matchId: "sofascore-match-2", resources: [{ resource: "lineups" as const, reason: "error" as const, kept: true }] },
     ],
+    comments: { newMatchIds: ["sofascore-match-6"], keptMatchIds: ["sofascore-match-7"],
+      pendingMatchIds: ["sofascore-match-8"], failed: [{ matchId: "sofascore-match-9", reason: "transport_error" }] },
     matchNames: { "sofascore-match-1": "Real Jaén – CE Europa", "sofascore-match-2": "Huesca – UD Ibiza",
-      "sofascore-match-4": "Real Murcia – Hércules CF", "sofascore-match-5": "Real Murcia – Hércules CF" } };
+      "sofascore-match-4": "Real Murcia – Hércules CF", "sofascore-match-5": "Real Murcia – Hércules CF",
+      "sofascore-match-6": "Real Jaén – Algeciras CF", "sofascore-match-7": "Hércules CF – Huesca",
+      "sofascore-match-8": "CE Europa – Real Jaén", "sofascore-match-9": "Real Jaén – FC Cartagena" } };
   const done = job({ status: "completed", phase: "finished", published: true, cancellable: false, finishedAt: "2026-10-28T17:02:00Z",
     result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage } });
 
@@ -196,7 +200,8 @@ describe("Group 2 scope", () => {
   });
 
   it("reports a group update without pending items as published", async () => {
-    const clean = job({ ...done, result: { ...done.result!, coverage: { ...coverage, pending: [], deferredMatchIds: [], newMatches: [] } } });
+    const clean = job({ ...done, result: { ...done.result!, coverage: { ...coverage, pending: [], deferredMatchIds: [], newMatches: [],
+      comments: { ...coverage.comments, pendingMatchIds: [], failed: [] } } } });
     api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: clean }) }));
     render(<OperatorView />);
     expect(await screen.findByText(/^Publicado el 28\/10/)).toBeVisible();

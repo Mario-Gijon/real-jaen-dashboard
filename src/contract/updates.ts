@@ -43,6 +43,13 @@ export type UpdateCoverage = {
   newMatches: { matchId: string; replaces: string[] }[];
   /** "Home – Away" of the matches above, from the data just published. */
   matchNames: Record<string, string>;
+  /** Narrative-comment backfill within this same update and its shared request budget. */
+  comments: {
+    newMatchIds: string[];
+    keptMatchIds: string[];
+    pendingMatchIds: string[];
+    failed: { matchId: string; reason: string }[];
+  };
 };
 
 export type UpdateJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
