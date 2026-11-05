@@ -57,7 +57,13 @@ export function jobLine(job: UpdateJob): string {
     if (hasPending(job)) return `Actualización completada con pendientes (${updateTime(job.result.publishedAt)})`;
     return `Publicado el ${updateTime(job.result.publishedAt)}${job.result.reusedBundle ? ", sin volver a consultar" : ""}`;
   }
-  if (job.status === "cancelled") return "Cancelada. Se mantienen los datos anteriores.";
+  if (job.status === "cancelled") {
+    return job.published
+      ? "Cancelada después de publicar lotes. Los datos ya publicados siguen disponibles."
+      : "Cancelada. Se mantienen los datos anteriores.";
+  }
   const reason = job.error?.message ?? "No se pudo actualizar.";
-  return `${reason} Se mantienen los datos anteriores.`;
+  return job.published
+    ? `${reason} Se conserva la última publicación válida; los lotes ya publicados siguen disponibles.`
+    : `${reason} Se mantienen los datos anteriores.`;
 }

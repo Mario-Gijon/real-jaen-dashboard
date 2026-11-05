@@ -1,7 +1,7 @@
 /**
  * What an update consults, as the backend's recipe declares it: "pilot" (the round-1 calendar and one match) or
  * "group" (the whole Group 2: missing results, postponed matches, calendar changes and corrections of the last
- * 72 hours, with partial coverage). The texts come from the backend and are shown as they are.
+ * 72 hours, with partial coverage and sequential bounded batches). The texts come from the backend and are shown as they are.
  */
 export type UpdateScope = {
   kind: "pilot" | "group";
@@ -30,7 +30,7 @@ export type UpdateCoverage = {
   newResources: number;
   keptResources: number;
   pending: { matchId: string; resources: { resource: UpdateResource; reason: UpdatePendingReason; kept: boolean }[] }[];
-  /** Matches whose due review the budget left for the next update (their data are kept). */
+  /** Matches whose due review remained after safe batches ended (their data are kept). */
   deferredMatchIds: string[];
   /**
    * Matches with a detected change or due review outside the rounds this installation restricts its details to
@@ -43,7 +43,7 @@ export type UpdateCoverage = {
   newMatches: { matchId: string; replaces: string[] }[];
   /** "Home – Away" of the matches above, from the data just published. */
   matchNames: Record<string, string>;
-  /** Narrative-comment backfill within this same update and its shared request budget. */
+  /** Narrative-comment backfill within this update's sequential batches. */
   comments: {
     newMatchIds: string[];
     keptMatchIds: string[];
@@ -76,14 +76,14 @@ export type UpdateJob = {
   /** Only while acquiring and not yet requested. */
   cancellable: boolean;
   cancelRequested: boolean;
-  /** True only when the new data were verified and published. */
+  /** True when at least one verified batch was published, including a partial multi-batch update. */
   published: boolean;
   /** UTC ISO-8601. */
   requestedAt: string;
   finishedAt: string | null;
   pollAfterSeconds: number;
   error: { code: UpdateErrorCode; message: string; retryable: boolean } | null;
-  /** `reusedBundle`: a retry that published already verified data without consulting again. */
+  /** `reusedBundle`: the completed update only republished verified data without consulting again. */
   result: { publishedAt: string; reusedBundle: boolean; coverage: UpdateCoverage | null } | null;
 };
 

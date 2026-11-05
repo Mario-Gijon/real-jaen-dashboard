@@ -23,6 +23,12 @@ interfaz muestra sus textos tal cual (`label`, `description`, `actionLabel`):
 
 Lo que una actualización no consulta se conserva tal como está publicado.
 
+El control de Grupo 2 ejecuta lotes sucesivos dentro de una sola solicitud del dashboard. Cada lote conserva los
+límites de adquisición configurados; el control inicia otro únicamente si la publicación anterior avanzó y quedan
+recursos elegibles aplazados por presupuesto. Un rechazo del proveedor, un transporte detenido, ausencia de progreso
+o el máximo de lotes cierra la ejecución de forma segura. Cada lote se publica de forma verificada, por lo que los
+datos ya publicados permanecen disponibles aunque la ejecución posterior se detenga.
+
 ### Publicación con cobertura parcial
 
 Una actualización del grupo publica aunque algunos recursos queden sin datos. El resultado
@@ -41,7 +47,7 @@ los partidos nuevos con su posible sustitución (`newMatches`, decisión manual)
   el calendario detecte en otras queda en `restrictedMatchIds`, sin consultar y con sus datos anteriores; un recurso
   sin datos previos queda pendiente con el motivo `restricted`.
 - Si una actualización posterior falla o se cancela, `lastCoverage` mantiene visibles los pendientes y aplazados de
-  la última publicación, que es lo que se sigue sirviendo.
+  la última publicación válida, incluidos los lotes ya publicados durante esa ejecución.
 - Un pendiente nunca es ausencia ni cero.
 - Un rechazo del proveedor no publica nada.
 
