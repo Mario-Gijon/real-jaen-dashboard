@@ -24,7 +24,7 @@ function participants(value: Record<string, NarrativeCommentParticipant | undefi
   });
 }
 
-export function MatchCommentsPanel({ matchId }: { matchId: string }) {
+export function MatchCommentsPanel({ matchId, seasonId }: { matchId: string; seasonId: string }) {
   const [view, setView] = useState<"narrative" | "enrichment">("narrative");
   const result = useApi(`match-comments|${matchId}`, (signal) => getMatchComments(matchId, { signal }));
   const viewSwitch = <div className={css.viewSwitch} role="group" aria-label="Vista de comentarios">
@@ -34,7 +34,7 @@ export function MatchCommentsPanel({ matchId }: { matchId: string }) {
 
   if (view === "enrichment") return <div className={css.panel}>
     {viewSwitch}
-    <MatchEnrichmentPanel matchId={matchId} />
+    <MatchEnrichmentPanel matchId={matchId} seasonId={seasonId} />
   </div>;
   if (result.error) return <div className={css.panel}>
     {viewSwitch}

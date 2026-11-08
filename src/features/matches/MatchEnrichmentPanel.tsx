@@ -5,6 +5,7 @@ import { getEnrichedComments } from "@/client/api";
 import type { EnrichmentAttributeValue } from "@/contract";
 import { Button } from "@/ui/Button";
 import { LoadingState } from "@/ui/LoadingState";
+import { PlayerLink } from "@/features/players/PlayerLink";
 import { failureReason, useApi } from "@/hooks/use-api";
 import css from "./MatchEnrichmentPanel.module.css";
 
@@ -37,6 +38,12 @@ const VALUE_LABELS: Readonly<Record<string, string>> = {
   opponent_half: "Campo contrario", flank: "Banda",
 };
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES) as Record<string, string>;
+const PARTICIPANT_LABELS: Readonly<Record<string, string>> = {
+  scorer: "Goleador", own_goal_author: "Autor del autogol", assistant: "Asistente",
+  foul_committer: "Infractor", foul_sufferer: "Recibe la falta", corner_conceding_player: "Concede el córner",
+  substitute_in: "Entra", substitute_out: "Sale", penalty_taker: "Lanzador del penalti", player: "Jugador",
+  goalkeeper: "Portero", playerIn: "Entra", playerOut: "Sale", assist1: "Asiste",
+};
 
 function attributeText(value: Exclude<EnrichmentAttributeValue, null>): string {
   const values = Array.isArray(value) ? value : [value];
@@ -54,7 +61,7 @@ function periodLabel(value: string | null): string | null {
   return value;
 }
 
-export function MatchEnrichmentPanel({ matchId }: { matchId: string }) {
+export function MatchEnrichmentPanel({ matchId, seasonId }: { matchId: string; seasonId: string }) {
   const eventId = sourceEventId(matchId);
   const [category, setCategory] = useState("");
   const [originalType, setOriginalType] = useState("");
@@ -115,6 +122,18 @@ export function MatchEnrichmentPanel({ matchId }: { matchId: string }) {
                   <dd>{attributeText(value as Exclude<EnrichmentAttributeValue, null>)}</dd>
                 </div>)}
               </dl> : <p className={css.noAttributes}>Sin atributos textuales extraídos.</p>}
+              {item.participants.length ? <ul className={css.participants} aria-label="Participantes estructurados">
+                {item.participants.map((participant, index) => {
+                  const participantRole = participant.role ?? participant.sourceRole;
+                  const label = PARTICIPANT_LABELS[participantRole] ?? participantRole;
+                  return <li key={`${participant.sourceRole}-${participant.sourceId ?? "unknown"}-${index}`}>
+                    <span>{label}:</span>{" "}
+                    {participant.player
+                      ? <PlayerLink player={participant.player} seasonId={seasonId} />
+                      : participant.name ?? "Participante sin nombre"}
+                  </li>;
+                })}
+              </ul> : null}
             </div>
           </li>;
         })}

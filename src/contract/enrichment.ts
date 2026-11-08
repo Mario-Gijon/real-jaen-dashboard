@@ -1,6 +1,15 @@
 /** Read-only rule annotations returned for the currently selected Spanish captures. */
 export type EnrichmentAttributeValue = string | string[] | null;
 
+export type EnrichedParticipant = {
+  sourceRole: string;
+  role: string | null;
+  normalizerRole: string | null;
+  sourceId: number | string | null;
+  name: string | null;
+  player: { id: string; name: string; position: null } | null;
+};
+
 export type EnrichedComment = {
   id: string | number;
   position: number;
@@ -10,6 +19,7 @@ export type EnrichedComment = {
   periodName: string | null;
   category: string | null;
   attributes: Record<string, EnrichmentAttributeValue>;
+  participants: EnrichedParticipant[];
 };
 
 export type EnrichedCommentsPage = {

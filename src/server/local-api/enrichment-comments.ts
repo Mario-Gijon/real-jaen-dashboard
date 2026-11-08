@@ -1,6 +1,7 @@
 /** Typed adapter for the read-only enrichment endpoint. */
 import type { EnrichedComment, EnrichedCommentsFilter, EnrichedCommentsPage, EnrichmentAttributeValue } from "@/contract";
 import { baseOf, getJson, type Options } from "./http";
+import { playerIdFromSource } from "./identifiers";
 import { count, invalid, isRecord, optionalText } from "./validation";
 
 function parseAttributes(value: unknown, field: string): Record<string, EnrichmentAttributeValue> {
@@ -23,6 +24,28 @@ function requiredText(value: unknown, field: string): string {
   return value;
 }
 
+function parseParticipant(value: unknown, field: string) {
+  if (!isRecord(value)) throw invalid(field);
+  const sourceRole = requiredText(value.source_role, `${field}.source_role`);
+  const role = optionalText(value.role, `${field}.role`);
+  const normalizerRole = optionalText(value.normalizer_role, `${field}.normalizer_role`);
+  const original = isRecord(value.original) ? value.original : null;
+  const name = original ? optionalText(original.name, `${field}.original.name`) : null;
+  const rawId = value.source_id;
+  const numericId = typeof rawId === "number" && Number.isSafeInteger(rawId) && rawId > 0
+    ? rawId
+    : typeof rawId === "string" && /^[1-9]\d*$/.test(rawId) && Number.isSafeInteger(Number(rawId))
+      ? Number(rawId)
+      : null;
+  const sourceId = numericId === null ? null : rawId as number | string;
+  return {
+    sourceRole, role, normalizerRole, sourceId, name,
+    player: numericId === null ? null : {
+      id: playerIdFromSource(numericId), name: name ?? "Jugador", position: null,
+    },
+  };
+}
+
 function parseComment(value: unknown, index: number): EnrichedComment {
   const field = `items[${index}]`;
   if (!isRecord(value) || !isRecord(value.comment) || !isRecord(value.enrichment)) throw invalid(field);
@@ -36,6 +59,7 @@ function parseComment(value: unknown, index: number): EnrichedComment {
   const originalType = requiredText(comment.type, `${field}.comment.type`);
   const category = optionalText(enrichment.category, `${field}.enrichment.category`);
   const minute = comment.minute === null ? null : count(comment.minute, `${field}.comment.minute`);
+  if (!Array.isArray(enrichment.participants)) throw invalid(`${field}.enrichment.participants`);
   return {
     id,
     position: count(comment.source_position, `${field}.comment.source_position`),
@@ -45,6 +69,8 @@ function parseComment(value: unknown, index: number): EnrichedComment {
     periodName: optionalText(comment.period_name, `${field}.comment.period_name`),
     category,
     attributes: parseAttributes(enrichment.attributes, `${field}.enrichment.attributes`),
+    participants: enrichment.participants.map((participant, participantIndex) =>
+      parseParticipant(participant, `${field}.enrichment.participants[${participantIndex}]`)),
   };
 }
 

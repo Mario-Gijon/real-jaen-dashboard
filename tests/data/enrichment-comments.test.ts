@@ -16,6 +16,8 @@ const response = {
     enrichment: {
       category: "goal",
       attributes: { goal_status: "valid", surface: null, contexts: [] },
+      participants: [{ source_role: "player", role: "scorer", normalizer_role: "scorer", source_id: 597500,
+        original: { name: "Delantero" } }],
     },
   }],
 };
@@ -28,7 +30,9 @@ describe("local API adapter: enriched narrative comments", () => {
       enrichmentVersion: "rules-v1", total: 1, limit: 25, offset: 0,
       items: [{ id: "narrative-1", position: 4, text: " ¡Gol! Real Jaén 1, Algeciras 0. ",
         originalType: "scoreChange", minute: 27, periodName: "1ST", category: "goal",
-        attributes: { goal_status: "valid", surface: null, contexts: [] } }],
+        attributes: { goal_status: "valid", surface: null, contexts: [] },
+        participants: [{ sourceRole: "player", role: "scorer", normalizerRole: "scorer", sourceId: 597500,
+          name: "Delantero", player: { id: "sofascore-player-597500", name: "Delantero", position: null } }] }],
     });
     expect(fetch).toHaveBeenCalledWith(
       "http://127.0.0.1:8001/api/v1/enrichment/comments?source_event_id=16600011&category=goal&limit=25&offset=0",
@@ -43,5 +47,21 @@ describe("local API adapter: enriched narrative comments", () => {
     })));
     const load = createLocalApiEnrichedComments({ baseUrl: "http://127.0.0.1:8001", fetch });
     await expect(load({ sourceEventId: "16600011" })).rejects.toThrow("Respuesta no válida");
+  });
+
+  it("links only valid structured numeric player IDs and leaves text-only names unlinked", async () => {
+    const payload = structuredClone(response);
+    payload.items[0].enrichment.participants = [
+      { source_role: "player", role: "scorer", normalizer_role: "scorer", source_id: "597501", original: { name: "Goleador" } },
+      { source_role: "player", role: null, normalizer_role: "foul_committed", source_id: "not-an-id", original: { name: "Nombre sin ID" } },
+    ];
+    const fetch = vi.fn(async () => new Response(JSON.stringify(payload)));
+    const load = createLocalApiEnrichedComments({ baseUrl: "http://127.0.0.1:8001", fetch });
+    const page = await load({ sourceEventId: "16600011" });
+    expect(page?.items[0].participants).toEqual([
+      { sourceRole: "player", role: "scorer", normalizerRole: "scorer", sourceId: "597501", name: "Goleador",
+        player: { id: "sofascore-player-597501", name: "Goleador", position: null } },
+      { sourceRole: "player", role: null, normalizerRole: "foul_committed", sourceId: null, name: "Nombre sin ID", player: null },
+    ]);
   });
 });

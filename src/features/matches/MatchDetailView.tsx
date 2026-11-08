@@ -96,7 +96,8 @@ export function MatchDetailView({ matchId, initialSection = "summary", playerRet
       <section role="tabpanel" id={`match-${section}-panel`} aria-labelledby={`match-${section}-tab`} className={css.summary}>
         {section === "summary" ? <Summary match={match} />
           : section === "timeline" ? <MatchTimeline match={match} />
-            : section === "lineups" ? <MatchLineups match={match} /> : <MatchCommentsPanel matchId={match.id} />}
+            : section === "lineups" ? <MatchLineups match={match} />
+              : <MatchCommentsPanel matchId={match.id} seasonId={match.seasonId} />}
       </section>
     </>}
   </div>;
