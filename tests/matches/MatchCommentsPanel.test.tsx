@@ -1,13 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getMatchComments } from "@/client/api";
-import type { MatchComments } from "@/contract";
+import { getEnrichedComments, getMatchComments } from "@/client/api";
+import type { EnrichedCommentsPage, MatchComments } from "@/contract";
 import { MatchCommentsPanel } from "@/features/matches/MatchCommentsPanel";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
+  getEnrichedComments: vi.fn(),
   getMatchComments: vi.fn(),
 }));
+
+const enriched: EnrichedCommentsPage = {
+  enrichmentVersion: "rules-v1", total: 1, limit: 25, offset: 0,
+  items: [{ id: "comment-1", position: 2, text: "Remate original", originalType: "shotSaved", minute: 12,
+    periodName: "1ST", category: "shot", attributes: { surface: "right_foot", area_zone: "inside_area" } }],
+};
 
 const capture = (availability: MatchComments["availability"]): MatchComments => ({
   matchId: "sofascore-match-16600011", availability,
@@ -46,5 +53,38 @@ describe("MatchCommentsPanel", () => {
     vi.mocked(getMatchComments).mockResolvedValue(capture(availability));
     render(<MatchCommentsPanel matchId="sofascore-match-16600011" />);
     expect(await screen.findByText(message)).toBeVisible();
+  });
+
+  it("shows rules-v1 labels and lets the analyst filter a match by category and original type", async () => {
+    vi.mocked(getMatchComments).mockResolvedValue(capture("available"));
+    vi.mocked(getEnrichedComments).mockResolvedValue(enriched);
+    render(<MatchCommentsPanel matchId="sofascore-match-16600011" />);
+    await screen.findByText("The full original narrative text remains on screen.");
+    fireEvent.click(screen.getByRole("button", { name: "Clasificación rules-v1" }));
+    expect(await screen.findByText("Remate original")).toBeVisible();
+    expect(screen.getAllByText("Remates")).toHaveLength(2);
+    expect(screen.getByText("Pie derecho")).toBeVisible();
+    expect(getEnrichedComments).toHaveBeenCalledWith(
+      { sourceEventId: "16600011", category: undefined, originalType: undefined, limit: 25, offset: 0 },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "shot" } });
+    await screen.findByLabelText("Categoría");
+    await screen.findByLabelText("Tipo original");
+    fireEvent.change(screen.getByLabelText("Tipo original"), { target: { value: "shotSaved" } });
+    expect(await screen.findByText("Remate original")).toBeVisible();
+    expect(getEnrichedComments).toHaveBeenLastCalledWith(
+      { sourceEventId: "16600011", category: "shot", originalType: "shotSaved", limit: 25, offset: 0 },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("keeps the classification view available when narrative comments were not collected", async () => {
+    vi.mocked(getMatchComments).mockResolvedValue(capture("not_collected"));
+    vi.mocked(getEnrichedComments).mockResolvedValue(enriched);
+    render(<MatchCommentsPanel matchId="sofascore-match-16600011" />);
+    expect(await screen.findByText("Los comentarios narrativos todavía no se han recopilado para este partido.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Clasificación rules-v1" }));
+    expect(await screen.findByText("Remate original")).toBeVisible();
   });
 });

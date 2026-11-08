@@ -2,6 +2,8 @@ import type {
   AccessSession,
   ApiError,
   Competition,
+  EnrichedCommentsFilter,
+  EnrichedCommentsPage,
   MatchDetail,
   MatchFilter,
   MatchComments,
@@ -159,6 +161,17 @@ export function getObservedMatchDetail(matchId: string, options?: RequestOptions
 /** Narrative comments of a match, without treating them as incidents or sports statistics. */
 export function getMatchComments(matchId: string, options?: RequestOptions) {
   return get<MatchComments>(`/matches/${segment(matchId)}/comments`, options);
+}
+
+/** Rule-based labels of the selected Spanish narrative comments for one SofaScore event. */
+export function getEnrichedComments(filter: EnrichedCommentsFilter, options?: RequestOptions) {
+  return get<EnrichedCommentsPage>(`/enrichment/comments${query({
+    source_event_id: filter.sourceEventId,
+    category: filter.category,
+    original_type: filter.originalType,
+    limit: filter.limit,
+    offset: filter.offset,
+  })}`, options);
 }
 
 /** A team's matches as a real source lists them, by kickoff. */

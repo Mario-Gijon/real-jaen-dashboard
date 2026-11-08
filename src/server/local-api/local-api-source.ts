@@ -10,3 +10,4 @@ export { createLocalApiObservedMatches, createLocalApiTeamMatches } from "./matc
 export { createLocalApiTeamIdentity, createLocalApiTeamPerformance } from "./teams";
 export { createLocalApiMatchDetail } from "./match-detail";
 export { createLocalApiMatchComments } from "./match-comments";
+export { createLocalApiEnrichedComments } from "./enrichment-comments";

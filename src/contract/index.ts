@@ -10,5 +10,6 @@ export * from "./matches";
 export * from "./teams";
 export * from "./players";
 export * from "./competitions";
+export * from "./enrichment";
 export * from "./updates";
 export { seasonStat, type Accumulation } from "./season-stat";

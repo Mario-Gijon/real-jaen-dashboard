@@ -1,5 +1,7 @@
 import type {
   Competition,
+  EnrichedCommentsFilter,
+  EnrichedCommentsPage,
   MatchDetail,
   MatchFilter,
   MatchComments,
@@ -28,6 +30,7 @@ import {
   createLocalApiMatchDetail,
   createLocalApiTeamMatches,
   createLocalApiMatchComments,
+  createLocalApiEnrichedComments,
 } from "./local-api/local-api-source";
 import { syntheticSource } from "./synthetic/synthetic-source";
 
@@ -87,6 +90,8 @@ export interface DataSource {
   matchObservedDetail(matchId: string): Promise<ObservedMatchDetail | null>;
   /** Narrative SofaScore comments of a match; `null` when the match is unknown. */
   matchComments(matchId: string): Promise<MatchComments | null>;
+  /** Rule labels for one SofaScore event; `null` when the selected source has no event. */
+  enrichedComments(filter: EnrichedCommentsFilter): Promise<EnrichedCommentsPage | null>;
 }
 
 /** A configuration that leaves no usable source: said as such, never replaced by other data. */
@@ -144,6 +149,7 @@ export function createRealSource(baseUrl: string): DataSource {
     teamObservedPerformance: createLocalApiTeamPerformance(local),
     matchObservedDetail: createLocalApiMatchDetail(local),
     matchComments: createLocalApiMatchComments(local),
+    enrichedComments: createLocalApiEnrichedComments(local),
   };
 }
 

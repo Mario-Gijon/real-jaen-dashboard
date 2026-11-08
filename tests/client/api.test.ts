@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiRequestError,
   getCompetitions,
+  getEnrichedComments,
   getMatch,
   getObservedMatchDetail,
   getObservedPlayers,
@@ -35,6 +36,7 @@ describe("typed client", () => {
     await getSeasonMatches("s 1");
     await getSeasonMatches("s1", { round: 3, teamId: "team-a" });
     await getMatch("m1");
+    await getEnrichedComments({ sourceEventId: "16600011", category: "shot", originalType: "shotSaved", limit: 25, offset: 50 });
     await getSeasonTeams("s1");
     await getTeamSeason("s1", "team-a");
     await getPlayer("p1", "s1");
@@ -50,6 +52,7 @@ describe("typed client", () => {
       "/api/v1/seasons/s%201/matches",
       "/api/v1/seasons/s1/matches?round=3&team=team-a",
       "/api/v1/matches/m1",
+      "/api/v1/enrichment/comments?source_event_id=16600011&category=shot&original_type=shotSaved&limit=25&offset=50",
       "/api/v1/seasons/s1/teams",
       "/api/v1/seasons/s1/teams/team-a",
       "/api/v1/players/p1?season=s1",

@@ -1,4 +1,8 @@
 .panel { min-width: 0; }
+.viewSwitch { display: flex; flex-wrap: wrap; gap: var(--rj-space-2); margin-bottom: var(--rj-space-4); }
+.viewSwitch button { padding: var(--rj-space-2) var(--rj-space-3); border: 1px solid var(--rj-border-default); border-radius: var(--rj-radius-sm); background: var(--rj-surface); color: var(--rj-text-secondary); font: inherit; font-size: var(--rj-text-xs); font-weight: 700; cursor: pointer; }
+.viewSwitch button[aria-pressed="true"] { border-color: var(--rj-purple-600); background: var(--rj-purple-100); color: var(--rj-purple-900); }
+.viewSwitch button:focus-visible { outline: 3px solid var(--rj-focus-ring); outline-offset: 2px; }
 .timeline { margin: 0; padding: 0; list-style: none; }
 .item { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--rj-space-4); padding-block: var(--rj-space-4); border-bottom: 1px solid var(--rj-border-default); }
 .item:first-child { padding-top: 0; }

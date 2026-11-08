@@ -72,6 +72,7 @@ export function createSyntheticSource(data: RawDataset): DataSource {
       matchId, availability: "not_collected", capturedAt: null, responseSha256: null,
       lastAttempt: { availability: "not_collected", occurredAt: null, httpStatus: null, errorCode: null }, comments: [],
     } : null,
+    enrichedComments: async () => null,
     seasonTeams: async (seasonId) =>
       seasonId === data.season.season.id ? index.standings() : null,
     teamSeason: async (seasonId, teamId) =>
@@ -104,6 +105,7 @@ export const syntheticSource: DataSource = {
   seasonMatches: (seasonId, filter) => lazy().seasonMatches(seasonId, filter),
   match: (matchId) => lazy().match(matchId),
   matchComments: (matchId) => lazy().matchComments(matchId),
+  enrichedComments: async () => null,
   seasonTeams: (seasonId) => lazy().seasonTeams(seasonId),
   teamSeason: (seasonId, teamId) => lazy().teamSeason(seasonId, teamId),
   player: (playerId, seasonId) => lazy().player(playerId, seasonId),

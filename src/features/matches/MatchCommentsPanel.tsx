@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { getMatchComments } from "@/client/api";
 import type { NarrativeCommentParticipant } from "@/contract";
 import { Button } from "@/ui/Button";
 import { LoadingState } from "@/ui/LoadingState";
 import { failureReason, useApi } from "@/hooks/use-api";
+import { MatchEnrichmentPanel } from "./MatchEnrichmentPanel";
 import css from "./MatchCommentsPanel.module.css";
 
 const PARTICIPANT_LABELS = { player: "Jugador", playerIn: "Entra", playerOut: "Sale", assist1: "Asiste" } as const;
@@ -23,27 +25,43 @@ function participants(value: Record<string, NarrativeCommentParticipant | undefi
 }
 
 export function MatchCommentsPanel({ matchId }: { matchId: string }) {
+  const [view, setView] = useState<"narrative" | "enrichment">("narrative");
   const result = useApi(`match-comments|${matchId}`, (signal) => getMatchComments(matchId, { signal }));
-  if (result.error) return <div className={css.message} role="alert">
-    <p>No se pudieron cargar los comentarios narrativos. {failureReason(result.error)}</p>
-    <Button size="sm" onClick={result.retry}>Reintentar</Button>
+  const viewSwitch = <div className={css.viewSwitch} role="group" aria-label="Vista de comentarios">
+    <button type="button" aria-pressed={view === "narrative"} onClick={() => setView("narrative")}>Narración original</button>
+    <button type="button" aria-pressed={view === "enrichment"} onClick={() => setView("enrichment")}>Clasificación rules-v1</button>
   </div>;
-  if (!result.data) return <section aria-label="Comentarios narrativos" aria-busy="true">
+
+  if (view === "enrichment") return <div className={css.panel}>
+    {viewSwitch}
+    <MatchEnrichmentPanel matchId={matchId} />
+  </div>;
+  if (result.error) return <div className={css.panel}>
+    {viewSwitch}
+    <div className={css.message} role="alert">
+      <p>No se pudieron cargar los comentarios narrativos. {failureReason(result.error)}</p>
+      <Button size="sm" onClick={result.retry}>Reintentar</Button>
+    </div>
+  </div>;
+  if (!result.data) return <section className={css.panel} aria-label="Comentarios narrativos" aria-busy="true">
+    {viewSwitch}
     <LoadingState variant="section" label="Cargando comentarios…" />
   </section>;
 
   const { comments, availability, lastAttempt } = result.data;
-  if (availability === "not_collected") return <p className={css.empty} role="status">
-    {lastAttempt.availability === "error"
-      ? "Todavía no hay una captura de comentarios; el último intento no pudo completarse."
-      : "Los comentarios narrativos todavía no se han recopilado para este partido."}
-  </p>;
-  if (availability === "error") return <p className={css.empty} role="status">
-    No se pudieron obtener comentarios narrativos en el último intento.
-  </p>;
-  if (availability === "empty") return <p className={css.empty} role="status">
-    La respuesta guardada es válida y no contiene comentarios narrativos.
-  </p>;
+  if (availability === "not_collected" || availability === "error" || availability === "empty") {
+    const message = availability === "not_collected"
+      ? lastAttempt.availability === "error"
+        ? "Todavía no hay una captura de comentarios; el último intento no pudo completarse."
+        : "Los comentarios narrativos todavía no se han recopilado para este partido."
+      : availability === "error"
+        ? "No se pudieron obtener comentarios narrativos en el último intento."
+        : "La respuesta guardada es válida y no contiene comentarios narrativos.";
+    return <div className={css.panel}>
+      {viewSwitch}
+      <p className={css.empty} role="status">{message}</p>
+    </div>;
+  }
 
   const chronological = [...comments].sort((left, right) => right.position - left.position);
   const previousCaptureRetained = availability === "available" && lastAttempt.availability !== "available";
@@ -53,6 +71,7 @@ export function MatchCommentsPanel({ matchId }: { matchId: string }) {
         ? "La última respuesta válida llegó vacía; se conserva la captura anterior con comentarios."
         : "Falló el último intento de consulta; se conserva y muestra la captura anterior."}
     </p> : null}
+    {viewSwitch}
     <ol className={css.timeline} aria-label="Comentarios narrativos en orden cronológico">
       {chronological.map((comment) => {
         const period = periodLabel(comment.periodName);
