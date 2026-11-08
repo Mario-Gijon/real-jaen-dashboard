@@ -166,13 +166,24 @@ describe("MatchCommentsPanel unified events", () => {
     expect(screen.getByRole("list", { name: "Eventos en orden cronológico" }).children).toHaveLength(1);
     view.unmount();
 
-    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([{ ...item, participants: [] }]));
     render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[player,
       { id: "sofascore-player-999", name: "Cheikh Thiam", position: null }]}
       profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600019" }} />);
     expect(await screen.findByText("Mano de Cheikh Thiam.")).toBeVisible();
     expect(screen.getByText("Mano de Cheikh Thiam.").querySelector("a")).toBeNull();
     expect(screen.queryByRole("option", { name: "Cheikh Tidiane Thiam" })).not.toBeInTheDocument();
+  });
+
+  it("does not match a roster name inside a longer word", async () => {
+    const item = event({ id: "not-a-name", position: 1, text: "Remate desviado de Óscar Ureñazo.", category: "shot" });
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[
+      { id: "sofascore-player-1134431", name: "Oscar Ureña", position: null },
+    ]} profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600019" }} />);
+    const text = await screen.findByText("Remate desviado de Óscar Ureñazo.");
+    expect(text.querySelector("a")).toBeNull();
+    expect(screen.queryByRole("option", { name: "Oscar Ureña" })).not.toBeInTheDocument();
   });
 
   it("does not request a real event for local or synthetic match IDs", () => {

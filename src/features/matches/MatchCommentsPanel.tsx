@@ -61,9 +61,9 @@ const publicPlayerIdPattern = /^sofascore-player-[1-9]\d*$/;
 
 type FilterTeam = "all" | "home" | "away";
 type PlayerChoice = { id: string; name: string; label: string };
-type Mention = { start: number; end: number; id: string; name: string };
+type Mention = { start: number; end: number; id: string; name: string; player: PlayerRef };
 type ResolvedParticipant = { name: string | null; player: PlayerRef | null; optionName: string | null };
-type EventRow = { item: EnrichedComment; participants: ResolvedParticipant[] };
+type EventRow = { item: EnrichedComment; participants: ResolvedParticipant[]; mentions: Mention[] };
 
 function sourceEventId(matchId: string): string | null {
   return matchIdPattern.exec(matchId)?.[1] ?? null;
@@ -73,13 +73,21 @@ function nameTokens(value: string): string[] {
   return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es-ES").match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
+function nameKey(value: string): string {
+  return nameTokens(value).join(" ");
+}
+
 function sameRosterPlayer(name: string, rosterName: string): boolean {
   const source = nameTokens(name);
   const roster = nameTokens(rosterName);
   if (source.length < 2 || source[0] !== roster[0] || source.at(-1) !== roster.at(-1) || source.length > roster.length) return false;
+  return isTokenSubsequence(source, roster);
+}
+
+function isTokenSubsequence(source: string[], target: string[]): boolean {
   let cursor = 0;
   return source.every((token) => {
-    const index = roster.indexOf(token, cursor);
+    const index = target.indexOf(token, cursor);
     if (index < 0) return false;
     cursor = index + 1;
     return true;
@@ -100,10 +108,6 @@ function resolveParticipant(participant: EnrichedComment["participants"][number]
   return { name, player, optionName: player ? player.name : null };
 }
 
-function resolvedRows(items: EnrichedComment[], roster: PlayerRef[]): EventRow[] {
-  return items.map((item) => ({ item, participants: item.participants.map((participant) => resolveParticipant(participant, roster)) }));
-}
-
 function eventLabel(item: EnrichedComment): string {
   if (item.category === "match_flow") return MATCH_FLOW_LABELS[item.originalType] ?? "Desarrollo del partido";
   if (!item.category) return "Sin clasificar";
@@ -121,6 +125,13 @@ function playerChoices(rows: EventRow[]): PlayerChoice[] {
     const current = names.get(key);
     names.set(key, { name: current?.name ?? name, count: (current?.count ?? 0) + 1 });
     namesById.set(player.id, names);
+  }
+  for (const row of rows) for (const mention of row.mentions) {
+    const names = namesById.get(mention.player.id) ?? new Map<string, { name: string; count: number }>();
+    const key = mention.player.name.toLocaleLowerCase("es-ES");
+    const current = names.get(key);
+    names.set(key, { name: current?.name ?? mention.player.name, count: (current?.count ?? 0) + 1 });
+    namesById.set(mention.player.id, names);
   }
   const options = [...namesById.entries()].flatMap(([id, names]) => {
     const mostCommon = [...names.values()].sort((left, right) => right.count - left.count)[0];
@@ -145,104 +156,136 @@ function isWordCharacter(value: string | undefined): boolean {
 }
 
 function mentionAliases(name: string): string[] {
-  const words = name.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
-  const aliases = new Set([name.trim()]);
-  if (words.length > 2) aliases.add(`${words[0]} ${words.at(-1)}`);
-  return [...aliases].filter(Boolean);
+  const words = nameTokens(name);
+  if (words.length < 2) return [];
+  const aliases = new Set([words.join(" "), `${words[0]} ${words.at(-1)}`]);
+  for (let index = 1; index < words.length; index += 1) aliases.add(`${words[0]} ${words[index]}`);
+  if (words.length > 2) aliases.add(words.slice(-2).join(" "));
+  return [...aliases];
 }
 
 function rosterMatches(name: string, playerId: string, roster: PlayerRef[]): boolean {
   const matches = new Map<string, PlayerRef>();
   for (const player of roster) {
-    if (publicPlayerIdPattern.test(player.id) && sameRosterPlayer(name, player.name)) matches.set(player.id, player);
+    if (publicPlayerIdPattern.test(player.id) && isTokenSubsequence(nameTokens(name), nameTokens(player.name))) matches.set(player.id, player);
   }
   return matches.size === 1 && matches.has(playerId);
 }
 
-function playerMentions(text: string, participants: ResolvedParticipant[], roster: PlayerRef[]): Mention[] {
-  const idsByName = new Map<string, Map<string, { id: string; name: string }>>();
-  const nameConflicts = new Set<string>();
-  const allNames = new Map<string, string>();
-  const keyFor = (name: string) => nameTokens(name).join(" ");
-  for (const participant of participants) {
-    const names = new Set([participant.name, participant.player?.name]
-      .filter((name): name is string => Boolean(name?.trim()))
-      .flatMap(mentionAliases));
-    if (!names.size) continue;
-    const player = participant.player;
-    if (!player || !publicPlayerIdPattern.test(player.id)) {
-      for (const name of names) {
-        const key = keyFor(name);
-        nameConflicts.add(key);
-        allNames.set(key, name);
+type SearchableText = { value: string; starts: number[]; ends: number[] };
+
+function searchableText(text: string): SearchableText {
+  let value = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  for (let offset = 0; offset < text.length;) {
+    const char = String.fromCodePoint(text.codePointAt(offset)!);
+    const end = offset + char.length;
+    const folded = char.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es-ES");
+    const letters = [...folded].filter((part) => /[\p{L}\p{N}]/u.test(part));
+    if (letters.length) {
+      for (const part of letters) {
+        value += part;
+        for (let unit = 0; unit < part.length; unit += 1) { starts.push(offset); ends.push(end); }
       }
-      continue;
+    } else if (value && !value.endsWith(" ")) {
+      value += " ";
+      starts.push(offset);
+      ends.push(end);
     }
-    for (const name of names) {
-      const key = keyFor(name);
-      // Abbreviated prose aliases are linked only when this match's roster confirms one ID.
-      if (nameTokens(name).length < nameTokens(player.name).length && !rosterMatches(name, player.id, roster)) continue;
-      allNames.set(key, name);
-      const byId = idsByName.get(key) ?? new Map<string, { id: string; name: string }>();
-      byId.set(player.id, { id: player.id, name });
-      idsByName.set(key, byId);
-    }
+    offset = end;
   }
-
-  const spansByName = [...allNames.values()].map((name) => {
-    const expression = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
-    return [...text.matchAll(expression)].map((match) => ({
-      start: match.index,
-      end: match.index + match[0].length,
-      length: match[0].length,
-    }));
-  }).flat();
-
-  const matches: Mention[] = [];
-  for (const [key, people] of idsByName) {
-    if (people.size !== 1) continue;
-    if (nameConflicts.has(key)) continue;
-    const player = [...people.values()][0];
-    const expression = new RegExp(player.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
-    for (const match of text.matchAll(expression)) {
-      const start = match.index;
-      const end = start + match[0].length;
-      const insideLongerParticipant = spansByName.some((span) => span.length > match[0].length && span.start <= start && span.end >= end);
-      if (!insideLongerParticipant && !isWordCharacter(Array.from(text.slice(0, start)).at(-1)) && !isWordCharacter(Array.from(text.slice(end))[0])) {
-        matches.push({ start, end, id: player.id, name: match[0] });
-      }
-    }
-  }
-
-  matches.sort((left, right) => left.start - right.start || (right.end - right.start) - (left.end - left.start));
-  const selected: Mention[] = [];
-  let cursor = 0;
-  for (let index = 0; index < matches.length;) {
-    const first = matches[index];
-    if (first.start < cursor) { index += 1; continue; }
-    const sameStart = matches.slice(index).filter((candidate) => candidate.start === first.start);
-    const longest = sameStart.filter((candidate) => candidate.end === Math.max(...sameStart.map((entry) => entry.end)));
-    const ids = new Set(longest.map((candidate) => candidate.id));
-    const chosen = ids.size === 1 ? longest[0] : null;
-    if (chosen) {
-      selected.push(chosen);
-      cursor = chosen.end;
-    }
-    index += sameStart.length;
-  }
-  return selected;
+  if (value.endsWith(" ")) { value = value.slice(0, -1); starts.pop(); ends.pop(); }
+  return { value, starts, ends };
 }
 
-function TextWithPlayers({ item, participants, rosterPlayers, seasonId, profileOrigin }: {
-  item: EnrichedComment; participants: ResolvedParticipant[]; rosterPlayers: PlayerRef[]; seasonId?: string; profileOrigin?: ProfileOrigin;
+function addCandidate(index: Map<string, Map<string, PlayerRef>>, alias: string, player: PlayerRef) {
+  const key = nameKey(alias);
+  if (!key || !publicPlayerIdPattern.test(player.id)) return;
+  const matches = index.get(key) ?? new Map<string, PlayerRef>();
+  matches.set(player.id, player);
+  index.set(key, matches);
+}
+
+function playerMentions(text: string, participants: ResolvedParticipant[], roster: PlayerRef[]): Mention[] {
+  const structured = new Map<string, Map<string, PlayerRef>>();
+  const rosterNames = new Map<string, Map<string, PlayerRef>>();
+  const blockedNames = new Set<string>();
+
+  for (const player of roster) for (const alias of mentionAliases(player.name)) addCandidate(rosterNames, alias, player);
+  for (const participant of participants) {
+    const player = participant.player;
+    if (!player || !publicPlayerIdPattern.test(player.id)) {
+      if (participant.name) blockedNames.add(nameKey(participant.name));
+      continue;
+    }
+    if (participant.name) addCandidate(structured, participant.name, player);
+    addCandidate(structured, player.name, player);
+    for (const alias of mentionAliases(player.name)) {
+      if (nameKey(alias) === nameKey(player.name) || rosterMatches(alias, player.id, roster)) addCandidate(structured, alias, player);
+    }
+  }
+
+  const normalized = searchableText(text);
+  const matches: Mention[] = [];
+  const aliases = new Set([...structured.keys(), ...rosterNames.keys()]);
+  for (const alias of aliases) {
+    if (blockedNames.has(alias)) continue;
+    const structuredIds = structured.get(alias);
+    const candidates = structuredIds ?? rosterNames.get(alias);
+    if (!candidates || candidates.size !== 1) continue;
+    const player = [...candidates.values()][0];
+    const expression = new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gu");
+    for (const match of normalized.value.matchAll(expression)) {
+      const start = match.index;
+      const normalizedEnd = start + match[0].length;
+      if (isWordCharacter(Array.from(normalized.value.slice(0, start)).at(-1))
+        || isWordCharacter(Array.from(normalized.value.slice(normalizedEnd))[0])) continue;
+      const originalStart = normalized.starts[start];
+      const originalEnd = normalized.ends[normalizedEnd - 1];
+      if (originalStart !== undefined && originalEnd !== undefined) {
+        matches.push({ start: originalStart, end: originalEnd, id: player.id, name: text.slice(originalStart, originalEnd), player });
+      }
+    }
+  }
+
+  matches.sort((left, right) => left.start - right.start || right.end - left.end);
+  const selected: Mention[] = [];
+  let group: Mention[] = [];
+  let groupEnd = -1;
+  const flush = () => {
+    if (!group.length) return;
+    const longest = Math.max(...group.map((match) => match.end - match.start));
+    const best = group.filter((match) => match.end - match.start === longest);
+    if (new Set(best.map((match) => match.id)).size === 1) selected.push(best[0]);
+    group = [];
+    groupEnd = -1;
+  };
+  for (const match of matches) {
+    if (group.length && match.start >= groupEnd) flush();
+    group.push(match);
+    groupEnd = Math.max(groupEnd, match.end);
+  }
+  flush();
+  return selected.sort((left, right) => left.start - right.start);
+}
+
+function resolvedRows(items: EnrichedComment[], roster: PlayerRef[]): EventRow[] {
+  return items.map((item) => {
+    const participants = item.participants.map((participant) => resolveParticipant(participant, roster));
+    return { item, participants, mentions: playerMentions(item.text, participants, roster) };
+  });
+}
+
+function TextWithPlayers({ item, mentions, seasonId, profileOrigin }: {
+  item: EnrichedComment; mentions: Mention[]; seasonId?: string; profileOrigin?: ProfileOrigin;
 }) {
-  const mentions = playerMentions(item.text, participants, rosterPlayers);
   if (!mentions.length) return <>{item.text}</>;
   const parts: ReactNode[] = [];
   let cursor = 0;
   for (const [index, mention] of mentions.entries()) {
     if (mention.start > cursor) parts.push(item.text.slice(cursor, mention.start));
-    parts.push(<PlayerLink key={`${mention.id}-${mention.start}-${index}`} player={{ id: mention.id, name: mention.name, position: null }}
+    parts.push(<PlayerLink key={`${mention.id}-${mention.start}-${index}`} player={{ ...mention.player, name: mention.name }}
       seasonId={seasonId} profileOrigin={profileOrigin} className={css.playerMention} />);
     cursor = mention.end;
   }
@@ -281,9 +324,10 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
   const items = result.data?.items ?? [];
   const rows = useMemo(() => resolvedRows(items, rosterPlayers), [items, rosterPlayers]);
   const players = useMemo(() => playerChoices(rows), [rows]);
-  const filtered = useMemo(() => rows.filter(({ item, participants }) => {
+  const filtered = useMemo(() => rows.filter(({ item, participants, mentions }) => {
     const categoryMatches = category === "__unclassified" ? item.category === null : !category || item.category === category;
-    const playerMatches = !playerId || participants.some((participant) => participant.player?.id === playerId);
+    const playerMatches = !playerId || participants.some((participant) => participant.player?.id === playerId)
+      || mentions.some((mention) => mention.id === playerId);
     const teamMatches = team === "all" || (team === "home" ? item.isHome === true : item.isHome === false);
     return categoryMatches && playerMatches && teamMatches;
   }), [rows, category, playerId, team]);
@@ -325,7 +369,7 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
     {chronological.length === 0 ? <p className={css.empty} role="status">
       {items.length ? "No hay eventos que coincidan con estos filtros." : "No hay eventos disponibles para este partido."}
     </p> : <ol className={css.timeline} aria-label="Eventos en orden cronológico">
-      {chronological.map(({ item, participants }) => {
+      {chronological.map(({ item, mentions }) => {
         const attributes = attributesFor(item);
         return <li key={`${item.captureId ?? "capture"}-${typeof item.id}-${item.id}`} className={css.item}>
           <div className={css.when}>
@@ -333,7 +377,7 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
           </div>
           <div className={css.content}>
             <span className={css.kind}>{eventLabel(item)}</span>
-            <p className={css.text}><TextWithPlayers item={item} participants={participants} rosterPlayers={rosterPlayers}
+            <p className={css.text}><TextWithPlayers item={item} mentions={mentions}
               seasonId={seasonId} profileOrigin={profileOrigin} /></p>
             {item.score && (item.score.home !== null || item.score.away !== null) ? <p className={css.score}
               aria-label={`Marcador: ${item.score.home ?? "no disponible"} a ${item.score.away ?? "no disponible"}`}>

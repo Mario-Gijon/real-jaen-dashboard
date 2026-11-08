@@ -1,13 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiRequestError, getAllEnrichedComments, getCompetitions, getMatch, getObservedMatchDetail } from "@/client/api";
-import type { EnrichedCommentsPage, ObservedGoal, ObservedLineupPlayer, ObservedMatchDetail, PlayerRef, TeamMatchStats } from "@/contract";
+import { ApiRequestError, getAllEnrichedComments, getCompetitions, getMatch, getObservedMatchDetail, getObservedSquad } from "@/client/api";
+import type { EnrichedCommentsPage, ObservedGoal, ObservedLineupPlayer, ObservedMatchDetail, ObservedSquad, PlayerRef, TeamMatchStats } from "@/contract";
 import { RealMatchDetailView } from "@/features/matches/RealMatchDetailView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
-  getSource: vi.fn(), getObservedMatchDetail: vi.fn(), getMatch: vi.fn(), getCompetitions: vi.fn(), getAllEnrichedComments: vi.fn(),
+  getSource: vi.fn(), getObservedMatchDetail: vi.fn(), getObservedSquad: vi.fn(), getMatch: vi.fn(), getCompetitions: vi.fn(), getAllEnrichedComments: vi.fn(),
 }));
 
 const missing = { value: null, reason: "not_available" } as const;
@@ -43,6 +43,20 @@ const lineups: ObservedMatchDetail["lineups"] = {
     lineupPlayer(42, "Suplente No Utilizado", { role: "substitute", participation: "unused", minutes: { value: 0 } })],
   away: [...startersFrom(50), lineupPlayer(90, "Entra Tarde", { role: "substitute", minutes: { value: 22 } })],
 };
+const noSeasonStat = { value: null, coverage: "none", reason: "not_available", matches: 0, of: 1 } as const;
+const observedSquad = (teamId: string, players: PlayerRef[] = [], season = "26/27"): ObservedSquad => ({
+  teamId, scope: "Jugadores observados en la competición y temporada de la fuente.",
+  source: { synthetic: false, label: "Datos reales" },
+  competitions: players.length ? [{
+    id: `sofascore-scope-999-${season}`, name: "LaLiga 2", season,
+    matches: { counted: 1, withCallUps: 1 },
+    callUps: { total: 1, played: 1, unused: 0, unknown: 0, contradictions: 0, mismatches: 0,
+      teamWarnings: 0, duplicateRecords: 0, discardedRecords: 0 },
+    players: players.map((player) => ({ player, heightCm: null, preferredFoot: null, lastShirtNumber: null, callUps: 1,
+      stats: { appearances: { value: 1, coverage: "complete", matches: 1, of: 1 }, starts: noSeasonStat,
+        minutes: noSeasonStat, goals: noSeasonStat, assists: noSeasonStat } })),
+  }] : [],
+});
 const goal = (kind: ObservedGoal["kind"], scorer: PlayerRef | null, assist: PlayerRef | null = null, minute = 30): ObservedGoal =>
   ({ kind, minute, addedTime: null, scorer, assist });
 const incidents: ObservedMatchDetail["incidents"] = {
@@ -59,6 +73,7 @@ const incidents: ObservedMatchDetail["incidents"] = {
 beforeEach(() => {
   vi.resetAllMocks();
     vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ statistics, lineups, incidents }));
+    vi.mocked(getObservedSquad).mockImplementation(async (teamId) => observedSquad(teamId));
 });
 
 const metric = (label: string) => screen.getByText(label, { selector: "dt" }).parentElement!;
@@ -147,6 +162,55 @@ describe("Real match detail: Resumen", () => {
       "/players/sofascore-player-2137657?view=profile&from=observedMatch&origin=sofascore-match-16600019");
     await userEvent.setup().selectOptions(screen.getByLabelText("Jugador"), "sofascore-player-2137657");
     expect(eventList.children).toHaveLength(1);
+  });
+
+  it("finds Oscar Ureña in the matching season squad when the event text is his only mention", async () => {
+    const oscar = ref(1134431, "Oscar Ureña");
+    const homeId = "sofascore-team-2815";
+    const awayId = "sofascore-team-24338";
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ lineups }, {
+      id: "sofascore-match-16600019", competition: "LaLiga 2", season: "26/27",
+      home: { id: homeId, name: "Real Zaragoza" }, away: { id: awayId, name: "Villarreal II" },
+    }));
+    vi.mocked(getObservedSquad).mockImplementation(async (teamId) => observedSquad(teamId, teamId === homeId ? [oscar] : []));
+    vi.mocked(getAllEnrichedComments).mockResolvedValue({
+      enrichmentVersion: "rules-v1", total: 1, limit: 1, offset: 0,
+      items: [{ id: "substitution-59", captureId: 96, position: 1,
+        text: "Cambio en Real Zaragoza, ingresa al campo Pau Sans sustituyendo a Óscar Ureña.",
+        originalType: "substitution", minute: 59, periodName: "2ND", isHome: true, score: { home: 1, away: 2 },
+        category: "substitution", attributes: {}, participants: [{ sourceRole: "player", role: "incoming_player",
+          normalizerRole: null, sourceId: 1469468, name: "Pau Sans", player: { id: "sofascore-player-1469468", name: "Pau Sans", position: null } }] }],
+    });
+    render(<RealMatchDetailView matchId="sofascore-match-16600019" initialSection="comments" />);
+    const eventList = await screen.findByRole("list", { name: "Eventos en orden cronológico" });
+    expect(await screen.findByRole("link", { name: "Óscar Ureña" })).toHaveAttribute("href",
+      "/players/sofascore-player-1134431?view=profile&from=observedMatch&origin=sofascore-match-16600019");
+    expect(getObservedSquad).toHaveBeenCalledWith(homeId, expect.anything());
+    expect(getObservedSquad).toHaveBeenCalledWith(awayId, expect.anything());
+    await userEvent.setup().selectOptions(screen.getByLabelText("Jugador"), "sofascore-player-1134431");
+    expect(eventList.children).toHaveLength(1);
+  });
+
+  it("does not use a squad observation from a different season to identify an event mention", async () => {
+    const oscar = ref(1134431, "Oscar Ureña");
+    const homeId = "sofascore-team-2815";
+    const awayId = "sofascore-team-24338";
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ lineups }, {
+      id: "sofascore-match-16600019", competition: "LaLiga 2", season: "26/27",
+      home: { id: homeId, name: "Real Zaragoza" }, away: { id: awayId, name: "Villarreal II" },
+    }));
+    vi.mocked(getObservedSquad).mockImplementation(async (teamId) =>
+      observedSquad(teamId, teamId === homeId ? [oscar] : [], "25/26"));
+    vi.mocked(getAllEnrichedComments).mockResolvedValue({
+      enrichmentVersion: "rules-v1", total: 1, limit: 1, offset: 0,
+      items: [{ id: "text-only-oscar", captureId: 96, position: 1, text: "Falta sobre Óscar Ureña.",
+        originalType: "freeKickWon", minute: 43, periodName: "1ST", isHome: true, score: { home: 1, away: 2 },
+        category: "foul", attributes: {}, participants: [] }],
+    });
+    render(<RealMatchDetailView matchId="sofascore-match-16600019" initialSection="comments" />);
+    const text = await screen.findByText("Falta sobre Óscar Ureña.");
+    expect(text.querySelector("a")).toBeNull();
+    expect(screen.queryByRole("option", { name: "Oscar Ureña" })).not.toBeInTheDocument();
   });
 
   it("distinguishes statistics not stored, stored empty and a failed query", async () => {

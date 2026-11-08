@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
-import { ApiRequestError, getObservedMatchDetail } from "@/client/api";
-import type { LocalReplacement, MatchStatus, ObservedMatchDetail, ObservedSectionKey, ObservedSectionReview, ObservedTeam } from "@/contract";
+import { ApiRequestError, getObservedMatchDetail, getObservedSquad } from "@/client/api";
+import type { LocalReplacement, MatchStatus, ObservedMatch, ObservedMatchDetail, ObservedSectionKey, ObservedSectionReview, ObservedSquad, ObservedTeam, PlayerRef } from "@/contract";
 import { Button } from "@/ui/Button";
 import { LoadingState } from "@/ui/LoadingState";
 import { ProvenanceNotice } from "@/ui/ProvenanceNotice";
@@ -25,6 +25,13 @@ const LABEL: Record<Section, string> = { summary: "Resumen", lineups: "Alineacio
 const timeFormat = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
 });
+const publicPlayerIdPattern = /^sofascore-player-[1-9]\d*$/;
+
+function playersForMatch(squad: ObservedSquad | null, teamId: string, match: ObservedMatch): PlayerRef[] {
+  if (!squad || squad.teamId !== teamId || !match.competition || !match.season) return [];
+  const competitions = squad.competitions.filter((entry) => entry.name === match.competition && entry.season === match.season);
+  return competitions.length === 1 ? competitions[0].players.map(({ player }) => player) : [];
+}
 
 /**
  * Detail of a real match (reached from the real match list, a real profile,
@@ -78,9 +85,21 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
   relatedHref: (matchId: string) => string;
 }) {
   const { match } = data;
-  const rosterPlayers = data.lineups.state === "stored"
-    ? [...data.lineups.home, ...data.lineups.away].map(({ player }) => player)
-    : [];
+  // Team-season observations supplement the event participants and lineups only while the Events tab is open.
+  const squadKey = section === "comments" && match.competition && match.season
+    ? (teamId: string) => `match-squad|${teamId}|${match.competition}|${match.season}` : () => null;
+  const homeSquad = useApi(squadKey(match.home.id), (signal) => getObservedSquad(match.home.id, { signal }));
+  const awaySquad = useApi(squadKey(match.away.id), (signal) => getObservedSquad(match.away.id, { signal }));
+  const rosterById = new Map<string, PlayerRef>();
+  const rosterSources = [
+    ...(data.lineups.state === "stored" ? [...data.lineups.home, ...data.lineups.away].map(({ player }) => player) : []),
+    ...playersForMatch(homeSquad.data, match.home.id, match),
+    ...playersForMatch(awaySquad.data, match.away.id, match),
+  ];
+  for (const player of rosterSources) {
+    if (publicPlayerIdPattern.test(player.id) && !rosterById.has(player.id)) rosterById.set(player.id, player);
+  }
+  const rosterPlayers = [...rosterById.values()];
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
     const index = SECTIONS.indexOf(section);
