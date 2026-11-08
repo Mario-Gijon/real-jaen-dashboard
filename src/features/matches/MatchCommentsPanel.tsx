@@ -58,6 +58,7 @@ const FREE_TEXT_ATTRIBUTES = new Set([
 ]);
 const matchIdPattern = /^sofascore-match-([1-9]\d*)$/;
 const publicPlayerIdPattern = /^sofascore-player-[1-9]\d*$/;
+const KNOWN_GIVEN_NAME_ALIASES = new Map([["eduardo", "edu"]]);
 
 type FilterTeam = "all" | "home" | "away";
 type PlayerChoice = { id: string; name: string; label: string };
@@ -164,6 +165,13 @@ function mentionAliases(name: string): string[] {
   return [...aliases];
 }
 
+function knownPlayerAliases(name: string): string[] {
+  const words = nameTokens(name);
+  if (words.length < 2) return [];
+  const alias = KNOWN_GIVEN_NAME_ALIASES.get(words[0]);
+  return alias ? [`${alias} ${words.at(-1)}`] : [];
+}
+
 function rosterMatches(name: string, playerId: string, roster: PlayerRef[]): boolean {
   const matches = new Map<string, PlayerRef>();
   for (const player of roster) {
@@ -209,18 +217,33 @@ function addCandidate(index: Map<string, Map<string, PlayerRef>>, alias: string,
 
 function playerMentions(text: string, participants: ResolvedParticipant[], roster: PlayerRef[]): Mention[] {
   const structured = new Map<string, Map<string, PlayerRef>>();
+  const structuredDirect = new Map<string, Map<string, PlayerRef>>();
   const rosterNames = new Map<string, Map<string, PlayerRef>>();
   const blockedNames = new Set<string>();
+  const knownAliasNames = new Set<string>();
 
-  for (const player of roster) for (const alias of mentionAliases(player.name)) addCandidate(rosterNames, alias, player);
+  for (const player of roster) {
+    for (const alias of mentionAliases(player.name)) addCandidate(rosterNames, alias, player);
+    for (const alias of knownPlayerAliases(player.name)) {
+      addCandidate(rosterNames, alias, player);
+      knownAliasNames.add(nameKey(alias));
+    }
+  }
   for (const participant of participants) {
     const player = participant.player;
     if (!player || !publicPlayerIdPattern.test(player.id)) {
       if (participant.name) blockedNames.add(nameKey(participant.name));
       continue;
     }
-    if (participant.name) addCandidate(structured, participant.name, player);
+    if (participant.name) {
+      addCandidate(structured, participant.name, player);
+      addCandidate(structuredDirect, participant.name, player);
+    }
     addCandidate(structured, player.name, player);
+    addCandidate(structuredDirect, player.name, player);
+    for (const alias of [...knownPlayerAliases(participant.name ?? ""), ...knownPlayerAliases(player.name)]) {
+      addCandidate(structured, alias, player);
+    }
     for (const alias of mentionAliases(player.name)) {
       if (nameKey(alias) === nameKey(player.name) || rosterMatches(alias, player.id, roster)) addCandidate(structured, alias, player);
     }
@@ -230,9 +253,26 @@ function playerMentions(text: string, participants: ResolvedParticipant[], roste
   const matches: Mention[] = [];
   const aliases = new Set([...structured.keys(), ...rosterNames.keys()]);
   for (const alias of aliases) {
-    if (blockedNames.has(alias)) continue;
     const structuredIds = structured.get(alias);
-    const candidates = structuredIds ?? rosterNames.get(alias);
+    const directIds = structuredDirect.get(alias);
+    const rosterCandidates = rosterNames.get(alias);
+    let candidates: Map<string, PlayerRef> | undefined;
+    if (knownAliasNames.has(alias)) {
+      // A directly supplied SofaScore identity wins. Otherwise, only infer the
+      // explicit alias from one roster ID, with no conflicting structured alias.
+      if (directIds) {
+        if (directIds.size !== 1) continue;
+        candidates = directIds;
+      } else if (structuredIds) {
+        if (!rosterCandidates || rosterCandidates.size !== 1 || structuredIds.size !== 1
+          || !structuredIds.has([...rosterCandidates.keys()][0])) continue;
+        candidates = structuredIds;
+      } else {
+        if (!rosterCandidates || rosterCandidates.size !== 1) continue;
+        candidates = rosterCandidates;
+      }
+    } else if (blockedNames.has(alias)) continue;
+    else candidates = structuredIds ?? rosterCandidates;
     if (!candidates || candidates.size !== 1) continue;
     const player = [...candidates.values()][0];
     const expression = new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gu");

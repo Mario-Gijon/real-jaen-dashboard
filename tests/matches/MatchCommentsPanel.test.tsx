@@ -151,6 +151,64 @@ describe("MatchCommentsPanel unified events", () => {
     expect(screen.getByRole("option", { name: "Cheikh Tidiane Thiam" })).toBeVisible();
   });
 
+  it("resolves the explicit Edu alias to Eduardo Espiau and includes its event in the player filter", async () => {
+    const item = event({ id: "edu-goal", position: 1, category: "goal", text: "¡Gol de Edu Espiau!",
+      participants: [{ sourceRole: "player", role: "scorer", normalizerRole: "player", sourceId: null,
+        name: "Edu Espiau", player: null }] });
+    const eduardo: PlayerRef = { id: "sofascore-player-184816", name: "Eduardo Espiau", position: null };
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[eduardo]}
+      profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600019" }} />);
+
+    const link = await screen.findByRole("link", { name: "Edu Espiau" });
+    expect(link).toHaveAttribute("href",
+      "/players/sofascore-player-184816?view=profile&from=observedMatch&origin=sofascore-match-16600019");
+    expect(screen.getByRole("option", { name: "Eduardo Espiau" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Jugador"), { target: { value: eduardo.id } });
+    const rows = screen.getByRole("list", { name: "Eventos en orden cronológico" }).children;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("¡Gol de Edu Espiau!");
+  });
+
+  it("does not equate a different given name such as Fernán with Fernando", async () => {
+    const item = event({ id: "fernan-foul", position: 1, category: "foul", text: "Falta de Fernán Pérez." });
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[
+      { id: "sofascore-player-32001", name: "Fernando Pérez", position: null },
+    ]} />);
+
+    const text = await screen.findByText("Falta de Fernán Pérez.");
+    expect(text.querySelector("a")).toBeNull();
+    expect(screen.queryByRole("option", { name: "Fernando Pérez" })).not.toBeInTheDocument();
+  });
+
+  it("leaves an explicit alias unlinked when multiple roster players share it", async () => {
+    const item = event({ id: "ambiguous-edu", position: 1, category: "goal", text: "Gol de Edu Espiau." });
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[
+      { id: "sofascore-player-41001", name: "Eduardo Espiau", position: null },
+      { id: "sofascore-player-41002", name: "Eduardo María Espiau", position: null },
+    ]} />);
+
+    const text = await screen.findByText("Gol de Edu Espiau.");
+    expect(text.querySelector("a")).toBeNull();
+    expect(screen.queryByRole("option", { name: "Eduardo Espiau" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Eduardo María Espiau" })).not.toBeInTheDocument();
+  });
+
+  it("does not apply a roster alias when it conflicts with another structured event identity", async () => {
+    const item = event({ id: "conflicting-edu", position: 1, category: "goal", text: "Gol de Edu Espiau.",
+      participants: [participant("sofascore-player-41099", "Eduardo Espiau", "assistant")] });
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[
+      { id: "sofascore-player-41001", name: "Eduardo Espiau", position: null },
+    ]} />);
+
+    const text = await screen.findByText("Gol de Edu Espiau.");
+    expect(text.querySelector("a")).toBeNull();
+    expect(screen.getByRole("option", { name: "Eduardo Espiau" })).toHaveValue("sofascore-player-41099");
+  });
+
   it("resolves a missing participant ID only from one matching roster player", async () => {
     const item = event({ id: "lineup-resolved", position: 1, text: "Mano de Cheikh Thiam.", category: "foul",
       participants: [{ sourceRole: "player", role: "foul_committer", normalizerRole: "player", sourceId: null,
