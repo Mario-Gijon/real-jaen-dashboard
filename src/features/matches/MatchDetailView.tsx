@@ -91,13 +91,14 @@ export function MatchDetailView({ matchId, initialSection = "summary", playerRet
           aria-controls="match-lineups-panel" className={css.tab}>Alineaciones</button>
         <button type="button" role="tab" id="match-comments-tab" aria-selected={section === "comments"}
           tabIndex={section === "comments" ? 0 : -1} onClick={() => setSection("comments")} onKeyDown={moveTab}
-          aria-controls="match-comments-panel" className={css.tab}>Comentarios</button>
+          aria-controls="match-comments-panel" className={css.tab}>Eventos</button>
       </div>
       <section role="tabpanel" id={`match-${section}-panel`} aria-labelledby={`match-${section}-tab`} className={css.summary}>
         {section === "summary" ? <Summary match={match} />
           : section === "timeline" ? <MatchTimeline match={match} />
             : section === "lineups" ? <MatchLineups match={match} />
-              : <MatchCommentsPanel matchId={match.id} seasonId={match.seasonId} />}
+              : <MatchCommentsPanel matchId={match.id} seasonId={match.seasonId}
+                homeName={match.home.name} awayName={match.away.name} />}
       </section>
     </>}
   </div>;

@@ -174,6 +174,46 @@ export function getEnrichedComments(filter: EnrichedCommentsFilter, options?: Re
   })}`, options);
 }
 
+/** Load every event internally; screens receive one complete, coherent match list. */
+export async function getAllEnrichedComments(sourceEventId: string, options?: RequestOptions): Promise<EnrichedCommentsPage> {
+  const pageSize = 100;
+  const first = await getEnrichedComments({ sourceEventId, limit: pageSize, offset: 0 }, options);
+  if (first.offset !== 0 || first.items.length > first.total) {
+    throw new ApiRequestError(503, "ENRICHMENT_INCOMPLETE", "No se pudieron cargar todos los eventos del partido.");
+  }
+  const items = [...first.items];
+  let offset = items.length;
+  const captureIds = new Set(items.flatMap((item) => item.captureId === null ? [] : [item.captureId]));
+  if (captureIds.size > 1) {
+    throw new ApiRequestError(503, "ENRICHMENT_CHANGED", "Los eventos cambiaron mientras se cargaba el partido. Reintenta la consulta.");
+  }
+
+  while (offset < first.total) {
+    const page = await getEnrichedComments({ sourceEventId, limit: pageSize, offset }, options);
+    if (page.total !== first.total || page.enrichmentVersion !== first.enrichmentVersion || page.offset !== offset) {
+      throw new ApiRequestError(503, "ENRICHMENT_CHANGED", "Los eventos cambiaron mientras se cargaba el partido. Reintenta la consulta.");
+    }
+    if (page.items.length === 0) {
+      throw new ApiRequestError(503, "ENRICHMENT_INCOMPLETE", "No se pudieron cargar todos los eventos del partido.");
+    }
+    for (const item of page.items) {
+      if (item.captureId !== null) captureIds.add(item.captureId);
+      items.push(item);
+    }
+    if (captureIds.size > 1) {
+      throw new ApiRequestError(503, "ENRICHMENT_CHANGED", "Los eventos cambiaron mientras se cargaba el partido. Reintenta la consulta.");
+    }
+    offset += page.items.length;
+  }
+
+  const unique = new Map<string, EnrichedCommentsPage["items"][number]>();
+  for (const item of items) unique.set(`${typeof item.id}:${item.id}`, item);
+  if (unique.size !== first.total) {
+    throw new ApiRequestError(503, "ENRICHMENT_INCOMPLETE", "No se pudieron cargar todos los eventos del partido.");
+  }
+  return { ...first, limit: unique.size, offset: 0, items: [...unique.values()] };
+}
+
 /** A team's matches as a real source lists them, by kickoff. */
 export function getTeamObservedMatches(teamId: string, options?: RequestOptions) {
   return get<ObservedTeamMatches>(`/teams/${segment(teamId)}/observed-matches`, options);

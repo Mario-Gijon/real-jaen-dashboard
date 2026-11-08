@@ -4,7 +4,9 @@ import { GET } from "@/app/api/v1/enrichment/comments/route";
 
 const payload = {
   enrichment_version: "rules-v1", total: 1, limit: 25, offset: 0,
-  items: [{ comment: { source_comment_id: "1", source_position: 0, text: "Comentario original", type: "shotSaved", minute: 12, period_name: "1ST" },
+  items: [{ comment: { source_comment_id: "1", source_position: 0, text: "Comentario original", type: "shotSaved", minute: 12,
+    period_name: "1ST", is_home: 0, home_score: 0, away_score: 1 },
+    provenance: { capture_id: 8 },
     enrichment: { category: "shot", attributes: { surface: "right_foot" }, participants: [
       { source_role: "player", role: "shooter", normalizer_role: "player", source_id: 51, original: { name: "Jugador" } },
     ] } }],
@@ -29,8 +31,8 @@ describe("GET /api/v1/enrichment/comments BFF", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({
       enrichmentVersion: "rules-v1", total: 1, limit: 25, offset: 0,
-      items: [{ id: "1", position: 0, text: "Comentario original", originalType: "shotSaved", minute: 12,
-        periodName: "1ST", category: "shot", attributes: { surface: "right_foot" }, participants: [
+      items: [{ id: "1", captureId: 8, position: 0, text: "Comentario original", originalType: "shotSaved", minute: 12,
+        periodName: "1ST", isHome: false, score: { home: 0, away: 1 }, category: "shot", attributes: { surface: "right_foot" }, participants: [
           { sourceRole: "player", role: "shooter", normalizerRole: "player", sourceId: 51, name: "Jugador",
             player: { id: "sofascore-player-51", name: "Jugador", position: null } },
         ] }],

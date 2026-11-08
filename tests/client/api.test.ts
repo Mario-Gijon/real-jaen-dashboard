@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiRequestError,
   getCompetitions,
+  getAllEnrichedComments,
   getEnrichedComments,
   getMatch,
   getObservedMatchDetail,
@@ -73,6 +74,41 @@ describe("typed client", () => {
       "/api/v1/competitions",
       expect.objectContaining({ signal: controller.signal }),
     );
+  });
+
+  it("loads every result page internally and returns the full event list", async () => {
+    const item = (id: number, captureId = 42) => ({
+      id, captureId, position: id, text: `Evento ${id}`, originalType: "matchStarted", minute: null,
+      periodName: null, isHome: null, score: null, category: "match_flow", attributes: {}, participants: [],
+    });
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const offset = Number(new URL(String(input), "http://localhost").searchParams.get("offset"));
+      const items = offset === 0 ? Array.from({ length: 100 }, (_, index) => item(index + 1))
+        : Array.from({ length: 20 }, (_, index) => item(index + 101));
+      return new Response(JSON.stringify({ enrichmentVersion: "rules-v1", total: 120, limit: 100, offset, items }));
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const page = await getAllEnrichedComments("16600011");
+    expect(page.items).toHaveLength(120);
+    expect(page.items[0].id).toBe(1);
+    expect(page.items[119].id).toBe(120);
+    expect(fetch.mock.calls.map(([input]) => input)).toEqual([
+      "/api/v1/enrichment/comments?source_event_id=16600011&limit=100&offset=0",
+      "/api/v1/enrichment/comments?source_event_id=16600011&limit=100&offset=100",
+    ]);
+  });
+
+  it("does not join pages from different selected captures", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const offset = Number(new URL(String(input), "http://localhost").searchParams.get("offset"));
+      const item = { id: offset ? "second" : "first", captureId: offset ? 43 : 42, position: offset,
+        text: "Evento", originalType: "matchStarted", minute: null, periodName: null, isHome: null,
+        score: null, category: "match_flow", attributes: {}, participants: [] };
+      return new Response(JSON.stringify({ enrichmentVersion: "rules-v1", total: 2, limit: 1, offset, items: [item] }));
+    });
+    vi.stubGlobal("fetch", fetch);
+    await expect(getAllEnrichedComments("16600011")).rejects.toMatchObject({ code: "ENRICHMENT_CHANGED" });
   });
 
   it("raises the contract error", async () => {

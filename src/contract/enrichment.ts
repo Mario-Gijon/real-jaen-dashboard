@@ -12,11 +12,15 @@ export type EnrichedParticipant = {
 
 export type EnrichedComment = {
   id: string | number;
+  /** Selected source capture; used to ensure pages belong to one coherent result. */
+  captureId: number | null;
   position: number;
   text: string;
   originalType: string;
   minute: number | null;
   periodName: string | null;
+  isHome: boolean | null;
+  score: { home: number | null; away: number | null } | null;
   category: string | null;
   attributes: Record<string, EnrichmentAttributeValue>;
   participants: EnrichedParticipant[];

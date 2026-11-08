@@ -1,95 +1,118 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getEnrichedComments, getMatchComments } from "@/client/api";
-import type { EnrichedCommentsPage, MatchComments } from "@/contract";
+import { getAllEnrichedComments } from "@/client/api";
+import type { EnrichedComment, EnrichedCommentsPage } from "@/contract";
 import { MatchCommentsPanel } from "@/features/matches/MatchCommentsPanel";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
-  getEnrichedComments: vi.fn(),
-  getMatchComments: vi.fn(),
+  getAllEnrichedComments: vi.fn(),
 }));
 
-const enriched: EnrichedCommentsPage = {
-  enrichmentVersion: "rules-v1", total: 1, limit: 25, offset: 0,
-  items: [{ id: "comment-1", position: 2, text: "Remate original", originalType: "shotSaved", minute: 12,
-    periodName: "1ST", category: "shot", attributes: { surface: "right_foot", area_zone: "inside_area" },
-    participants: [{ sourceRole: "player", role: "scorer", normalizerRole: "scorer", sourceId: 597500,
-      name: "Delantero", player: { id: "sofascore-player-597500", name: "Delantero", position: null } }] }],
-};
-
-const capture = (availability: MatchComments["availability"]): MatchComments => ({
-  matchId: "sofascore-match-16600011", availability,
-  capturedAt: availability === "not_collected" ? null : "2026-11-03T16:53:19+00:00",
-  responseSha256: null,
-  lastAttempt: { availability, occurredAt: null, httpStatus: null, errorCode: null },
-  comments: availability === "available" ? [
-    { id: "last", position: 0, text: "Final del partido", type: "matchEnded", minute: null,
-      periodName: null, isHome: null, score: null, incidentId: null, participants: {} },
-    { id: "first", position: 1, text: "The full original narrative text remains on screen.", type: "goal",
-      minute: 97, periodName: "2ND", isHome: true, score: { home: 3, away: 2 }, incidentId: "incident-1",
-      participants: { player: { name: "Jugador", shortName: null, position: null, jerseyNumber: null } } },
-  ] : [],
+const participant = (id: string, name: string, role: string) => ({
+  sourceRole: "player", role, normalizerRole: role, sourceId: Number(id.split("-").at(-1)), name,
+  player: { id, name, position: null },
 });
+
+function event(overrides: Partial<EnrichedComment> & Pick<EnrichedComment, "id" | "position" | "text" | "category">): EnrichedComment {
+  return {
+    captureId: 31, originalType: "scoreChange", minute: 24, periodName: "1ST", isHome: true,
+    score: { home: 1, away: 0 }, attributes: {}, participants: [], ...overrides,
+  };
+}
+
+function page(items: EnrichedComment[]): EnrichedCommentsPage {
+  return { enrichmentVersion: "rules-v1", total: items.length, limit: items.length || 1, offset: 0, items };
+}
 
 beforeEach(() => vi.resetAllMocks());
 
-describe("MatchCommentsPanel", () => {
-  it("keeps chronological order, added minutes and comments without a minute", async () => {
-    vi.mocked(getMatchComments).mockResolvedValue(capture("available"));
-    render(<MatchCommentsPanel matchId="sofascore-match-16600011" seasonId="season-26-27" />);
-    const entries = await screen.findAllByRole("listitem");
-    expect(entries[0]).toHaveTextContent("97′");
-    expect(entries[0]).toHaveTextContent("Segunda parte");
-    expect(entries[0]).toHaveTextContent("The full original narrative text remains on screen.");
-    expect(entries[0]).toHaveTextContent("Jugador");
-    expect(entries.at(-1)).toHaveTextContent("Sin minuto");
-    expect(entries.at(-1)).toHaveTextContent("Final del partido");
-    expect(screen.getByLabelText("Comentarios narrativos en orden cronológico")).toBeVisible();
+describe("MatchCommentsPanel unified events", () => {
+  it("shows every event in one chronological list without pages or technical source codes", async () => {
+    const items = Array.from({ length: 121 }, (_, index) => event({
+      id: `event-${index}`, position: index, text: `Narración ${index}`, category: "match_flow",
+      originalType: index === 0 ? "matchEnded" : "matchStarted", minute: index,
+      periodName: index % 2 ? "2ND" : "1ST", isHome: null, score: null,
+    }));
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page(items));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600011" homeName="Real Jaén" awayName="Algeciras CF" />);
+
+    const list = await screen.findByRole("list", { name: "Eventos en orden cronológico" });
+    const rows = Array.from(list.children) as HTMLLIElement[];
+    expect(rows).toHaveLength(121);
+    expect(rows[0]).toHaveTextContent("Narración 120");
+    expect(rows.at(-1)).toHaveTextContent("Final del partido");
+    expect(screen.getAllByText("Primera parte").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Segunda parte").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /más antiguos|más recientes/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/mostrando \d+ de \d+/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("rules-v1")).not.toBeInTheDocument();
+    expect(screen.queryByText("matchEnded")).not.toBeInTheDocument();
+    expect(screen.getByText("Final del partido")).toBeVisible();
+    expect(screen.getByLabelText("Tipo de evento")).toBeVisible();
+    expect(screen.getByLabelText("Jugador")).toBeVisible();
+    expect(screen.getByLabelText("Equipo")).toBeVisible();
   });
 
-  it.each([
-    ["not_collected", "Los comentarios narrativos todavía no se han recopilado para este partido."],
-    ["empty", "La respuesta guardada es válida y no contiene comentarios narrativos."],
-  ] as const)("distinguishes %s from a collected empty response", async (availability, message) => {
-    vi.mocked(getMatchComments).mockResolvedValue(capture(availability));
-    render(<MatchCommentsPanel matchId="sofascore-match-16600011" seasonId="season-26-27" />);
-    expect(await screen.findByText(message)).toBeVisible();
+  it("combines event, structured player, and event-side team filters and links matched names in prose", async () => {
+    const scorer = participant("sofascore-player-597500", "Delantero", "scorer");
+    const assistant = participant("sofascore-player-597501", "Asistente", "assistant");
+    const items = [
+      event({ id: "goal-home", position: 4, text: "¡Gol de Delantero! Asistencia de Asistente.", category: "goal",
+        attributes: { goal_status: "valid", surface: "right_foot", goal_kind: "ordinary", contexts: ["after_corner"] },
+        participants: [scorer, assistant] }),
+      event({ id: "shot-away", position: 3, text: "Remate de Delantero.", category: "shot", isHome: false,
+        participants: [scorer], score: { home: 1, away: 0 } }),
+      event({ id: "goal-away", position: 2, text: "Gol de Delantero para el visitante.", category: "goal", isHome: false,
+        participants: [scorer], score: { home: 1, away: 1 } }),
+    ];
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page(items));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600011" homeName="Real Jaén" awayName="Algeciras CF"
+      profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600011" }} />);
+
+    fireEvent.change(await screen.findByLabelText("Tipo de evento"), { target: { value: "goal" } });
+    fireEvent.change(screen.getByLabelText("Jugador"), { target: { value: "sofascore-player-597500" } });
+    fireEvent.change(screen.getByLabelText("Equipo"), { target: { value: "home" } });
+
+    const list = screen.getByRole("list", { name: "Eventos en orden cronológico" });
+    const rows = Array.from(list.children) as HTMLLIElement[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("¡Gol de Delantero! Asistencia de Asistente.");
+    expect(within(rows[0]).getByRole("link", { name: "Delantero" })).toHaveAttribute(
+      "href", "/players/sofascore-player-597500?view=profile&from=observedMatch&origin=sofascore-match-16600011",
+    );
+    expect(within(rows[0]).getByRole("link", { name: "Asistente" })).toBeVisible();
+    expect(rows[0]).toHaveTextContent("Gol en jugada");
+    expect(rows[0]).toHaveTextContent("Pie derecho");
+    expect(rows[0]).toHaveTextContent("Tras córner");
+    expect(rows[0]).toHaveTextContent("Marcador 1–0");
+    expect(screen.queryByText("scoreChange")).not.toBeInTheDocument();
+    expect(screen.queryByText("scorer")).not.toBeInTheDocument();
+    expect(screen.queryByText("assistant")).not.toBeInTheDocument();
   });
 
-  it("shows rules-v1 labels and lets the analyst filter a match by category and original type", async () => {
-    vi.mocked(getMatchComments).mockResolvedValue(capture("available"));
-    vi.mocked(getEnrichedComments).mockResolvedValue(enriched);
-    render(<MatchCommentsPanel matchId="sofascore-match-16600011" seasonId="season-26-27" />);
-    await screen.findByText("The full original narrative text remains on screen.");
-    fireEvent.click(screen.getByRole("button", { name: "Clasificación rules-v1" }));
-    expect(await screen.findByText("Remate original")).toBeVisible();
-    expect(screen.getAllByText("Remates")).toHaveLength(2);
-    expect(screen.getByText("Pie derecho")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Delantero" })).toHaveAttribute(
-      "href", "/players/sofascore-player-597500?season=season-26-27",
-    );
-    expect(getEnrichedComments).toHaveBeenCalledWith(
-      { sourceEventId: "16600011", category: undefined, originalType: undefined, limit: 25, offset: 0 },
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "shot" } });
-    await screen.findByLabelText("Categoría");
-    await screen.findByLabelText("Tipo original");
-    fireEvent.change(screen.getByLabelText("Tipo original"), { target: { value: "shotSaved" } });
-    expect(await screen.findByText("Remate original")).toBeVisible();
-    expect(getEnrichedComments).toHaveBeenLastCalledWith(
-      { sourceEventId: "16600011", category: "shot", originalType: "shotSaved", limit: 25, offset: 0 },
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
+  it("leaves ambiguous names and participants without IDs as plain text and omits empty attributes", async () => {
+    const item = event({ id: "ambiguous", position: 1, category: "foul", text: "Falta de Juan Pérez sobre Juan.",
+      attributes: { infraction_type: "foul", unknown_internal_field: "internal_code" },
+      participants: [
+        participant("sofascore-player-1", "Juan", "foul_committer"),
+        participant("sofascore-player-2", "Juan", "foul_recipient"),
+        { sourceRole: "player", role: null, normalizerRole: null, sourceId: null, name: "Juan Pérez", player: null },
+      ] });
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600011" />);
+    const row = await screen.findByText("Falta de Juan Pérez sobre Juan.");
+    expect(row.querySelectorAll("a")).toHaveLength(0);
+    expect(row).toHaveTextContent("Falta de Juan Pérez sobre Juan.");
+    expect(screen.getByText("Infracción")).toBeVisible();
+    expect(screen.queryByText("unknown_internal_field")).not.toBeInTheDocument();
+    expect(screen.queryByText("internal_code")).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Juan (ID 1)" })).toBeVisible();
   });
 
-  it("keeps the classification view available when narrative comments were not collected", async () => {
-    vi.mocked(getMatchComments).mockResolvedValue(capture("not_collected"));
-    vi.mocked(getEnrichedComments).mockResolvedValue(enriched);
-    render(<MatchCommentsPanel matchId="sofascore-match-16600011" seasonId="season-26-27" />);
-    expect(await screen.findByText("Los comentarios narrativos todavía no se han recopilado para este partido.")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Clasificación rules-v1" }));
-    expect(await screen.findByText("Remate original")).toBeVisible();
+  it("does not request a real event for local or synthetic match IDs", () => {
+    render(<MatchCommentsPanel matchId="match-demo-1" />);
+    expect(screen.getByText("La cronología de eventos no está disponible para este partido.")).toBeVisible();
+    expect(getAllEnrichedComments).not.toHaveBeenCalled();
   });
 });

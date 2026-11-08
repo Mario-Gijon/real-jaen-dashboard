@@ -21,7 +21,7 @@ const STATUS: Record<MatchStatus, string> = { finished: "Finalizado", scheduled:
 /** The synthetic detail's tabs without «Cronología»: no real timeline yet. */
 const SECTIONS = ["summary", "lineups", "comments"] as const;
 type Section = (typeof SECTIONS)[number];
-const LABEL: Record<Section, string> = { summary: "Resumen", lineups: "Alineaciones", comments: "Comentarios" };
+const LABEL: Record<Section, string> = { summary: "Resumen", lineups: "Alineaciones", comments: "Eventos" };
 const timeFormat = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
 });
@@ -127,7 +127,8 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
     <section role="tabpanel" id={`match-${section}-panel`} aria-labelledby={`match-${section}-tab`} className={css.summary}>
         {section === "summary" ? <Summary data={data} retry={retry} />
           : section === "lineups" ? <Lineups data={data} retry={retry} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} />
-            : <MatchCommentsPanel matchId={match.id} />}
+            : <MatchCommentsPanel matchId={match.id} homeName={home} awayName={away}
+              profileOrigin={{ kind: "observedMatch", id: match.id, matches: matchesOrigin }} />}
     </section>
   </>;
 }

@@ -68,15 +68,15 @@ describe("Match quick summary", () => {
     expect(screen.getByRole("tab", { name: "Alineaciones" })).toHaveFocus();
     expect(screen.getByRole("tabpanel", { name: "Alineaciones" })).toHaveTextContent("No hay alineaciones disponibles para este partido.");
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Comentarios" })).toHaveFocus();
-    expect(await screen.findByRole("status")).toHaveTextContent("todavía no se han recopilado");
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveFocus();
+    expect(await screen.findByRole("status")).toHaveTextContent("no está disponible para este partido");
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tabpanel", { name: "Resumen" })).toHaveTextContent("Estadísticas de equipo");
     await user.click(screen.getByRole("tab", { name: "Cronología" }));
     await user.keyboard("{Home}");
     expect(screen.getByRole("tab", { name: "Resumen" })).toHaveFocus();
     await user.keyboard("{End}");
-    expect(screen.getByRole("tab", { name: "Comentarios" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveFocus();
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: "Alineaciones" })).toHaveFocus();
   });

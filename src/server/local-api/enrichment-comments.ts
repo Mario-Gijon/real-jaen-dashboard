@@ -24,6 +24,13 @@ function requiredText(value: unknown, field: string): string {
   return value;
 }
 
+function optionalBoolean(value: unknown, field: string): boolean | null {
+  if (value === undefined || value === null) return null;
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  throw invalid(field);
+}
+
 function parseParticipant(value: unknown, field: string) {
   if (!isRecord(value)) throw invalid(field);
   const sourceRole = requiredText(value.source_role, `${field}.source_role`);
@@ -59,14 +66,24 @@ function parseComment(value: unknown, index: number): EnrichedComment {
   const originalType = requiredText(comment.type, `${field}.comment.type`);
   const category = optionalText(enrichment.category, `${field}.enrichment.category`);
   const minute = comment.minute === null ? null : count(comment.minute, `${field}.comment.minute`);
+  const homeScore = comment.home_score === null || comment.home_score === undefined
+    ? null : count(comment.home_score, `${field}.comment.home_score`);
+  const awayScore = comment.away_score === null || comment.away_score === undefined
+    ? null : count(comment.away_score, `${field}.comment.away_score`);
+  const provenance = isRecord(value.provenance) ? value.provenance : null;
+  const captureId = provenance?.capture_id === null || provenance?.capture_id === undefined
+    ? null : count(provenance.capture_id, `${field}.provenance.capture_id`);
   if (!Array.isArray(enrichment.participants)) throw invalid(`${field}.enrichment.participants`);
   return {
     id,
+    captureId,
     position: count(comment.source_position, `${field}.comment.source_position`),
     text,
     originalType,
     minute,
     periodName: optionalText(comment.period_name, `${field}.comment.period_name`),
+    isHome: optionalBoolean(comment.is_home, `${field}.comment.is_home`),
+    score: homeScore === null && awayScore === null ? null : { home: homeScore, away: awayScore },
     category,
     attributes: parseAttributes(enrichment.attributes, `${field}.enrichment.attributes`),
     participants: enrichment.participants.map((participant, participantIndex) =>

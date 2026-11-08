@@ -11,8 +11,9 @@ const response = {
     comment: {
       source_comment_id: "narrative-1", source_position: 4,
       text: " ¡Gol! Real Jaén 1, Algeciras 0. ", type: "scoreChange", minute: 27,
-      period_name: "1ST",
+      period_name: "1ST", is_home: 1, home_score: 1, away_score: 0,
     },
+    provenance: { capture_id: 31 },
     enrichment: {
       category: "goal",
       attributes: { goal_status: "valid", surface: null, contexts: [] },
@@ -28,8 +29,8 @@ describe("local API adapter: enriched narrative comments", () => {
     const load = createLocalApiEnrichedComments({ baseUrl: "http://127.0.0.1:8001/", fetch });
     await expect(load({ sourceEventId: "16600011", category: "goal", limit: 25, offset: 0 })).resolves.toEqual({
       enrichmentVersion: "rules-v1", total: 1, limit: 25, offset: 0,
-      items: [{ id: "narrative-1", position: 4, text: " ¡Gol! Real Jaén 1, Algeciras 0. ",
-        originalType: "scoreChange", minute: 27, periodName: "1ST", category: "goal",
+      items: [{ id: "narrative-1", captureId: 31, position: 4, text: " ¡Gol! Real Jaén 1, Algeciras 0. ",
+        originalType: "scoreChange", minute: 27, periodName: "1ST", isHome: true, score: { home: 1, away: 0 }, category: "goal",
         attributes: { goal_status: "valid", surface: null, contexts: [] },
         participants: [{ sourceRole: "player", role: "scorer", normalizerRole: "scorer", sourceId: 597500,
           name: "Delantero", player: { id: "sofascore-player-597500", name: "Delantero", position: null } }] }],
@@ -50,7 +51,7 @@ describe("local API adapter: enriched narrative comments", () => {
   });
 
   it("links only valid structured numeric player IDs and leaves text-only names unlinked", async () => {
-    const payload = structuredClone(response);
+    const payload: { items: Array<{ enrichment: { participants: unknown[] } }> } = structuredClone(response);
     payload.items[0].enrichment.participants = [
       { source_role: "player", role: "scorer", normalizer_role: "scorer", source_id: "597501", original: { name: "Goleador" } },
       { source_role: "player", role: null, normalizer_role: "foul_committed", source_id: "not-an-id", original: { name: "Nombre sin ID" } },

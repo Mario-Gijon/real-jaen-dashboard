@@ -1,13 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiRequestError, getCompetitions, getMatch, getObservedMatchDetail } from "@/client/api";
-import type { ObservedGoal, ObservedLineupPlayer, ObservedMatchDetail, PlayerRef, TeamMatchStats } from "@/contract";
+import { ApiRequestError, getAllEnrichedComments, getCompetitions, getMatch, getObservedMatchDetail } from "@/client/api";
+import type { EnrichedCommentsPage, ObservedGoal, ObservedLineupPlayer, ObservedMatchDetail, PlayerRef, TeamMatchStats } from "@/contract";
 import { RealMatchDetailView } from "@/features/matches/RealMatchDetailView";
 
 vi.mock("@/client/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/client/api")>(),
-  getSource: vi.fn(), getObservedMatchDetail: vi.fn(), getMatch: vi.fn(), getCompetitions: vi.fn(),
+  getSource: vi.fn(), getObservedMatchDetail: vi.fn(), getMatch: vi.fn(), getCompetitions: vi.fn(), getAllEnrichedComments: vi.fn(),
 }));
 
 const missing = { value: null, reason: "not_available" } as const;
@@ -74,7 +74,7 @@ describe("Real match detail: Resumen", () => {
   it("shows the header without competition nor provenance block, and in Resumen the team stats from the source, unknown values as «—»", async () => {
     render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
     expect(await screen.findByRole("heading", { level: 1, name: "CE Europa contra Real Jaén" })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Resumen", "Alineaciones", "Comentarios"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Resumen", "Alineaciones", "Eventos"]);
     expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
     // Competition and season stay in the data, not on screen; the round and date do.
     expect(screen.queryByText(/Primera Federacion/)).toBeNull();
@@ -107,6 +107,23 @@ describe("Real match detail: Resumen", () => {
     expect(screen.getByRole("tabpanel", { name: "Alineaciones" })).toBeVisible();
     await user.keyboard("{Home}");
     expect(screen.getByRole("tabpanel", { name: "Resumen" })).toBeVisible();
+  });
+
+  it("shows the unified event tab and links a structured player back to their real profile", async () => {
+    const page: EnrichedCommentsPage = {
+      enrichmentVersion: "rules-v1", total: 1, limit: 1, offset: 0,
+      items: [{ id: "event-1", captureId: 15, position: 1, text: "Tarjeta amarilla para Titular 50.",
+        originalType: "yellowCard", minute: 41, periodName: "1ST", isHome: true, score: { home: 0, away: 1 },
+        category: "discipline", attributes: {}, participants: [{ sourceRole: "player", role: "booked_player",
+          normalizerRole: "player", sourceId: 50, name: "Titular 50", player: { id: "sofascore-player-50", name: "Titular 50", position: null } }] }],
+    };
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page);
+    render(<RealMatchDetailView matchId="sofascore-match-16599363" />);
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Eventos" }));
+    const eventList = await screen.findByRole("list", { name: "Eventos en orden cronológico" });
+    expect(eventList).toHaveTextContent("Tarjeta amarilla para Titular 50.");
+    expect(await screen.findByRole("link", { name: "Titular 50" })).toHaveAttribute("href",
+      "/players/sofascore-player-50?view=profile&from=observedMatch&origin=sofascore-match-16599363");
   });
 
   it("distinguishes statistics not stored, stored empty and a failed query", async () => {
