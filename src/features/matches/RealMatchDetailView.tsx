@@ -78,6 +78,9 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
   relatedHref: (matchId: string) => string;
 }) {
   const { match } = data;
+  const rosterPlayers = data.lineups.state === "stored"
+    ? [...data.lineups.home, ...data.lineups.away].map(({ player }) => player)
+    : [];
   const tabs = useRef<HTMLDivElement>(null);
   function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
     const index = SECTIONS.indexOf(section);
@@ -128,6 +131,7 @@ function Detail({ data, retry, linkProfiles, section, setSection, relatedHref, m
         {section === "summary" ? <Summary data={data} retry={retry} />
           : section === "lineups" ? <Lineups data={data} retry={retry} linkProfiles={linkProfiles} matchesOrigin={matchesOrigin} />
             : <MatchCommentsPanel matchId={match.id} homeName={home} awayName={away}
+              rosterPlayers={rosterPlayers}
               profileOrigin={{ kind: "observedMatch", id: match.id, matches: matchesOrigin }} />}
     </section>
   </>;

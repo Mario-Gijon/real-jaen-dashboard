@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { getAllEnrichedComments } from "@/client/api";
-import type { EnrichedComment, EnrichmentAttributeValue } from "@/contract";
+import type { EnrichedComment, EnrichmentAttributeValue, PlayerRef } from "@/contract";
 import { PlayerLink } from "@/features/players/PlayerLink";
 import type { ProfileOrigin } from "@/lib/navigation";
 import { Button } from "@/ui/Button";
@@ -62,15 +62,46 @@ const publicPlayerIdPattern = /^sofascore-player-[1-9]\d*$/;
 type FilterTeam = "all" | "home" | "away";
 type PlayerChoice = { id: string; name: string; label: string };
 type Mention = { start: number; end: number; id: string; name: string };
+type ResolvedParticipant = { name: string | null; player: PlayerRef | null; optionName: string | null };
+type EventRow = { item: EnrichedComment; participants: ResolvedParticipant[] };
 
 function sourceEventId(matchId: string): string | null {
   return matchIdPattern.exec(matchId)?.[1] ?? null;
 }
 
-function periodLabel(value: string | null): string | null {
-  if (value === "1ST") return "Primera parte";
-  if (value === "2ND") return "Segunda parte";
-  return null;
+function nameTokens(value: string): string[] {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es-ES").match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+function sameRosterPlayer(name: string, rosterName: string): boolean {
+  const source = nameTokens(name);
+  const roster = nameTokens(rosterName);
+  if (source.length < 2 || source[0] !== roster[0] || source.at(-1) !== roster.at(-1) || source.length > roster.length) return false;
+  let cursor = 0;
+  return source.every((token) => {
+    const index = roster.indexOf(token, cursor);
+    if (index < 0) return false;
+    cursor = index + 1;
+    return true;
+  });
+}
+
+function resolveParticipant(participant: EnrichedComment["participants"][number], roster: PlayerRef[]): ResolvedParticipant {
+  const name = participant.name?.trim() || null;
+  const direct = participant.player && publicPlayerIdPattern.test(participant.player.id) ? participant.player : null;
+  if (direct) return { name, player: direct, optionName: name ? direct.name : null };
+  if (!name || participant.sourceRole !== "player") return { name, player: null, optionName: null };
+
+  const candidates = new Map<string, PlayerRef>();
+  for (const player of roster) {
+    if (publicPlayerIdPattern.test(player.id) && sameRosterPlayer(name, player.name)) candidates.set(player.id, player);
+  }
+  const player = candidates.size === 1 ? [...candidates.values()][0] : null;
+  return { name, player, optionName: player ? player.name : null };
+}
+
+function resolvedRows(items: EnrichedComment[], roster: PlayerRef[]): EventRow[] {
+  return items.map((item) => ({ item, participants: item.participants.map((participant) => resolveParticipant(participant, roster)) }));
 }
 
 function eventLabel(item: EnrichedComment): string {
@@ -79,11 +110,11 @@ function eventLabel(item: EnrichedComment): string {
   return CATEGORY_LABELS[item.category] ?? "Evento";
 }
 
-function playerChoices(items: EnrichedComment[]): PlayerChoice[] {
+function playerChoices(rows: EventRow[]): PlayerChoice[] {
   const namesById = new Map<string, Map<string, { name: string; count: number }>>();
-  for (const item of items) for (const participant of item.participants) {
+  for (const row of rows) for (const participant of row.participants) {
     const player = participant.player;
-    const name = participant.name?.trim();
+    const name = participant.optionName?.trim();
     if (!player || !publicPlayerIdPattern.test(player.id) || !name) continue;
     const names = namesById.get(player.id) ?? new Map<string, { name: string; count: number }>();
     const key = name.toLocaleLowerCase("es-ES");
@@ -113,26 +144,52 @@ function isWordCharacter(value: string | undefined): boolean {
   return value !== undefined && /[\p{L}\p{M}\p{N}_]/u.test(value);
 }
 
-function playerMentions(text: string, participants: EnrichedComment["participants"]): Mention[] {
+function mentionAliases(name: string): string[] {
+  const words = name.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+  const aliases = new Set([name.trim()]);
+  if (words.length > 2) aliases.add(`${words[0]} ${words.at(-1)}`);
+  return [...aliases].filter(Boolean);
+}
+
+function rosterMatches(name: string, playerId: string, roster: PlayerRef[]): boolean {
+  const matches = new Map<string, PlayerRef>();
+  for (const player of roster) {
+    if (publicPlayerIdPattern.test(player.id) && sameRosterPlayer(name, player.name)) matches.set(player.id, player);
+  }
+  return matches.size === 1 && matches.has(playerId);
+}
+
+function playerMentions(text: string, participants: ResolvedParticipant[], roster: PlayerRef[]): Mention[] {
   const idsByName = new Map<string, Map<string, { id: string; name: string }>>();
   const nameConflicts = new Set<string>();
-  const allNames = new Set<string>();
+  const allNames = new Map<string, string>();
+  const keyFor = (name: string) => nameTokens(name).join(" ");
   for (const participant of participants) {
-    const name = participant.name?.trim();
-    if (!name) continue;
-    const key = name.toLocaleLowerCase("es-ES");
-    allNames.add(name);
+    const names = new Set([participant.name, participant.player?.name]
+      .filter((name): name is string => Boolean(name?.trim()))
+      .flatMap(mentionAliases));
+    if (!names.size) continue;
     const player = participant.player;
     if (!player || !publicPlayerIdPattern.test(player.id)) {
-      nameConflicts.add(key);
+      for (const name of names) {
+        const key = keyFor(name);
+        nameConflicts.add(key);
+        allNames.set(key, name);
+      }
       continue;
     }
-    const byId = idsByName.get(key) ?? new Map<string, { id: string; name: string }>();
-    byId.set(player.id, { id: player.id, name });
-    idsByName.set(key, byId);
+    for (const name of names) {
+      const key = keyFor(name);
+      // Abbreviated prose aliases are linked only when this match's roster confirms one ID.
+      if (nameTokens(name).length < nameTokens(player.name).length && !rosterMatches(name, player.id, roster)) continue;
+      allNames.set(key, name);
+      const byId = idsByName.get(key) ?? new Map<string, { id: string; name: string }>();
+      byId.set(player.id, { id: player.id, name });
+      idsByName.set(key, byId);
+    }
   }
 
-  const spansByName = [...allNames].map((name) => {
+  const spansByName = [...allNames.values()].map((name) => {
     const expression = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
     return [...text.matchAll(expression)].map((match) => ({
       start: match.index,
@@ -142,11 +199,10 @@ function playerMentions(text: string, participants: EnrichedComment["participant
   }).flat();
 
   const matches: Mention[] = [];
-  for (const people of idsByName.values()) {
-    // A prose name shared by different structured IDs is ambiguous; leave it unlinked.
+  for (const [key, people] of idsByName) {
     if (people.size !== 1) continue;
+    if (nameConflicts.has(key)) continue;
     const player = [...people.values()][0];
-    if (nameConflicts.has(player.name.toLocaleLowerCase("es-ES"))) continue;
     const expression = new RegExp(player.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
     for (const match of text.matchAll(expression)) {
       const start = match.index;
@@ -177,10 +233,10 @@ function playerMentions(text: string, participants: EnrichedComment["participant
   return selected;
 }
 
-function TextWithPlayers({ item, seasonId, profileOrigin }: {
-  item: EnrichedComment; seasonId?: string; profileOrigin?: ProfileOrigin;
+function TextWithPlayers({ item, participants, rosterPlayers, seasonId, profileOrigin }: {
+  item: EnrichedComment; participants: ResolvedParticipant[]; rosterPlayers: PlayerRef[]; seasonId?: string; profileOrigin?: ProfileOrigin;
 }) {
-  const mentions = playerMentions(item.text, item.participants);
+  const mentions = playerMentions(item.text, participants, rosterPlayers);
   if (!mentions.length) return <>{item.text}</>;
   const parts: ReactNode[] = [];
   let cursor = 0;
@@ -213,8 +269,8 @@ function attributesFor(item: EnrichedComment) {
   });
 }
 
-export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, profileOrigin }: {
-  matchId: string; seasonId?: string; homeName?: string | null; awayName?: string | null; profileOrigin?: ProfileOrigin;
+export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, profileOrigin, rosterPlayers = [] }: {
+  matchId: string; seasonId?: string; homeName?: string | null; awayName?: string | null; profileOrigin?: ProfileOrigin; rosterPlayers?: PlayerRef[];
 }) {
   const eventId = sourceEventId(matchId);
   const result = useApi(eventId ? `match-events|${eventId}` : null,
@@ -223,13 +279,14 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
   const [playerId, setPlayerId] = useState("");
   const [team, setTeam] = useState<FilterTeam>("all");
   const items = result.data?.items ?? [];
-  const players = useMemo(() => playerChoices(items), [items]);
-  const filtered = useMemo(() => items.filter((item) => {
+  const rows = useMemo(() => resolvedRows(items, rosterPlayers), [items, rosterPlayers]);
+  const players = useMemo(() => playerChoices(rows), [rows]);
+  const filtered = useMemo(() => rows.filter(({ item, participants }) => {
     const categoryMatches = category === "__unclassified" ? item.category === null : !category || item.category === category;
-    const playerMatches = !playerId || item.participants.some((participant) => participant.player?.id === playerId);
+    const playerMatches = !playerId || participants.some((participant) => participant.player?.id === playerId);
     const teamMatches = team === "all" || (team === "home" ? item.isHome === true : item.isHome === false);
     return categoryMatches && playerMatches && teamMatches;
-  }), [items, category, playerId, team]);
+  }), [rows, category, playerId, team]);
 
   if (!eventId) return <p className={css.empty} role="status">La cronología de eventos no está disponible para este partido.</p>;
   if (result.error) return <div className={css.message} role="alert">
@@ -240,7 +297,8 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
     <LoadingState variant="section" label="Cargando eventos…" />
   </section>;
 
-  const chronological = [...filtered].sort((left, right) => right.position - left.position);
+  // Source position preserves the provider's period and same-minute ordering without rendering period labels.
+  const chronological = [...filtered].sort((left, right) => right.item.position - left.item.position);
   return <section className={css.panel} aria-label="Eventos del partido">
     <div className={css.filters} aria-label="Filtros de eventos">
       <label>Tipo de evento
@@ -267,17 +325,16 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
     {chronological.length === 0 ? <p className={css.empty} role="status">
       {items.length ? "No hay eventos que coincidan con estos filtros." : "No hay eventos disponibles para este partido."}
     </p> : <ol className={css.timeline} aria-label="Eventos en orden cronológico">
-      {chronological.map((item) => {
-        const period = periodLabel(item.periodName);
+      {chronological.map(({ item, participants }) => {
         const attributes = attributesFor(item);
         return <li key={`${item.captureId ?? "capture"}-${typeof item.id}-${item.id}`} className={css.item}>
           <div className={css.when}>
             <strong>{item.minute === null ? "Sin minuto" : `${item.minute}′`}</strong>
-            {period ? <span>{period}</span> : null}
           </div>
           <div className={css.content}>
             <span className={css.kind}>{eventLabel(item)}</span>
-            <p className={css.text}><TextWithPlayers item={item} seasonId={seasonId} profileOrigin={profileOrigin} /></p>
+            <p className={css.text}><TextWithPlayers item={item} participants={participants} rosterPlayers={rosterPlayers}
+              seasonId={seasonId} profileOrigin={profileOrigin} /></p>
             {item.score && (item.score.home !== null || item.score.away !== null) ? <p className={css.score}
               aria-label={`Marcador: ${item.score.home ?? "no disponible"} a ${item.score.away ?? "no disponible"}`}>
               Marcador <strong>{item.score.home ?? "—"}–{item.score.away ?? "—"}</strong>

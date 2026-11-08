@@ -126,6 +126,29 @@ describe("Real match detail: Resumen", () => {
       "/players/sofascore-player-50?view=profile&from=observedMatch&origin=sofascore-match-16599363");
   });
 
+  it("uses a unique structured lineup identity when an event participant has no public player ID", async () => {
+    const matchLineups: ObservedMatchDetail["lineups"] = {
+      ...lineups,
+      away: [...lineups.away, lineupPlayer(2137657, "Cheikh Tidiane Thiam")],
+    };
+    vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({ lineups: matchLineups }, { id: "sofascore-match-16600019" }));
+    vi.mocked(getAllEnrichedComments).mockResolvedValue({
+      enrichmentVersion: "rules-v1", total: 1, limit: 1, offset: 0,
+      items: [{ id: "handball-88", captureId: 22, position: 1, text: "Mano de Cheikh Thiam (Villarreal II).",
+        originalType: "freeKickLost", minute: 88, periodName: "2ND", isHome: false, score: { home: 1, away: 2 },
+        category: "foul", attributes: {}, participants: [{ sourceRole: "player", role: "foul_committer",
+          normalizerRole: "player", sourceId: null, name: "Cheikh Thiam", player: null }] }],
+    });
+    render(<RealMatchDetailView matchId="sofascore-match-16600019" />);
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Eventos" }));
+    const eventList = await screen.findByRole("list", { name: "Eventos en orden cronológico" });
+    expect(eventList).toHaveTextContent("Mano de Cheikh Thiam (Villarreal II).");
+    expect(await screen.findByRole("link", { name: "Cheikh Thiam" })).toHaveAttribute("href",
+      "/players/sofascore-player-2137657?view=profile&from=observedMatch&origin=sofascore-match-16600019");
+    await userEvent.setup().selectOptions(screen.getByLabelText("Jugador"), "sofascore-player-2137657");
+    expect(eventList.children).toHaveLength(1);
+  });
+
   it("distinguishes statistics not stored, stored empty and a failed query", async () => {
     vi.mocked(getObservedMatchDetail).mockResolvedValue(detail({}, { status: "scheduled", score: null, kickoff: "2026-11-07T15:30:00Z" }));
     const view = render(<RealMatchDetailView matchId="sofascore-match-16599386" />);

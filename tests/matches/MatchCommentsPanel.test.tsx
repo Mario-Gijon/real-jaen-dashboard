@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAllEnrichedComments } from "@/client/api";
-import type { EnrichedComment, EnrichedCommentsPage } from "@/contract";
+import type { EnrichedComment, EnrichedCommentsPage, PlayerRef } from "@/contract";
 import { MatchCommentsPanel } from "@/features/matches/MatchCommentsPanel";
 
 vi.mock("@/client/api", async (importOriginal) => ({
@@ -42,8 +42,9 @@ describe("MatchCommentsPanel unified events", () => {
     expect(rows).toHaveLength(121);
     expect(rows[0]).toHaveTextContent("Narración 120");
     expect(rows.at(-1)).toHaveTextContent("Final del partido");
-    expect(screen.getAllByText("Primera parte").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Segunda parte").length).toBeGreaterThan(0);
+    expect(screen.getByText("120′")).toBeVisible();
+    expect(screen.queryByText("Primera parte", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Segunda parte", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /más antiguos|más recientes/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/mostrando \d+ de \d+/i)).not.toBeInTheDocument();
     expect(screen.queryByText("rules-v1")).not.toBeInTheDocument();
@@ -52,6 +53,23 @@ describe("MatchCommentsPanel unified events", () => {
     expect(screen.getByLabelText("Tipo de evento")).toBeVisible();
     expect(screen.getByLabelText("Jugador")).toBeVisible();
     expect(screen.getByLabelText("Equipo")).toBeVisible();
+  });
+
+  it("keeps separate periods internally when two events share the same displayed minute", async () => {
+    const items = [
+      event({ id: "first-half", position: 1, minute: 45, periodName: "1ST", text: "Gol de Primera.", category: "goal" }),
+      event({ id: "second-half", position: 2, minute: 45, periodName: "2ND", text: "Gol de Segunda.", category: "goal" }),
+    ];
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page(items));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600011" />);
+    const list = await screen.findByRole("list", { name: "Eventos en orden cronológico" });
+    const rows = Array.from(list.children) as HTMLLIElement[];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Gol de Segunda.");
+    expect(rows[1]).toHaveTextContent("Gol de Primera.");
+    expect(screen.getAllByText("45′")).toHaveLength(2);
+    expect(screen.queryByText("Primera parte", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Segunda parte", { exact: true })).not.toBeInTheDocument();
   });
 
   it("combines event, structured player, and event-side team filters and links matched names in prose", async () => {
@@ -108,6 +126,53 @@ describe("MatchCommentsPanel unified events", () => {
     expect(screen.queryByText("unknown_internal_field")).not.toBeInTheDocument();
     expect(screen.queryByText("internal_code")).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Juan (ID 1)" })).toBeVisible();
+  });
+
+  it("links SofaScore's shortened Cheikh Thiam mention and filters all his structured events", async () => {
+    const cheikh = participant("sofascore-player-2137657", "Cheikh Tidiane Thiam", "foul_committer");
+    const roster: PlayerRef[] = [{ id: "sofascore-player-2137657", name: "Cheikh Tidiane Thiam", position: null }];
+    const items = [
+      event({ id: "handball-88", position: 3, minute: 88, originalType: "freeKickLost", category: "foul",
+        text: "Mano de Cheikh Thiam (Villarreal II).", participants: [cheikh] }),
+      event({ id: "shot-78", position: 2, minute: 78, originalType: "shotOffTarget", category: "shot",
+        text: "Disparo que sale desviado de Cheikh Thiam (Villarreal II).", participants: [cheikh] }),
+      event({ id: "shot-50", position: 1, minute: 50, originalType: "shotBlocked", category: "shot",
+        text: "Remate rechazado de Cheikh Thiam (Villarreal II).", participants: [cheikh] }),
+    ];
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page(items));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={roster}
+      profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600019" }} />);
+
+    const links = await screen.findAllByRole("link", { name: "Cheikh Thiam" });
+    expect(links).toHaveLength(3);
+    expect(links[0]).toHaveAttribute("href", "/players/sofascore-player-2137657?view=profile&from=observedMatch&origin=sofascore-match-16600019");
+    fireEvent.change(screen.getByLabelText("Jugador"), { target: { value: "sofascore-player-2137657" } });
+    expect(screen.getByRole("list", { name: "Eventos en orden cronológico" }).children).toHaveLength(3);
+    expect(screen.getByRole("option", { name: "Cheikh Tidiane Thiam" })).toBeVisible();
+  });
+
+  it("resolves a missing participant ID only from one matching roster player", async () => {
+    const item = event({ id: "lineup-resolved", position: 1, text: "Mano de Cheikh Thiam.", category: "foul",
+      participants: [{ sourceRole: "player", role: "foul_committer", normalizerRole: "player", sourceId: null,
+        name: "Cheikh Thiam", player: null }] });
+    const player: PlayerRef = { id: "sofascore-player-2137657", name: "Cheikh Tidiane Thiam", position: null };
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    const view = render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[player]}
+      profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600019" }} />);
+    expect(await screen.findByRole("link", { name: "Cheikh Thiam" })).toHaveAttribute("href",
+      "/players/sofascore-player-2137657?view=profile&from=observedMatch&origin=sofascore-match-16600019");
+    expect(screen.getByRole("option", { name: "Cheikh Tidiane Thiam" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Jugador"), { target: { value: player.id } });
+    expect(screen.getByRole("list", { name: "Eventos en orden cronológico" }).children).toHaveLength(1);
+    view.unmount();
+
+    vi.mocked(getAllEnrichedComments).mockResolvedValue(page([item]));
+    render(<MatchCommentsPanel matchId="sofascore-match-16600019" rosterPlayers={[player,
+      { id: "sofascore-player-999", name: "Cheikh Thiam", position: null }]}
+      profileOrigin={{ kind: "observedMatch", id: "sofascore-match-16600019" }} />);
+    expect(await screen.findByText("Mano de Cheikh Thiam.")).toBeVisible();
+    expect(screen.getByText("Mano de Cheikh Thiam.").querySelector("a")).toBeNull();
+    expect(screen.queryByRole("option", { name: "Cheikh Tidiane Thiam" })).not.toBeInTheDocument();
   });
 
   it("does not request a real event for local or synthetic match IDs", () => {
