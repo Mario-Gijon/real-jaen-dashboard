@@ -103,6 +103,10 @@
   padding-left: var(--rj-space-5);
   font-size: var(--rj-text-sm);
 }
+.matchId {
+  color: var(--rj-text-secondary);
+  font-size: var(--rj-text-xs);
+}
 .steps {
   display: flex;
   flex-wrap: wrap;

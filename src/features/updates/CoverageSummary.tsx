@@ -2,30 +2,62 @@
 
 import Link from "next/link";
 import type { UpdateCoverage } from "@/contract";
-import { REASON_LABELS, RESOURCE_LABELS } from "./labels";
+import { REASON_LABELS, RESOURCE_LABELS, updateTime } from "./labels";
 import css from "./Updates.module.css";
 
 const COMMENT_FAILURE_LABELS: Record<string, string> = {
-  not_found: "No disponible en SofaScore (404)",
   parse: "Respuesta ilegible",
   error: "Error de consulta",
   persistence_error: "No se pudo guardar la captura",
   transport_error: "Error de transporte",
 };
 
+const COMMENT_PENDING_LABELS: Record<string, string> = {
+  budget: "aplazado por el límite de consultas; se conserva la versión previa si existía",
+  not_requested: "pendiente para una próxima actualización",
+};
+
+const COMMENT_UNAVAILABLE_LABELS: Record<string, string> = {
+  not_found: "SofaScore respondió 404; se volverá a consultar en futuras actualizaciones",
+  empty: "SofaScore devolvió una lista vacía; se volverá a consultar en futuras actualizaciones",
+};
+
 /**
  * What a group update published: new data, previous data kept and pending resources, never mixed. A pending
  * resource is not "no data": it keeps the previous version if there was one, and is never shown as zero.
  */
-export function CoverageSummary({ coverage }: { coverage: UpdateCoverage }) {
+export function CoverageSummary({ coverage, requestedAt }: { coverage: UpdateCoverage; requestedAt?: string }) {
   // A match by its teams (named by the backend from the data just published), linked to its page.
-  const MatchName = ({ matchId }: { matchId: string }) => (
-    coverage.matchNames[matchId]
-      ? <Link href={`/matches/${matchId}`}>{coverage.matchNames[matchId]}</Link>
-      : <span>Evento externo {matchId}</span>
-  );
+  const MatchName = ({ matchId }: { matchId: string }) => {
+    const sourceId = matchId.replace(/^sofascore-match-/, "");
+    return <>
+      {coverage.matchNames[matchId]
+        ? <Link href={`/matches/${matchId}`}>{coverage.matchNames[matchId]}</Link>
+        : <span>Evento externo {matchId}</span>}
+      {sourceId !== matchId ? <span className={css.matchId}> (SofaScore ID {sourceId})</span> : null}
+    </>;
+  };
+  const commentsUnavailableById = new Map([
+    ...coverage.comments.failed
+      .filter(({ reason }) => reason === "not_found" || reason === "empty")
+      .map((item) => [item.matchId, item] as const),
+    ...coverage.comments.emptyMatchIds.map((matchId) => [matchId, { matchId, reason: "empty" }] as const),
+  ]);
+  const commentsUnavailable = [...commentsUnavailableById.values()];
+  const deferredComments = new Set(coverage.deferredMatchIds);
+  const commentsPendingById = new Map<string, { matchId: string; reason: string }>();
+  for (const matchId of coverage.comments.pendingMatchIds) {
+    commentsPendingById.set(matchId, { matchId, reason: deferredComments.has(matchId) ? "budget" : "not_requested" });
+  }
+  for (const item of coverage.comments.failed.filter(({ reason }) => reason === "budget")) {
+    commentsPendingById.set(item.matchId, item);
+  }
+  const commentsPending = [...commentsPendingById.values()];
+  const commentsErrors = coverage.comments.failed.filter(({ reason }) =>
+    reason !== "not_found" && reason !== "empty" && reason !== "budget");
   return (
     <div className={css.coverage}>
+      {requestedAt ? <p className={css.muted}>Solicitud recibida el {updateTime(requestedAt)}; la cobertura corresponde a esta operación.</p> : null}
       <ul className={css.counts}>
         <li><strong>{coverage.newResources}</strong> datos nuevos</li>
         <li><strong>{coverage.keptResources}</strong> datos anteriores conservados</li>
@@ -103,21 +135,30 @@ export function CoverageSummary({ coverage }: { coverage: UpdateCoverage }) {
       ) : null}
       <h3>Comentarios narrativos</h3>
       <ul className={css.counts}>
-        <li><strong>{coverage.comments.newMatchIds.length}</strong> partidos con comentarios nuevos</li>
+        <li><strong>{coverage.comments.newMatchIds.length}</strong> partidos con narración nueva</li>
         <li><strong>{coverage.comments.keptMatchIds.length}</strong> partidos con comentarios conservados</li>
-        <li><strong>{coverage.comments.pendingMatchIds.length}</strong> partidos pendientes de comentarios</li>
-        <li><strong>{coverage.comments.failed.length}</strong> partidos sin recopilar por error</li>
+        <li><strong>{commentsPending.length}</strong> partidos pendientes de comentarios</li>
+        <li><strong>{commentsUnavailable.length}</strong> {commentsUnavailable.length === 1 ? "partido sin narración disponible" : "partidos sin narración disponible"}</li>
+        <li><strong>{commentsErrors.length}</strong> {commentsErrors.length === 1 ? "partido con error de comentarios" : "partidos con errores de comentarios"}</li>
       </ul>
-      {coverage.comments.pendingMatchIds.length ? (
+      <p className={css.muted}>Los 404 y las listas vacías no bloquean resultados ni estadísticas; se volverán a consultar en futuras actualizaciones.</p>
+      {commentsPending.length ? (
         <ul className={css.pending} aria-label="Partidos pendientes de comentarios narrativos">
-          {coverage.comments.pendingMatchIds.map((matchId) => (
-            <li key={matchId}><MatchName matchId={matchId} /></li>
+          {commentsPending.map(({ matchId, reason }) => (
+            <li key={matchId}><MatchName matchId={matchId} />: {COMMENT_PENDING_LABELS[reason] ?? COMMENT_PENDING_LABELS.not_requested}</li>
           ))}
         </ul>
       ) : null}
-      {coverage.comments.failed.length ? (
+      {commentsUnavailable.length ? (
+        <ul className={css.pending} aria-label="Partidos sin narración disponible">
+          {commentsUnavailable.map(({ matchId, reason }) => (
+            <li key={matchId}><MatchName matchId={matchId} />: {COMMENT_UNAVAILABLE_LABELS[reason]}</li>
+          ))}
+        </ul>
+      ) : null}
+      {commentsErrors.length ? (
         <ul className={css.pending} aria-label="Errores de comentarios narrativos">
-          {coverage.comments.failed.map(({ matchId, reason }) => (
+          {commentsErrors.map(({ matchId, reason }) => (
             <li key={matchId}><MatchName matchId={matchId} />: {COMMENT_FAILURE_LABELS[reason] ?? reason}</li>
           ))}
         </ul>

@@ -31,12 +31,12 @@ export const RESOURCE_LABELS: Record<UpdateResource, string> = {
 
 /** Why a resource is pending, in Spanish. None of them means "no data exist" and none becomes a zero. */
 export const REASON_LABELS: Record<UpdatePendingReason, string> = {
-  empty: "respuesta sin datos",
-  not_found: "no disponible en la fuente",
-  parse: "respuesta ilegible",
-  error: "error de la fuente",
-  budget: "pendiente para la próxima actualización",
-  not_requested: "no consultado",
+  empty: "respuesta vacía",
+  not_found: "no encontrado en SofaScore (404)",
+  parse: "respuesta no interpretable",
+  error: "error temporal de consulta",
+  budget: "aplazado por el límite de consultas",
+  not_requested: "no consultado en esta actualización",
   restricted: "fuera del alcance de esta actualización",
 };
 
@@ -44,6 +44,7 @@ export const REASON_LABELS: Record<UpdatePendingReason, string> = {
 export const hasPending = (job: UpdateJob) => job.status === "completed" && (
   (job.result?.coverage?.pending.length ?? 0) > 0 ||
   (job.result?.coverage?.comments.pendingMatchIds.length ?? 0) > 0 ||
+  (job.result?.coverage?.comments.emptyMatchIds.length ?? 0) > 0 ||
   (job.result?.coverage?.comments.failed.length ?? 0) > 0
 );
 

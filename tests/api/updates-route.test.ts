@@ -169,6 +169,7 @@ describe("update routes", () => {
         coverage: { new: 35, kept: 608, deferred: [16599970], restricted: [16600001], detail_rounds: [9],
           new_matches: [{ id: 17000001, replaces: [16599919] }],
           pending: [{ event_id: 16599967, resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
+          comments: { new: [16599967], empty: [16599967], kept: [], pending: [], failed: [] },
           names: { "16599967": "Real Jaén – CE Europa" } } } });
     backend(() => json(done));
     const params = { params: Promise.resolve({ updateId: JOB_ID }) };
@@ -177,7 +178,7 @@ describe("update routes", () => {
       restrictedMatchIds: ["sofascore-match-16600001"], detailRounds: [9],
       newMatches: [{ matchId: "sofascore-match-17000001", replaces: ["sofascore-match-16599919"] }],
       pending: [{ matchId: "sofascore-match-16599967", resources: [{ resource: "statistics", reason: "empty", kept: false }] }],
-      comments: { newMatchIds: [], keptMatchIds: [], pendingMatchIds: [], failed: [] },
+      comments: { newMatchIds: [], emptyMatchIds: ["sofascore-match-16599967"], keptMatchIds: [], pendingMatchIds: [], failed: [] },
       matchNames: { "sofascore-match-16599967": "Real Jaén – CE Europa" } });
   });
 

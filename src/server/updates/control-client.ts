@@ -52,6 +52,7 @@ type BackendCoverage = {
   names?: Record<string, string>;
   comments?: {
     new: number[];
+    empty?: number[];
     kept: number[];
     pending: number[];
     failed: { id: number; reason: string }[];
@@ -102,6 +103,7 @@ function forgetCachesAfter(publishedAt: string) {
 }
 
 function coverage(value: BackendCoverage): UpdateCoverage {
+  const emptyComments = new Set(value.comments?.empty ?? []);
   return {
     newResources: value.new,
     keptResources: value.kept,
@@ -115,7 +117,8 @@ function coverage(value: BackendCoverage): UpdateCoverage {
     newMatches: value.new_matches.map((m) => ({ matchId: publicMatchId(m.id), replaces: m.replaces.map(publicMatchId) })),
     matchNames: Object.fromEntries(Object.entries(value.names ?? {}).map(([id, name]) => [publicMatchId(Number(id)), name])),
     comments: {
-      newMatchIds: (value.comments?.new ?? []).map(publicMatchId),
+      newMatchIds: (value.comments?.new ?? []).filter((id) => !emptyComments.has(id)).map(publicMatchId),
+      emptyMatchIds: [...emptyComments].map(publicMatchId),
       keptMatchIds: (value.comments?.kept ?? []).map(publicMatchId),
       pendingMatchIds: (value.comments?.pending ?? []).map(publicMatchId),
       failed: (value.comments?.failed ?? []).map((item) => ({

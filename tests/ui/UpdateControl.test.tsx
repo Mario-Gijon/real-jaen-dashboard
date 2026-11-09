@@ -132,11 +132,17 @@ describe("Group 2 scope", () => {
       { matchId: "sofascore-match-2", resources: [{ resource: "lineups" as const, reason: "error" as const, kept: true }] },
     ],
     comments: { newMatchIds: ["sofascore-match-6"], keptMatchIds: ["sofascore-match-7"],
-      pendingMatchIds: ["sofascore-match-8"], failed: [{ matchId: "sofascore-match-9", reason: "transport_error" }] },
+      emptyMatchIds: ["sofascore-match-10"], pendingMatchIds: ["sofascore-match-8"], failed: [
+        { matchId: "sofascore-match-9", reason: "not_found" },
+        { matchId: "sofascore-match-11", reason: "transport_error" },
+        { matchId: "sofascore-match-12", reason: "budget" },
+      ] },
     matchNames: { "sofascore-match-1": "Real Jaén – CE Europa", "sofascore-match-2": "Huesca – UD Ibiza",
       "sofascore-match-4": "Real Murcia – Hércules CF", "sofascore-match-5": "Real Murcia – Hércules CF",
       "sofascore-match-6": "Real Jaén – Algeciras CF", "sofascore-match-7": "Hércules CF – Huesca",
-      "sofascore-match-8": "CE Europa – Real Jaén", "sofascore-match-9": "Real Jaén – FC Cartagena" } };
+      "sofascore-match-8": "CE Europa – Real Jaén", "sofascore-match-9": "Real Jaén – FC Cartagena",
+      "sofascore-match-10": "Atlético Sanluqueño – Real Jaén", "sofascore-match-11": "Real Jaén – FC Cartagena",
+      "sofascore-match-12": "Real Jaén – Villarreal B" } };
   const done = job({ status: "completed", phase: "finished", published: true, cancellable: false, finishedAt: "2026-10-28T17:02:00Z",
     result: { publishedAt: "2026-10-28T17:02:00Z", reusedBundle: false, coverage } });
 
@@ -149,17 +155,48 @@ describe("Group 2 scope", () => {
     expect(screen.getByText("datos anteriores conservados").parentElement).toHaveTextContent("608 datos anteriores conservados");
     expect(screen.getByText(/partidos con pendientes/).parentElement).toHaveTextContent("2 partidos con pendientes");
     const first = (await screen.findByRole("link", { name: "Real Jaén – CE Europa" })).closest("li")!;
-    expect(first).toHaveTextContent("estadísticas (respuesta sin datos, sin datos publicados)");
+    expect(first).toHaveTextContent("estadísticas (respuesta vacía, sin datos publicados)");
     const second = (await screen.findByRole("link", { name: "Huesca – UD Ibiza" })).closest("li")!;
-    expect(second).toHaveTextContent("alineaciones (error de la fuente, se mantiene la versión anterior)");
+    expect(second).toHaveTextContent("alineaciones (error temporal de consulta, se mantiene la versión anterior)");
     expect(screen.getByText(/1 revisión queda para\s+la próxima actualización por el límite de consultas\. Se siguen sirviendo sus datos anteriores\./)).toBeVisible();
     expect(screen.getByRole("heading", { name: "Eventos detectados para revisión" })).toBeVisible();
     expect(screen.getByText("Evento externo sofascore-match-3").closest("a")).toBeNull();
     expect(screen.getByText(/No se han incorporado ni consultado sus detalles/)).toBeVisible();
     expect(await screen.findAllByRole("link", { name: "Real Murcia – Hércules CF" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Real Jaén – CE Europa" })[0].parentElement).toHaveTextContent("SofaScore ID 1");
+    expect(screen.getByText(/Solicitud recibida el 28\/10, 18:00/)).toBeVisible();
     expect(screen.getByText(/posible sustitución de/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Actualizar Grupo 2" })).toBeEnabled();
     expect(fetch.mock.calls.every(([url]) => String(url).startsWith("/api/v1/updates"))).toBe(true);  // no data API calls
+  });
+
+  it("separates unavailable narrative from actual errors and keeps 404s non-fatal", async () => {
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: done }) }));
+    render(<OperatorView />);
+    expect(await screen.findByText(/^Actualización completada con pendientes/)).toBeVisible();
+    expect(screen.getByText("partidos sin narración disponible").parentElement).toHaveTextContent("2 partidos sin narración disponible");
+    expect(screen.getByText("partido con error de comentarios").parentElement).toHaveTextContent("1 partido con error de comentarios");
+    const unavailable = screen.getByRole("list", { name: "Partidos sin narración disponible" });
+    expect(unavailable).toHaveTextContent("SofaScore respondió 404; se volverá a consultar en futuras actualizaciones");
+    expect(unavailable).toHaveTextContent("SofaScore devolvió una lista vacía; se volverá a consultar en futuras actualizaciones");
+    expect(unavailable).toHaveTextContent("SofaScore ID 9");
+    const commentsPending = screen.getByRole("list", { name: "Partidos pendientes de comentarios narrativos" });
+    expect(commentsPending).toHaveTextContent("CE Europa – Real Jaén (SofaScore ID 8): pendiente para una próxima actualización");
+    expect(commentsPending).toHaveTextContent("Real Jaén – Villarreal B (SofaScore ID 12): aplazado por el límite de consultas");
+    expect(screen.getByText("partidos pendientes de comentarios").parentElement).toHaveTextContent("2 partidos pendientes de comentarios");
+    expect(screen.getByRole("list", { name: "Errores de comentarios narrativos" })).toHaveTextContent("Error de transporte");
+    expect(screen.getByText(/Los 404 y las listas vacías no bloquean resultados ni estadísticas/)).toBeVisible();
+  });
+
+  it("shows an empty HTTP 200 narrative capture as a follow-up item, not an update failure", async () => {
+    const emptyOnly = job({ ...done, result: { ...done.result!, coverage: { ...coverage, pending: [], deferredMatchIds: [],
+      restrictedMatchIds: [], newMatches: [], comments: { newMatchIds: [], keptMatchIds: [],
+        emptyMatchIds: ["sofascore-match-10"], pendingMatchIds: [], failed: [] } } } });
+    api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: emptyOnly }) }));
+    render(<OperatorView />);
+    expect(await screen.findByText(/^Actualización completada con pendientes/)).toBeVisible();
+    expect(screen.getByRole("list", { name: "Partidos sin narración disponible" })).toHaveTextContent("Atlético Sanluqueño – Real Jaén");
+    expect(screen.queryByText(/actualización fallida/i)).toBeNull();
   });
 
   it("labels the top bar with the group's action and the same pending line", async () => {
@@ -201,7 +238,7 @@ describe("Group 2 scope", () => {
 
   it("reports a group update without pending items as published", async () => {
     const clean = job({ ...done, result: { ...done.result!, coverage: { ...coverage, pending: [], deferredMatchIds: [], newMatches: [],
-      comments: { ...coverage.comments, pendingMatchIds: [], failed: [] } } } });
+      comments: { ...coverage.comments, emptyMatchIds: [], pendingMatchIds: [], failed: [] } } } });
     api(() => ({ body: operatorStatus({ scope: GROUP, lastJob: clean }) }));
     render(<OperatorView />);
     expect(await screen.findByText(/^Publicado el 28\/10/)).toBeVisible();

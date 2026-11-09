@@ -68,7 +68,9 @@ export function OperatorView() {
               {jobLine(job)}
             </p>
             <p className={css.muted}>Solicitada el {updateTime(job.requestedAt)}.</p>
-            {job.status === "completed" && job.result?.coverage ? <CoverageSummary coverage={job.result.coverage} /> : null}
+            {job.status === "completed" && job.result?.coverage ? (
+              <CoverageSummary coverage={job.result.coverage} requestedAt={job.requestedAt} />
+            ) : null}
           </>
         ) : (
           <p className={css.muted}>No hay actualizaciones todavía.</p>

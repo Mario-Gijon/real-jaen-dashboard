@@ -46,6 +46,8 @@ export type UpdateCoverage = {
   /** Narrative-comment backfill within this update's sequential batches. */
   comments: {
     newMatchIds: string[];
+    /** Successfully stored empty HTTP 200 captures: no narrations to display yet, checked again on later updates. */
+    emptyMatchIds: string[];
     keptMatchIds: string[];
     pendingMatchIds: string[];
     failed: { matchId: string; reason: string }[];
