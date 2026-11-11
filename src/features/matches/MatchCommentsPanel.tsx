@@ -1,13 +1,16 @@
 "use client";
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { getAllEnrichedComments } from "@/client/api";
-import type { EnrichedComment, EnrichmentAttributeValue, PlayerRef } from "@/contract";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Video, X } from "lucide-react";
+import { deleteMatchVideoReference, getAllEnrichedComments, getCurrentMatchVideoJob, getMatchVideo, getMatchVideoJob, locateMatchVideoEvent, startMatchVideoJob } from "@/client/api";
+import type { EnrichedComment, PlayerRef, VideoEventLocation, VideoJob } from "@/contract";
 import { PlayerLink } from "@/features/players/PlayerLink";
 import type { ProfileOrigin } from "@/lib/navigation";
 import { Button } from "@/ui/Button";
 import { LoadingState } from "@/ui/LoadingState";
 import { failureReason, useApi } from "@/hooks/use-api";
+import { YouTubePlayer } from "./YouTubePlayer";
+import type { YouTubePlaybackSnapshot } from "./YouTubePlayer";
 import css from "./MatchCommentsPanel.module.css";
 
 const CATEGORIES = [
@@ -25,49 +28,58 @@ const MATCH_FLOW_LABELS: Readonly<Record<string, string>> = {
   endSecondHalf: "Final de la segunda parte",
   matchEnded: "Final del partido",
 };
-const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
-  goal_status: "Estado",
-  goal_kind: "Tipo de gol",
-  goal_origin: "Origen",
-  surface: "Superficie",
-  area_zone: "Zona",
-  sector: "Sector",
-  prior_pass: "Pase previo",
-  assistant_name: "Asistencia mencionada",
-  assistant_name_text: "Asistencia mencionada",
-  contexts: "Contexto",
-  infraction_type: "Infracción",
-  location_context: "Ubicación",
-  flank: "Banda",
-  benefiting_team_text: "Equipo beneficiado",
-  conceding_player_text: "Jugador que concede",
-};
-const VALUE_LABELS: Readonly<Record<string, string>> = {
-  valid: "Válido", disallowed: "Anulado", ordinary: "Gol en jugada", own_goal: "Autogol",
-  set_piece: "Balón parado", open_play: "Jugada normal", penalty: "Penalti",
-  right_foot: "Pie derecho", left_foot: "Pie izquierdo", head: "Cabeza",
-  inside_area: "Dentro del área", outside_area: "Fuera del área",
-  center: "Centro", left: "Izquierda", right: "Derecha",
-  cross: "Centro al área", long_pass: "Pase largo", through_ball: "Pase en profundidad",
-  after_corner: "Tras córner", after_free_kick: "Tras falta", direct_free_kick: "Falta directa",
-  var_confirmation: "Confirmado por VAR", var_cancellation: "Anulado por VAR", counterattack: "Contraataque",
-  foul: "Falta", handball: "Mano", defensive_zone: "Zona defensiva", opponent_half: "Campo contrario",
-};
-const FREE_TEXT_ATTRIBUTES = new Set([
-  "assistant_name", "assistant_name_text", "benefiting_team_text", "conceding_player_text",
-]);
 const matchIdPattern = /^sofascore-match-([1-9]\d*)$/;
 const publicPlayerIdPattern = /^sofascore-player-[1-9]\d*$/;
+const youtubeVideoIdPattern = /^[A-Za-z0-9_-]{11}$/;
+const activeVideoJobStatuses = new Set<VideoJob["status"]>(["pending", "downloading", "calibrating", "saving"]);
 const KNOWN_GIVEN_NAME_ALIASES = new Map([["eduardo", "edu"]]);
+const EMPTY_COMMENTS: EnrichedComment[] = [];
 
 type FilterTeam = "all" | "home" | "away";
 type PlayerChoice = { id: string; name: string; label: string };
 type Mention = { start: number; end: number; id: string; name: string; player: PlayerRef };
 type ResolvedParticipant = { name: string | null; player: PlayerRef | null; optionName: string | null };
 type EventRow = { item: EnrichedComment; participants: ResolvedParticipant[]; mentions: Mention[] };
+type LocationState = VideoEventLocation | { status: "loading" } | { status: "error"; message: string };
 
 function sourceEventId(matchId: string): string | null {
   return matchIdPattern.exec(matchId)?.[1] ?? null;
+}
+
+function isYouTubeVideoUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443")) return false;
+    let id: string | null = null;
+    if (["youtu.be", "www.youtu.be"].includes(host)) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length === 1) id = parts[0];
+    } else if (["youtube.com", "www.youtube.com", "m.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"].includes(host)) {
+      if (url.pathname === "/watch") {
+        const values = url.searchParams.getAll("v");
+        if (values.length === 1) id = values[0];
+      } else {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length === 2 && ["embed", "live", "shorts"].includes(parts[0])) id = parts[1];
+      }
+    }
+    return id !== null && youtubeVideoIdPattern.test(id);
+  } catch {
+    return false;
+  }
+}
+
+function videoJobLabel(job: VideoJob): string {
+  const labels: Record<VideoJob["status"], string> = {
+    pending: "Pendiente",
+    downloading: "Descargando vídeo",
+    calibrating: "Analizando el reloj y sincronizando con OCR",
+    saving: "Guardando la sincronización",
+    completed: "Procesamiento completado",
+    failed: "No se pudo completar el procesamiento",
+  };
+  return labels[job.status];
 }
 
 function nameTokens(value: string): string[] {
@@ -113,6 +125,20 @@ function eventLabel(item: EnrichedComment): string {
   if (item.category === "match_flow") return MATCH_FLOW_LABELS[item.originalType] ?? "Desarrollo del partido";
   if (!item.category) return "Sin clasificar";
   return CATEGORY_LABELS[item.category] ?? "Evento";
+}
+
+function eventKey(item: EnrichedComment): string {
+  return `${item.captureId ?? "capture"}-${typeof item.id}-${item.id}`;
+}
+
+function locationParameters(item: EnrichedComment) {
+  const period = periodFor(item.periodName);
+  const eventKind: "other" | "match_start" | "period_start" = item.originalType === "matchStarted" && period === "first" ? "match_start"
+    : item.originalType === "matchStarted" && period === "second" ? "period_start" : "other";
+  const periodStart = eventKind !== "other";
+  if ((!periodStart && (item.minute === null || item.minute < 1)) || !period) return null;
+  const minute = item.minute !== null && item.minute >= 1 ? minuteForVideo(item.minute, period) : null;
+  return { period, eventKind, minute };
 }
 
 function playerChoices(rows: EventRow[]): PlayerChoice[] {
@@ -333,35 +359,46 @@ function TextWithPlayers({ item, mentions, seasonId, profileOrigin }: {
   return <>{parts.map((part, index) => typeof part === "string" ? <Fragment key={`text-${index}`}>{part}</Fragment> : part)}</>;
 }
 
-function attributeText(key: string, value: Exclude<EnrichmentAttributeValue, null>): string | null {
-  const values = Array.isArray(value) ? value : [value];
-  if (FREE_TEXT_ATTRIBUTES.has(key)) {
-    const text = values.filter((item) => item.trim()).join(", ");
-    return text || null;
-  }
-  const translated = values.flatMap((item) => VALUE_LABELS[item] ? [VALUE_LABELS[item]] : []);
-  return translated.length ? translated.join(", ") : null;
-}
-
-function attributesFor(item: EnrichedComment) {
-  return Object.entries(item.attributes).flatMap(([key, value]) => {
-    const label = ATTRIBUTE_LABELS[key];
-    if (!label || value === null) return [];
-    const text = attributeText(key, value);
-    return text ? [{ key, label, text }] : [];
-  });
-}
-
 export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, profileOrigin, rosterPlayers = [] }: {
   matchId: string; seasonId?: string; homeName?: string | null; awayName?: string | null; profileOrigin?: ProfileOrigin; rosterPlayers?: PlayerRef[];
 }) {
   const eventId = sourceEventId(matchId);
   const result = useApi(eventId ? `match-events|${eventId}` : null,
     (signal) => getAllEnrichedComments(eventId!, { signal }));
+  const videoResult = useApi(eventId ? `match-video|${eventId}` : null,
+    (signal) => getMatchVideo(matchId, { signal }));
+  const videoRetry = useRef(videoResult.retry);
   const [category, setCategory] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [team, setTeam] = useState<FilterTeam>("all");
-  const items = result.data?.items ?? [];
+  const [locationByKey, setLocationByKey] = useState<Record<string, LocationState>>({});
+  const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
+  const [expandedEventKeys, setExpandedEventKeys] = useState<Set<string>>(() => new Set());
+  const [seekRequest, setSeekRequest] = useState<{ sequence: number; seconds: number; scope: string } | null>(null);
+  const [scrollRange, setScrollRange] = useState({ left: 0, max: 0 });
+  const [playback, setPlayback] = useState<YouTubePlaybackSnapshot>({
+    currentTime: 0, duration: 0, ready: false, playing: false, error: false,
+  });
+  const [manualCarouselPaused, setManualCarouselPaused] = useState(false);
+  const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
+  const [videoJobLoaded, setVideoJobLoaded] = useState(false);
+  const [videoJobError, setVideoJobError] = useState<string | null>(null);
+  const [addVideoOpen, setAddVideoOpen] = useState(false);
+  const [deleteVideoOpen, setDeleteVideoOpen] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [submittingVideo, setSubmittingVideo] = useState(false);
+  const [deletingVideo, setDeletingVideo] = useState(false);
+  const [videoOperationBusy, setVideoOperationBusy] = useState(false);
+  const eventsRef = useRef<HTMLOListElement>(null);
+  const eventCardRefs = useRef(new Map<string, HTMLLIElement>());
+  const lastAutoFollowedKey = useRef<string | null>(null);
+  const locationCache = useRef(new Map<string, LocationState>());
+  const locationRequests = useRef(new Map<string, Promise<LocationState>>());
+  const latestLocateRequest = useRef(0);
+  const manualCarouselTimer = useRef<number | null>(null);
+  const jobPollInFlight = useRef(false);
+  const items = result.data?.items ?? EMPTY_COMMENTS;
   const rows = useMemo(() => resolvedRows(items, rosterPlayers), [items, rosterPlayers]);
   const players = useMemo(() => playerChoices(rows), [rows]);
   const filtered = useMemo(() => rows.filter(({ item, participants, mentions }) => {
@@ -372,63 +409,455 @@ export function MatchCommentsPanel({ matchId, seasonId, homeName, awayName, prof
     return categoryMatches && playerMatches && teamMatches;
   }), [rows, category, playerId, team]);
 
-  if (!eventId) return <p className={css.empty} role="status">La cronología de eventos no está disponible para este partido.</p>;
-  if (result.error) return <div className={css.message} role="alert">
-    <p>No se pudieron cargar los eventos. {failureReason(result.error)}</p>
-    <Button size="sm" onClick={result.retry}>Reintentar</Button>
-  </div>;
-  if (!result.data) return <section className={css.panel} aria-label="Eventos del partido" aria-busy="true">
-    <LoadingState variant="section" label="Cargando eventos…" />
-  </section>;
+  const chronological = useMemo(() => [...filtered].sort((left, right) => right.item.position - left.item.position), [filtered]);
+  const videoReference = videoResult.data?.available ? videoResult.data : null;
+  const hasVideo = videoReference !== null;
+  const videoScope = `${matchId}:${videoReference?.youtubeVideoId ?? ""}`;
+  const timelineVideoSecond = playback.provisionalTime ?? playback.currentTime;
+  const activeJobId = videoJob?.jobId;
+  const activeJobStatus = videoJob?.status;
 
-  // Source position preserves the provider's period and same-minute ordering without rendering period labels.
-  const chronological = [...filtered].sort((left, right) => right.item.position - left.item.position);
-  return <section className={css.panel} aria-label="Eventos del partido">
-    <div className={css.filters} aria-label="Filtros de eventos">
-      <label>Tipo de evento
-        <select value={category} onChange={(event) => setCategory(event.target.value)}>
-          <option value="">Todos</option>
-          {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          <option value="__unclassified">Sin clasificar</option>
-        </select>
-      </label>
-      <label>Jugador
-        <select value={playerId} onChange={(event) => setPlayerId(event.target.value)}>
-          <option value="">Todos los jugadores</option>
-          {players.map((player) => <option key={player.id} value={player.id}>{player.label}</option>)}
-        </select>
-      </label>
-      <label>Equipo
-        <select value={team} onChange={(event) => setTeam(event.target.value as FilterTeam)}>
-          <option value="all">Ambos equipos</option>
-          <option value="home">{homeName || "Equipo local"}</option>
-          <option value="away">{awayName || "Equipo visitante"}</option>
-        </select>
-      </label>
+  const playbackUpdate = useCallback((next: YouTubePlaybackSnapshot) => setPlayback(next), []);
+  const rememberLocation = useCallback((key: string, location: LocationState) => {
+    if (location.status !== "loading") locationCache.current.set(key, location);
+    setLocationByKey((current) => ({ ...current, [key]: location }));
+  }, []);
+  const requestLocation = useCallback((item: EnrichedComment, key: string): Promise<LocationState> => {
+    const parameters = locationParameters(item);
+    if (!parameters) return Promise.resolve({ status: "error", message: "El evento no tiene minuto y periodo localizables." });
+    const cached = locationCache.current.get(key);
+    if (cached && cached.status !== "error" && cached.status !== "loading") return Promise.resolve(cached);
+    const inFlight = locationRequests.current.get(key);
+    if (inFlight) return inFlight;
+
+    const request = locateMatchVideoEvent(matchId, parameters.period, parameters.minute, parameters.eventKind)
+      .then((location) => {
+        rememberLocation(key, location);
+        return location;
+      })
+      .catch((error: unknown) => {
+        const failed: LocationState = { status: "error", message: failureReason(error) };
+        rememberLocation(key, failed);
+        return failed;
+      })
+      .finally(() => { locationRequests.current.delete(key); });
+    locationRequests.current.set(key, request);
+    return request;
+  }, [matchId, rememberLocation]);
+
+  useEffect(() => { videoRetry.current = videoResult.retry; });
+
+  useEffect(() => {
+    if (!videoReference || videoReference.synchronizationStatus !== "calibrated") return;
+    let active = true;
+    let cursor = 0;
+    const candidates = chronological.filter(({ item }) => locationParameters(item) !== null);
+    const worker = async () => {
+      while (active && cursor < candidates.length) {
+        const row = candidates[cursor++];
+        await requestLocation(row.item, `${videoScope}::${eventKey(row.item)}`);
+      }
+    };
+    void Promise.all(Array.from({ length: Math.min(3, candidates.length) }, () => worker()));
+    return () => { active = false; };
+  }, [chronological, requestLocation, videoReference, videoScope]);
+
+  const activePlaybackEventKey = useMemo(() => {
+    if (!hasVideo || !playback.ready) return null;
+    const pointsBySecond = new Map<number, string>();
+    for (const { item } of chronological) {
+      const key = eventKey(item);
+      const location = locationByKey[`${videoScope}::${key}`];
+      if (location?.status !== "resolved") continue;
+      const second = Math.round(location.videoSecond);
+      if (!pointsBySecond.has(second)) pointsBySecond.set(second, key);
+    }
+    const points = [...pointsBySecond.entries()].sort(([left], [right]) => left - right);
+    let activeKey: string | null = null;
+    for (const [second, key] of points) {
+      if (second > timelineVideoSecond + 0.5) break;
+      activeKey = key;
+    }
+    return activeKey;
+  }, [chronological, hasVideo, locationByKey, playback.ready, timelineVideoSecond, videoScope]);
+
+  useEffect(() => {
+    let active = true;
+    setVideoJob(null);
+    setVideoJobError(null);
+    setVideoJobLoaded(false);
+    void getCurrentMatchVideoJob(matchId).then((job) => {
+      if (!active) return;
+      setVideoJob(job);
+      setVideoJobError(null);
+      setVideoJobLoaded(true);
+      if (job?.status === "completed") videoRetry.current();
+    }).catch((error: unknown) => {
+      if (active) {
+        setVideoJobError(failureReason(error));
+        setVideoJobLoaded(true);
+      }
+    });
+    return () => { active = false; };
+  }, [eventId, matchId]);
+
+  useEffect(() => {
+    if (!activeJobStatus || !activeVideoJobStatuses.has(activeJobStatus)) return;
+    if (!activeJobId) return;
+    let active = true;
+    const poll = window.setInterval(() => {
+      if (jobPollInFlight.current) return;
+      jobPollInFlight.current = true;
+      void getMatchVideoJob(matchId, activeJobId).then((job) => {
+        if (!active) return;
+        setVideoJob(job);
+        setVideoJobError(null);
+        setVideoJobLoaded(true);
+        if (job?.status === "completed") videoRetry.current();
+      }).catch((error: unknown) => {
+        if (active) setVideoJobError(failureReason(error));
+      }).finally(() => { jobPollInFlight.current = false; });
+    }, 2000);
+    return () => { active = false; window.clearInterval(poll); };
+  }, [activeJobId, activeJobStatus, matchId]);
+
+  useEffect(() => {
+    if (!addVideoOpen && !deleteVideoOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !submittingVideo && !deletingVideo) {
+        setAddVideoOpen(false);
+        setDeleteVideoOpen(false);
+        setOperationError(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [addVideoOpen, deleteVideoOpen, submittingVideo, deletingVideo]);
+
+  useEffect(() => {
+    const list = eventsRef.current;
+    if (!list) return;
+    const updateRange = () => setScrollRange({ left: list.scrollLeft, max: Math.max(0, list.scrollWidth - list.clientWidth) });
+    list.addEventListener("scroll", updateRange, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateRange);
+    observer?.observe(list);
+    updateRange();
+    return () => {
+      list.removeEventListener("scroll", updateRange);
+      observer?.disconnect();
+    };
+  }, [chronological.length, hasVideo]);
+
+  useEffect(() => {
+    const scrubbingTimeline = playback.scrubbing === true;
+    if (!hasVideo || !activePlaybackEventKey || (!scrubbingTimeline && manualCarouselPaused)) return;
+    const activeChanged = lastAutoFollowedKey.current !== activePlaybackEventKey;
+    if (!scrubbingTimeline && !playback.playing && !activeChanged) return;
+    const list = eventsRef.current;
+    const card = eventCardRefs.current.get(activePlaybackEventKey);
+    if (!list || !card) return;
+    const listBounds = list.getBoundingClientRect();
+    const cardBounds = card.getBoundingClientRect();
+    if (cardBounds.left < listBounds.left) {
+      list.scrollBy({ left: cardBounds.left - listBounds.left, behavior: "smooth" });
+    } else if (cardBounds.right > listBounds.right) {
+      list.scrollBy({ left: cardBounds.right - listBounds.right, behavior: "smooth" });
+    }
+    lastAutoFollowedKey.current = activePlaybackEventKey;
+  }, [activePlaybackEventKey, hasVideo, manualCarouselPaused, playback.playing, playback.scrubbing]);
+
+  useEffect(() => () => {
+    if (manualCarouselTimer.current !== null) window.clearTimeout(manualCarouselTimer.current);
+  }, []);
+
+  function noteManualCarouselUse() {
+    setManualCarouselPaused(true);
+    if (manualCarouselTimer.current !== null) window.clearTimeout(manualCarouselTimer.current);
+    manualCarouselTimer.current = window.setTimeout(() => {
+      setManualCarouselPaused(false);
+    }, 2800);
+  }
+
+  function scrollCarousel(direction: -1 | 1) {
+    noteManualCarouselUse();
+    const list = eventsRef.current;
+    if (!list) return;
+    list.scrollBy({ left: direction * Math.max(280, Math.round(list.clientWidth * 0.82)), behavior: "smooth" });
+  }
+
+  async function locateEvent(item: EnrichedComment, key: string) {
+    if (!locationParameters(item)) return;
+    const scopedKey = `${videoScope}::${key}`;
+    const requestNumber = latestLocateRequest.current + 1;
+    latestLocateRequest.current = requestNumber;
+    setSelectedEventKey(scopedKey);
+    const cached = locationCache.current.get(scopedKey);
+    if (cached && cached.status !== "error" && cached.status !== "loading") {
+      if (cached.status === "resolved") setSeekRequest({ sequence: requestNumber, seconds: cached.videoSecond, scope: videoScope });
+      return;
+    }
+    setLocationByKey((current) => ({ ...current, [scopedKey]: { status: "loading" } }));
+    const location = await requestLocation(item, scopedKey);
+    if (latestLocateRequest.current !== requestNumber) return;
+    if (location.status === "resolved") setSeekRequest({ sequence: requestNumber, seconds: location.videoSecond, scope: videoScope });
+  }
+
+  async function addVideo(event: import("react").FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedUrl = youtubeUrl.trim();
+    if (!isYouTubeVideoUrl(normalizedUrl)) {
+      setOperationError("Pega un enlace HTTPS válido de YouTube.");
+      return;
+    }
+    setSubmittingVideo(true);
+    setVideoOperationBusy(true);
+    setOperationError(null);
+    try {
+      const job = await startMatchVideoJob(matchId, normalizedUrl);
+      setVideoJob(job);
+      setVideoJobError(null);
+      setYoutubeUrl("");
+      setAddVideoOpen(false);
+      if (job.status === "completed") videoRetry.current();
+    } catch (error) {
+      setOperationError(failureReason(error));
+    } finally {
+      setSubmittingVideo(false);
+      setVideoOperationBusy(false);
+    }
+  }
+
+  async function removeVideo() {
+    setDeletingVideo(true);
+    setVideoOperationBusy(true);
+    setOperationError(null);
+    try {
+      await deleteMatchVideoReference(matchId);
+      setDeleteVideoOpen(false);
+      setVideoJob(null);
+      setVideoJobError(null);
+      videoResult.retry();
+    } catch (error) {
+      setOperationError(failureReason(error));
+    } finally {
+      setDeletingVideo(false);
+      setVideoOperationBusy(false);
+    }
+  }
+
+  if (!eventId) return <p className={css.empty} role="status">La cronología de eventos no está disponible para este partido.</p>;
+  return <section className={css.panel} aria-label="Eventos del partido" data-video-layout={hasVideo ? "wide" : undefined}>
+    <div className={css.videoSection} aria-label="Vídeo del partido">
+      {videoResult.loading ? <p className={css.videoStatus} role="status" aria-busy="true">Comprobando vídeo asociado…</p>
+        : videoResult.error ? <div className={`${css.videoStatus} ${css.message}`} role="alert">
+        <p>No se pudo consultar el vídeo asociado. {failureReason(videoResult.error)}</p>
+        <Button size="sm" onClick={videoResult.retry}>Reintentar</Button>
+      </div> : videoReference ? <>
+        <div className={css.videoToolbar}>
+          <Button size="sm" onClick={() => { setOperationError(null); setDeleteVideoOpen(true); }}
+            disabled={videoOperationBusy} icon={<Trash2 size={15} aria-hidden="true" />}>
+            Eliminar vídeo de referencia
+          </Button>
+        </div>
+        <YouTubePlayer key={videoReference.youtubeVideoId} videoId={videoReference.youtubeVideoId}
+          seekRequest={seekRequest?.scope === videoScope ? seekRequest : null} onPlaybackUpdate={playbackUpdate} />
+      </> : videoResult.data?.available === false ? <>
+        <div className={css.videoToolbar}>
+          {videoJob && activeVideoJobStatuses.has(videoJob.status)
+            ? <Button size="sm" disabled icon={<Plus size={16} aria-hidden="true" />}>Añadir vídeo</Button>
+            : <Button size="sm" disabled={videoOperationBusy || !videoJobLoaded} icon={<Plus size={16} aria-hidden="true" />} onClick={() => {
+              setOperationError(null);
+              setAddVideoOpen(true);
+            }}>Añadir vídeo</Button>}
+        </div>
+        {videoJob && <div className={css.jobStatus} role={videoJob.status === "failed" ? "alert" : "status"} aria-live="polite">
+          <strong>{videoJobLabel(videoJob)}.</strong> <span>{videoJob.message}</span>
+          {videoJob.status === "failed" && <Button size="sm" onClick={() => {
+            setOperationError(null);
+            setAddVideoOpen(true);
+          }}>Reintentar</Button>}
+        </div>}
+        {videoJobError && <p className={css.videoJobError} role="alert">No se pudo consultar el estado de la incorporación. {videoJobError}</p>}
+      </> : null}
     </div>
-    {chronological.length === 0 ? <p className={css.empty} role="status">
-      {items.length ? "No hay eventos que coincidan con estos filtros." : "No hay eventos disponibles para este partido."}
-    </p> : <ol className={css.timeline} aria-label="Eventos en orden cronológico">
+
+    {result.error ? <div className={css.message} role="alert">
+      <p>No se pudieron cargar los eventos. {failureReason(result.error)}</p>
+      <Button size="sm" onClick={result.retry}>Reintentar</Button>
+    </div> : !result.data ? <div aria-busy="true"><LoadingState variant="section" label="Cargando eventos…" /></div> : <>
+      <div className={css.filters} aria-label="Filtros de eventos">
+        <label>Tipo de evento
+          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+            <option value="">Todos</option>
+            {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            <option value="__unclassified">Sin clasificar</option>
+          </select>
+        </label>
+        <label>Jugador
+          <select value={playerId} onChange={(event) => setPlayerId(event.target.value)}>
+            <option value="">Todos los jugadores</option>
+            {players.map((player) => <option key={player.id} value={player.id}>{player.label}</option>)}
+          </select>
+        </label>
+        <label>Equipo
+          <select value={team} onChange={(event) => setTeam(event.target.value as FilterTeam)}>
+            <option value="all">Ambos equipos</option>
+            <option value="home">{homeName || "Equipo local"}</option>
+            <option value="away">{awayName || "Equipo visitante"}</option>
+          </select>
+        </label>
+      </div>
+      {chronological.length === 0 ? <p className={css.empty} role="status">
+        {items.length ? "No hay eventos que coincidan con estos filtros." : "No hay eventos disponibles para este partido."}
+      </p> : <>
+        {hasVideo ? <div className={css.carouselControls} aria-label="Navegación de eventos">
+          <button type="button" className={css.scrollButton} aria-label="Eventos anteriores"
+            disabled={scrollRange.left <= 0} onClick={() => scrollCarousel(-1)}>
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+          <button type="button" className={css.scrollButton} aria-label="Eventos siguientes"
+            disabled={scrollRange.left >= scrollRange.max} onClick={() => scrollCarousel(1)}>
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        </div> : null}
+        <ol ref={eventsRef} className={`${css.timeline} ${hasVideo ? css.timelineVideo : ""}`}
+          aria-label="Eventos en orden cronológico" tabIndex={hasVideo ? 0 : undefined}
+          onPointerDown={hasVideo ? noteManualCarouselUse : undefined}
+          onPointerMove={hasVideo ? noteManualCarouselUse : undefined}
+          onTouchStart={hasVideo ? noteManualCarouselUse : undefined}
+          onTouchMove={hasVideo ? noteManualCarouselUse : undefined}
+          onWheel={hasVideo ? noteManualCarouselUse : undefined}
+          onKeyDown={hasVideo ? (event) => {
+            if (["ArrowLeft", "ArrowRight", "Home", "End", "PageDown", "PageUp"].includes(event.key)) noteManualCarouselUse();
+          } : undefined}>
       {chronological.map(({ item, mentions }) => {
-        const attributes = attributesFor(item);
-        return <li key={`${item.captureId ?? "capture"}-${typeof item.id}-${item.id}`} className={css.item}>
+        const key = eventKey(item);
+        const scopedKey = `${videoScope}::${key}`;
+        const period = periodFor(item.periodName);
+        const eventKind = item.originalType === "matchStarted" && period === "first" ? "match_start"
+          : item.originalType === "matchStarted" && period === "second" ? "period_start" : "other";
+        const periodStart = eventKind !== "other";
+        const location = locationByKey[scopedKey];
+        const nonlocalizable = (!periodStart && (item.minute === null || item.minute < 1)) || period === null
+          || location?.status === "ambiguous" || location?.status === "uncertain" || location?.status === "out_of_coverage";
+        const reason = location?.status === "ambiguous" ? "Hay más de una posición posible."
+          : location?.status === "uncertain" ? "No se ha identificado con seguridad la parte del partido."
+            : location?.status === "out_of_coverage" ? "El minuto queda fuera de la cobertura OCR verificada."
+              : periodStart ? null
+                : item.minute === null ? "Este comentario no tiene minuto."
+                : item.minute < 1 ? "Este comentario no tiene un minuto futbolístico válido."
+                : !period ? "No se reconoce el periodo de este comentario." : null;
+        const actionName = nonlocalizable ? `Vídeo no localizable: ${reason ?? "sin posición única"}`
+          : location?.status === "loading" ? "Buscando la posición aproximada en el vídeo"
+            : location?.status === "error" ? `Reintentar búsqueda de vídeo para el minuto ${item.minute}`
+              : periodStart ? `Localizar el inicio de la ${period === "first" ? "primera" : "segunda"} parte`
+                : `Saltar al minuto ${item.minute} de la ${period === "first" ? "primera" : "segunda"} parte; reproducción desde el reloj ${footballClockAtMinuteTail(item.minute!)}`;
+        const isPlaybackActive = hasVideo && activePlaybackEventKey === key;
+        const isSelected = hasVideo && (playback.ready ? isPlaybackActive : selectedEventKey === scopedKey);
+        const expanded = expandedEventKeys.has(key);
+        const canExpand = hasVideo && item.text.length > 130;
+        return <li key={key} ref={(element) => {
+          if (element) eventCardRefs.current.set(key, element);
+          else eventCardRefs.current.delete(key);
+        }} className={`${css.item} ${isSelected ? css.selected : ""} ${isPlaybackActive ? css.activeEvent : ""}`}
+          aria-current={isPlaybackActive ? "true" : undefined}>
           <div className={css.when}>
             <strong>{item.minute === null ? "Sin minuto" : `${item.minute}′`}</strong>
           </div>
           <div className={css.content}>
             <span className={css.kind}>{eventLabel(item)}</span>
-            <p className={css.text}><TextWithPlayers item={item} mentions={mentions}
+            <p className={`${css.text} ${canExpand && !expanded ? css.textClamped : ""}`}><TextWithPlayers item={item} mentions={mentions}
               seasonId={seasonId} profileOrigin={profileOrigin} /></p>
+            {canExpand ? <button type="button" className={css.expandText} aria-expanded={expanded}
+              onClick={() => setExpandedEventKeys((current) => {
+                const next = new Set(current);
+                if (next.has(key)) next.delete(key); else next.add(key);
+                return next;
+              })}>{expanded ? "Mostrar menos" : "Ver comentario completo"}</button> : null}
             {item.score && (item.score.home !== null || item.score.away !== null) ? <p className={css.score}
               aria-label={`Marcador: ${item.score.home ?? "no disponible"} a ${item.score.away ?? "no disponible"}`}>
               Marcador <strong>{item.score.home ?? "—"}–{item.score.away ?? "—"}</strong>
             </p> : null}
-            {attributes.length ? <ul className={css.attributes} aria-label="Atributos detectados">
-              {attributes.map((attribute) => <li key={attribute.key}><strong>{attribute.label}</strong> {attribute.text}</li>)}
-            </ul> : null}
           </div>
+          {hasVideo ? <div className={css.videoAction}>
+            <button type="button" className={css.videoButton} aria-label={actionName}
+              title={reason ?? (location?.status === "error" ? location.message
+                : location?.status === "resolved" && !periodStart
+                  ? `Reproducción desde ${footballClockAtMinuteTail(item.minute!)} del reloj futbolístico`
+                  : "Consultar estado de localización del evento")}
+              disabled={nonlocalizable || location?.status === "loading"}
+              onClick={() => void locateEvent(item, key)}>
+              <Video size={17} aria-hidden="true" />
+            </button>
+          </div> : null}
         </li>;
       })}
-    </ol>}
+        </ol>
+      </>}
+    </>}
+    {addVideoOpen && <div className={css.dialogBackdrop}>
+      <section className={css.dialog} role="dialog" aria-modal="true" aria-labelledby="add-video-title">
+        <div className={css.dialogHeading}>
+          <h2 id="add-video-title">Añadir vídeo de YouTube</h2>
+          <button type="button" className={css.dialogClose} aria-label="Cerrar" disabled={submittingVideo}
+            onClick={() => { setAddVideoOpen(false); setOperationError(null); }}><X size={20} aria-hidden="true" /></button>
+        </div>
+        <form onSubmit={(event) => void addVideo(event)}>
+          <label className={css.dialogField} htmlFor="youtube-video-url">URL de YouTube
+            <input id="youtube-video-url" name="youtube-url" type="url" autoComplete="url" autoFocus required
+              maxLength={2048} placeholder="https://www.youtube.com/watch?v=…" value={youtubeUrl}
+              disabled={submittingVideo} onChange={(event) => setYoutubeUrl(event.target.value)} />
+          </label>
+          <p className={css.dialogHelp}>Se descargará temporalmente la versión actual para generar una nueva sincronización. El archivo temporal se eliminará al terminar.</p>
+          {operationError && <p className={css.dialogError} role="alert">{operationError}</p>}
+          <div className={css.dialogActions}>
+            <Button size="sm" variant="ghost" disabled={submittingVideo} onClick={() => {
+              setAddVideoOpen(false);
+              setOperationError(null);
+            }}>Cancelar</Button>
+            <Button size="sm" variant="primary" type="submit" disabled={submittingVideo || videoOperationBusy
+              || !youtubeUrl.trim()}>{submittingVideo ? "Iniciando…" : "Añadir y sincronizar"}</Button>
+          </div>
+        </form>
+      </section>
+    </div>}
+    {deleteVideoOpen && <div className={css.dialogBackdrop}>
+      <section className={css.dialog} role="dialog" aria-modal="true" aria-labelledby="delete-video-title">
+        <div className={css.dialogHeading}>
+          <h2 id="delete-video-title">Eliminar vídeo de referencia</h2>
+          <button type="button" className={css.dialogClose} aria-label="Cerrar" disabled={deletingVideo}
+            onClick={() => { setDeleteVideoOpen(false); setOperationError(null); }}><X size={20} aria-hidden="true" /></button>
+        </div>
+        <p>Se desvinculará el vídeo de este partido y se desactivará su calibración vigente. El vídeo original de YouTube y el informe OCR histórico se conservarán. Volverán los comentarios verticales y podrás añadir este u otro vídeo más adelante.</p>
+        {operationError && <p className={css.dialogError} role="alert">{operationError}</p>}
+        <div className={css.dialogActions}>
+          <Button size="sm" variant="ghost" disabled={deletingVideo} onClick={() => {
+            setDeleteVideoOpen(false);
+            setOperationError(null);
+          }}>Cancelar</Button>
+          <Button size="sm" variant="primary" disabled={deletingVideo || videoOperationBusy} onClick={() => void removeVideo()}>
+            {deletingVideo ? "Eliminando…" : "Eliminar referencia"}
+          </Button>
+        </div>
+      </section>
+    </div>}
   </section>;
+}
+
+function periodFor(periodName: string | null): "first" | "second" | null {
+  if (periodName === "1ST") return "first";
+  if (periodName === "2ND") return "second";
+  return null;
+}
+
+function minuteForVideo(minute: number, period: "first" | "second"): string {
+  // SofaScore stores first-half stoppage time as 46′, 47′, etc.; V5.1 expects 45+N.
+  return period === "first" && minute > 45 ? `45+${minute - 45}` : String(minute);
+}
+
+function footballClockAtMinuteTail(minute: number): string {
+  const clockSecond = Math.max(0, (minute - 1) * 60 + 40);
+  const minutes = Math.floor(clockSecond / 60);
+  const seconds = clockSecond % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }

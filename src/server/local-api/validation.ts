@@ -22,7 +22,14 @@ export const NOT_AVAILABLE: Stat = { value: null, reason: "not_available" };
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export const invalid = (detail: string) => new UpstreamUnavailableError(`Respuesta no válida: ${detail}`);
+export class InvalidLocalApiResponseError extends UpstreamUnavailableError {
+  constructor(detail: string) {
+    super("Respuesta no válida: " + detail);
+    this.name = "InvalidLocalApiResponseError";
+  }
+}
+
+export const invalid = (detail: string) => new InvalidLocalApiResponseError(detail);
 
 /** `null` or absent stays unknown; any other non-text value makes the response invalid. */
 export function optionalText(value: unknown, field: string): string | null {

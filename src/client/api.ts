@@ -23,6 +23,9 @@ import type {
   UpdateJob,
   UpdateStart,
   UpdateStatus,
+  MatchVideoReference,
+  VideoEventLocation,
+  VideoJob,
 } from "@/contract";
 
 /** A failed `/api/v1` request, with the contract's error code when present. */
@@ -161,6 +164,51 @@ export function getObservedMatchDetail(matchId: string, options?: RequestOptions
 /** Narrative comments of a match, without treating them as incidents or sports statistics. */
 export function getMatchComments(matchId: string, options?: RequestOptions) {
   return get<MatchComments>(`/matches/${segment(matchId)}/comments`, options);
+}
+
+/** Optional video reference for one real match, resolved server-side from explicit SofaScore IDs. */
+export function getMatchVideo(matchId: string, options?: RequestOptions) {
+  return get<MatchVideoReference>(`/matches/${segment(matchId)}/video`, options);
+}
+
+/** Resolve a narrative event through Video Service; only `resolved` includes a playback second. */
+export function locateMatchVideoEvent(
+  matchId: string,
+  period: "first" | "second",
+  minute: string | null,
+  eventKind: "other" | "match_start" | "period_start" = "other",
+  eventSecond?: number,
+  options?: RequestOptions,
+) {
+  const params: Record<string, string> = { period, event_kind: eventKind };
+  if (minute !== null) params.minute = minute;
+  if (eventSecond !== undefined) params.event_second = String(eventSecond);
+  return get<VideoEventLocation>(
+    `/matches/${segment(matchId)}/video/locate${query(params)}`,
+    options,
+  );
+}
+
+/** Current or recovered processing job for the match currently open in the dashboard. */
+export function getCurrentMatchVideoJob(matchId: string, options?: RequestOptions) {
+  return get<VideoJob | null>(`/matches/${segment(matchId)}/video/jobs`, options);
+}
+
+export function getMatchVideoJob(matchId: string, jobId: string, options?: RequestOptions) {
+  return get<VideoJob>(`/matches/${segment(matchId)}/video/jobs/${segment(jobId)}`, options);
+}
+
+/** The match identity is encoded in the current route; the request body contains only a YouTube URL. */
+export function startMatchVideoJob(matchId: string, sourceUrl: string) {
+  return send<VideoJob>("POST", `/matches/${segment(matchId)}/video/jobs`, { body: { source_url: sourceUrl } })
+    .then((job) => {
+      if (!job) throw new Error("El servicio no devolvió el trabajo de vídeo.");
+      return job;
+    });
+}
+
+export function deleteMatchVideoReference(matchId: string) {
+  return send<MatchVideoReference>("DELETE", `/matches/${segment(matchId)}/video`);
 }
 
 /** Rule-based labels of the selected Spanish narrative comments for one SofaScore event. */
